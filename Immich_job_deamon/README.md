@@ -1,3 +1,4 @@
+
 # 🌸 Immich Job Daemon Add-on
 
 ![Icon](icon.png)
@@ -22,3 +23,8 @@ It ensures that only a defined number of jobs run concurrently, saving resources
 - API key must have the correct permissions
 - Recommended: Use `host` network mode for best connectivity
 
+---
+
+## 📦 Based on
+
+This add-on is based on the open-source project [immich-job-daemon](https://github.com/alternativniy/immich-job-daemon) by [alternativniy](https://github.com/alternativniy).
