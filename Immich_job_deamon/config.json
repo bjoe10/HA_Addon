@@ -7,8 +7,16 @@
   "boot": "auto",
   "ingress": false,
   "panel_icon": "mdi:server",
-  "arch": ["amd64", "armv7", "armhf", "aarch64", "i386"],
-  "map": ["config"],
+  "arch": [
+    "amd64",
+    "armv7",
+    "armhf",
+    "aarch64",
+    "i386"
+  ],
+  "map": [
+    "config"
+  ],
   "options": {
     "IMMICH_URL": "http://127.0.0.1:2283",
     "API_KEY": "",
