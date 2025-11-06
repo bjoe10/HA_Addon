@@ -6,6 +6,9 @@ IMMICH_URL=$(jq -r '.IMMICH_URL' /data/options.json)
 MAX_CONCURRENT_JOBS=$(jq -r '.MAX_CONCURRENT_JOBS' /data/options.json)
 POLL_INTERVAL=$(jq -r '.POLL_INTERVAL' /data/options.json)
 
+# Set the API endpoint URL
+URL="${IMMICH_URL}/api/jobs"
+
 # Variable to store previous job states
 PREV_JOB_STATES=""
 
