@@ -1,24 +1,33 @@
 #!/bin/sh
 
-# Debug-Ausgabe der Umgebungsvariablen
-echo "--- ENVIRONMENT VARIABLES ---"
-env | grep -E 'IMMICH_URL|API_KEY|MAX_CONCURRENT_JOBS|POLL_INTERVAL'
-echo "-----------------------------"
+# Read configuration from Home Assistant options.json
+API_KEY=$(jq -r '.API_KEY' /data/options.json)
+IMMICH_URL=$(jq -r '.IMMICH_URL' /data/options.json)
+MAX_CONCURRENT_JOBS=$(jq -r '.MAX_CONCURRENT_JOBS' /data/options.json)
+POLL_INTERVAL=$(jq -r '.POLL_INTERVAL' /data/options.json)
 
-# Originaler Skriptbeginn
-IMMICH_URL="${IMMICH_URL:-http://127.0.0.1:2283}"
-API_KEY="${API_KEY:-}"
-MAX_CONCURRENT_JOBS="${MAX_CONCURRENT_JOBS:-1}"
-POLL_INTERVAL="${POLL_INTERVAL:-10}"
-URL="${IMMICH_URL}/api/jobs"
-
-# Rest des Skripts bleibt unverändert...
-echo "Starting Immich Job Daemon..."
-echo "Immich URL: $IMMICH_URL"
-echo "Max concurrent jobs: $MAX_CONCURRENT_JOBS"
-echo "Poll interval: ${POLL_INTERVAL}s"
-
+# Validate required environment variables
 if [ -z "$API_KEY" ]; then
-    echo "ERROR: API_KEY environment variable is required" >&2
+    echo "ERROR: API_KEY is required" >&2
     exit 1
 fi
+
+if ! echo "$MAX_CONCURRENT_JOBS" | grep -qE '^[1-9][0-9]*$'; then
+    echo "ERROR: MAX_CONCURRENT_JOBS must be a positive integer" >&2
+    exit 1
+fi
+
+if ! echo "$POLL_INTERVAL" | grep -qE '^[1-9][0-9]*$'; then
+    echo "ERROR: POLL_INTERVAL must be a positive integer" >&2
+    exit 1
+fi
+
+# Debug output
+echo "--- CONFIGURATION ---"
+echo "IMMICH_URL=$IMMICH_URL"
+echo "API_KEY=$API_KEY"
+echo "MAX_CONCURRENT_JOBS=$MAX_CONCURRENT_JOBS"
+echo "POLL_INTERVAL=$POLL_INTERVAL"
+echo "---------------------"
+
+# The rest of the original script would follow here...
