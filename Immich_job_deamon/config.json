@@ -30,5 +30,5 @@
     "POLL_INTERVAL": "int"
   },
   "url": "https://github.com/bjoe10/HA_Addon",
-  "icon": "icon.png"
+  "icon": "https://github.com/bjoe10/HA_Addon/blob/main/Immich_job_deamon/icon.png"
 }
