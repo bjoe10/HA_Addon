@@ -1,0 +1,24 @@
+{
+  "name": "Immich Job Daemon",
+  "version": "1.0.0",
+  "slug": "immich_job_daemon",
+  "description": "Manages Immich jobs via API",
+  "startup": "application",
+  "boot": "auto",
+  "ingress": false,
+  "panel_icon": "mdi:server",
+  "arch": ["amd64", "armv7", "armhf", "aarch64", "i386"],
+  "map": ["config"],
+  "options": {
+    "IMMICH_URL": "http://127.0.0.1:2283",
+    "API_KEY": "",
+    "MAX_CONCURRENT_JOBS": 1,
+    "POLL_INTERVAL": 10
+  },
+  "schema": {
+    "IMMICH_URL": "str?",
+    "API_KEY": "str",
+    "MAX_CONCURRENT_JOBS": "int",
+    "POLL_INTERVAL": "int"
+  }
+}
