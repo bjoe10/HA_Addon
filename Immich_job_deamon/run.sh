@@ -1,4 +1,5 @@
 #!/bin/sh
+env | grep API_KEY
 
 # Configuration for the API endpoint and headers
 IMMICH_URL="${IMMICH_URL:-http://127.0.0.1:2283}"
