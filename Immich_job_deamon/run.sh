@@ -31,34 +31,10 @@ echo "POLL_INTERVAL=$POLL_INTERVAL"
 echo "---------------------"
 
 # Configuration for the API endpoint and headers
-IMMICH_URL="${IMMICH_URL:-http://127.0.0.1:2283}"
-API_KEY="${API_KEY:-}"
-MAX_CONCURRENT_JOBS="${MAX_CONCURRENT_JOBS:-1}"
-POLL_INTERVAL="${POLL_INTERVAL:-10}"
-URL="${IMMICH_URL}/api/jobs"
-
+URL="$IMMICH_URL/api/jobs"
 PREV_JOB_STATES=""
 
-if [ -z "$API_KEY" ]; then
-    echo "ERROR: API_KEY environment variable is required" >&2
-    exit 1
-fi
-
-if ! echo "$MAX_CONCURRENT_JOBS" | grep -qE '^[1-9][0-9]*$'; then
-    echo "ERROR: MAX_CONCURRENT_JOBS must be a positive integer" >&2
-    exit 1
-fi
-
-if ! echo "$POLL_INTERVAL" | grep -qE '^[1-9][0-9]*$'; then
-    echo "ERROR: POLL_INTERVAL must be a positive integer" >&2
-    exit 1
-fi
-
-echo "Starting Immich Job Daemon..."
-echo "Immich URL: $IMMICH_URL"
-echo "Max concurrent jobs: $MAX_CONCURRENT_JOBS"
-echo "Poll interval: ${POLL_INTERVAL}s"
-
+# Check server availability
 echo "Checking Immich server availability..."
 if ! curl -s -f -o /dev/null --connect-timeout 10 "$IMMICH_URL/api/server/ping"; then
     echo "ERROR: Cannot connect to Immich server at $IMMICH_URL" >&2
@@ -70,6 +46,7 @@ if ! curl -s -f -o /dev/null --connect-timeout 10 "$IMMICH_URL/api/server/ping";
 fi
 echo "✓ Successfully connected to Immich server"
 
+# Verify API key
 echo "Verifying API key..."
 test_response=$(curl -s -w "%{http_code}" -o /dev/null -X GET "$URL"     -H "Content-Type: application/json"     -H "Accept: application/json"     -H "x-api-key: $API_KEY")
 
@@ -84,7 +61,7 @@ echo "✓ API key verified successfully"
 echo ""
 
 fetch_jobs() {
-    curl -s -X GET "$URL"     -H "Content-Type: application/json"     -H "Accept: application/json"     -H "x-api-key: $API_KEY" 2>/dev/null
+    curl -s -X GET "$URL"         -H "Content-Type: application/json"         -H "Accept: application/json"         -H "x-api-key: $API_KEY"
 }
 
 set_job() {
@@ -92,7 +69,7 @@ set_job() {
     local command="$2"
     local payload='{"command":"'$command'","force":false}'
 
-    curl -s -X PUT "$URL/$job"     -H "Content-Type: application/json"     -H "Accept: application/json"     -H "x-api-key: $API_KEY"     -d "$payload" >/dev/null 2>&1
+    curl -s -X PUT "$URL/$job"         -H "Content-Type: application/json"         -H "Accept: application/json"         -H "x-api-key: $API_KEY"         -d "$payload" >/dev/null 2>&1
 
     if [ $? -ne 0 ]; then
         echo "Error setting job $job to $command" >&2
@@ -107,7 +84,7 @@ manage_jobs() {
     fi
 
     priority_job_list="sidecar metadataExtraction storageTemplateMigration thumbnailGeneration smartSearch duplicateDetection faceDetection facialRecognition videoConversion"
-    all_jobs=$(echo "$jobs" | jq -r 'keys[]' 2>/dev/null)
+    all_jobs=$(echo "$jobs" | jq -r 'keys[]')
 
     managed_job_list="$priority_job_list"
     for job in $all_jobs; do
@@ -120,7 +97,7 @@ manage_jobs() {
     currently_active_jobs=""
 
     for job in $managed_job_list; do
-        job_counts=$(echo "$jobs" | jq -r ".$job.jobCounts | "\(.active // 0) \(.waiting // 0) \(.paused // 0) \(.delayed // 0)"" 2>/dev/null)
+        job_counts=$(echo "$jobs" | jq -r ".$job.jobCounts | "\(.active // 0) \(.waiting // 0) \(.paused // 0) \(.delayed // 0)"")
 
         if [ -z "$job_counts" ]; then
             continue
@@ -147,7 +124,7 @@ manage_jobs() {
         done
     else
         for job in $managed_job_list; do
-            job_counts=$(echo "$jobs" | jq -r ".$job.jobCounts | "\(.active // 0) \(.waiting // 0) \(.paused // 0) \(.delayed // 0)"" 2>/dev/null)
+            job_counts=$(echo "$jobs" | jq -r ".$job.jobCounts | "\(.active // 0) \(.waiting // 0) \(.paused // 0) \(.delayed // 0)"")
 
             if [ -z "$job_counts" ]; then
                 continue
