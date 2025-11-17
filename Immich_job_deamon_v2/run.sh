@@ -7,6 +7,7 @@
 # - Alle Jobs normal laufen lassen
 # - Sicherstellen, dass OCR und smartSearch nie gleichzeitig aktiv sind
 # - OCR wird beim Start pausiert
+# - 10 Sekunden Delay zwischen Wechseln
 # ==============================
 
 # Konfiguration aus Home Assistant options.json laden
@@ -42,10 +43,7 @@ echo "✓ Server erreichbar"
 
 # API-Key-Check
 echo "Verifying API key..."
-test_response=$(curl -s -w "%{http_code}" -o /dev/null -X GET "$URL" \
-    -H "Content-Type: application/json" \
-    -H "Accept: application/json" \
-    -H "x-api-key: $API_KEY")
+test_response=$(curl -s -w "%{http_code}" -o /dev/null -X GET "$URL"     -H "Content-Type: application/json"     -H "Accept: application/json"     -H "x-api-key: $API_KEY")
 
 if [ "$test_response" = "401" ] || [ "$test_response" = "403" ]; then
     echo "ERROR: API-Key ungültig oder keine Berechtigungen" >&2
@@ -58,10 +56,7 @@ echo ""
 
 # Funktionen
 fetch_jobs() {
-    curl -s -X GET "$URL" \
-    -H "Content-Type: application/json" \
-    -H "Accept: application/json" \
-    -H "x-api-key: $API_KEY" 2>/dev/null
+    curl -s -X GET "$URL"     -H "Content-Type: application/json"     -H "Accept: application/json"     -H "x-api-key: $API_KEY" 2>/dev/null
 }
 
 set_job() {
@@ -69,11 +64,7 @@ set_job() {
     local command="$2"
     local payload='{"command":"'"$command"'","force":false}'
 
-    curl -s -X PUT "$URL/$job" \
-    -H "Content-Type: application/json" \
-    -H "Accept: application/json" \
-    -H "x-api-key: $API_KEY" \
-    -d "$payload" >/dev/null 2>&1
+    curl -s -X PUT "$URL/$job"     -H "Content-Type: application/json"     -H "Accept: application/json"     -H "x-api-key: $API_KEY"     -d "$payload" >/dev/null 2>&1
 
     if [ $? -ne 0 ]; then
         echo "Fehler beim Setzen von $job auf $command" >&2
@@ -104,14 +95,18 @@ manage_jobs() {
         set_job "OCR" "pause"
     fi
 
-    # Wiederaufnahme: Wenn OCR inaktiv und smartSearch pausiert -> Resume smartSearch
+    # Wiederaufnahme: Wenn OCR inaktiv und smartSearch pausiert -> Resume smartSearch mit Delay
     if [ "$ocr_active" -eq 0 ] && [ "$smart_paused" -gt 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⏳ Warte 10 Sekunden vor Resume von smartSearch..."
+        sleep 10
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️ OCR inaktiv. Resumiere smartSearch..."
         set_job "smartSearch" "resume"
     fi
 
-    # Wiederaufnahme: Wenn smartSearch inaktiv und OCR pausiert -> Resume OCR
+    # Wiederaufnahme: Wenn smartSearch inaktiv und OCR pausiert -> Resume OCR mit Delay
     if [ "$smart_active" -eq 0 ] && [ "$ocr_paused" -gt 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⏳ Warte 10 Sekunden vor Resume von OCR..."
+        sleep 10
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️ smartSearch inaktiv. Resumiere OCR..."
         set_job "OCR" "resume"
     fi
