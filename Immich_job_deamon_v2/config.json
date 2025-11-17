@@ -1,6 +1,6 @@
 {
   "name": "Immich Job Daemon v2",
-  "version": "1.0.1b",
+  "version": "1.0.2b",
   "slug": "immich_job_daemon_v2",
   "description": "Manages Immich jobs via API",
   "startup": "application",
