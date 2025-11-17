@@ -128,6 +128,10 @@ trap cleanup TERM INT
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⏸️ Pausiere OCR beim Start..."
 set_job "OCR" "pause"
 
+# smartSearch direkt starten (falls pausiert)
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️ Stelle sicher, dass smartSearch aktiv ist..."
+set_job "smartSearch" "resume"
+
 # Start Loop
 echo "🚀 Job-Daemon gestartet. Drücke Ctrl+C zum Stoppen."
 echo ""
