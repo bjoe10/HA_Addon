@@ -1,84 +1,68 @@
-
 # 🌸 Immich Job Daemon Add-on
 
 ![Icon](icon.png)
 
-This Home Assistant add-on helps you **manage Immich background jobs efficiently** via the Immich API. It ensures that only a defined number of jobs run concurrently, saving resources on low-powered systems.
+Dieses Home Assistant Add-on hilft dir, **Immich Hintergrundjobs sicher zu steuern**, indem es Konflikte zwischen bestimmten Jobs verhindert. Es sorgt dafür, dass **OCR und smartSearch niemals gleichzeitig laufen**, um Ressourcen zu schonen und unerwünschte parallele Verarbeitung zu vermeiden.
 
 ---
 
-## 🔧 Based on
-This add-on is based on the original project [immich-job-daemon](https://github.com/alternativniy/immich-job-daemon), a lightweight Alpine-based daemon that manages Immich job queues by priority.
+## 🔧 Basierend auf
+Dieses Add-on basiert auf dem Projekt [immich-job-daemon](https://github.com/alternativniy/immich-job-daemon), wurde aber für einen speziellen Anwendungsfall angepasst: **Statt globaler Job-Priorisierung wird nur die Kollision zwischen OCR und smartSearch verhindert.**
 
 ---
 
-## ⚙️ Configuration
+## ⚙️ Konfiguration
 
-- **`IMMICH_URL`**: URL of your Immich server (e.g., `http://192.168.x.x:2283`)
-- **`API_KEY`**: Immich API key with `job.read` and `job.create` permissions
-- **`MAX_CONCURRENT_JOBS`**: Maximum number of jobs allowed to run at the same time
-- **`POLL_INTERVAL`**: Interval (in seconds) for checking job status
+- **`IMMICH_URL`**: URL deines Immich-Servers (z. B. `http://192.168.x.x:2283`)
+- **`API_KEY`**: Immich API-Key mit den Berechtigungen `job.read` und `job.create`
+- **`POLL_INTERVAL`**: Intervall (in Sekunden), in dem der Status der Jobs überprüft wird
+
+> ⚠️ Die Option `MAX_CONCURRENT_JOBS` wird in dieser Version **nicht mehr verwendet**, da alle Jobs normal laufen dürfen.
 
 ---
 
 ## 🚀 Features
 
-- 🐧 Based on Alpine Linux (minimal image size)
-- 🔄 Automatic job priority management
-- ⚙️ Configurable number of concurrent jobs
-- 🔒 Runs as non-privileged user
-- 🌐 Configuration via Home Assistant options
+- 🐧 Minimaler Footprint (Alpine Linux)
+- 🔒 Läuft als nicht privilegierter Benutzer
+- 🌐 Konfiguration über Home Assistant
+- ✅ Verhindert, dass OCR und smartSearch gleichzeitig aktiv sind
+- ⏸ OCR wird beim Start automatisch pausiert, damit smartSearch sofort starten kann
+- 🔄 Automatisches Resume:
+  - Wenn OCR fertig ist → smartSearch wird wieder aktiviert
+  - Wenn smartSearch fertig ist → OCR wird wieder aktiviert
 
 ---
 
-## 📊 Job Priority
-Jobs are processed in the following priority order:
+## 🔄 Wie funktioniert es?
 
-1. sidecar
-2. metadataExtraction
-3. storageTemplateMigration
-4. thumbnailGeneration
-5. smartSearch
-6. duplicateDetection
-7. faceDetection
-8. facialRecognition
-9. videoConversion
-10. other jobs
+Der Daemon läuft alle `POLL_INTERVAL` Sekunden und führt folgende Schritte aus:
+
+1. Pausiert **OCR direkt beim Start**, um Konflikte zu vermeiden.
+2. Prüft den Status der Jobs über die Immich API.
+3. Wenn **OCR aktiv ist**, wird **smartSearch pausiert**.
+4. Wenn **smartSearch aktiv ist**, wird **OCR pausiert**.
+5. Sobald einer der beiden Jobs fertig ist, wird der andere automatisch wieder gestartet.
+6. Alle anderen Jobs laufen unbeeinträchtigt weiter.
 
 ---
 
-## 🔄 How It Works
+## 🔐 API Key Berechtigungen
 
-The daemon runs every N seconds (configurable via `POLL_INTERVAL`):
+Um einen gültigen API-Key zu erstellen:
 
-1. Fetches all jobs from Immich API
-2. Checks for actively running jobs (active > 0)
-3. If there are active jobs – continues their execution until completion (does not interrupt)
-4. If all jobs are paused – finds the first N jobs from the priority list (where N = `MAX_CONCURRENT_JOBS`) that have tasks in queue
-5. Resumes selected jobs
-6. Pauses all other managed jobs
+1. Melde dich in der Immich Weboberfläche an.
+2. Gehe zu **Account Settings → API Keys**.
+3. Erstelle einen neuen API-Key mit:
+   - ✅ `job.read` – zum Auslesen des Job-Status
+   - ✅ `job.create` – zum Pausieren/Fortsetzen von Jobs
 
-This allows efficient server resource management by processing jobs sequentially or in parallel according to priority, **without interrupting already running jobs**.
-
----
-
-## 🔐 API Key Permissions
-
-To generate a valid API key:
-
-1. Log in to Immich web interface
-2. Go to **Account Settings → API Keys**
-3. Create a new API key with required permissions:
-   - ✅ `job.read` – to read job status
-   - ✅ `job.create` – to manage jobs (pause/resume)
-
-> ⚠️ The daemon will not work without these permissions.
+> Ohne diese Berechtigungen funktioniert das Add-on nicht.
 
 ---
 
-## ✅ Requirements
+## ✅ Voraussetzungen
 
-- Immich server must be reachable from the Home Assistant add-on container
-- API key must have the correct permissions
-- Recommended: Use `host` network mode for best connectivity
-
+- Immich-Server muss vom Home Assistant Add-on erreichbar sein.
+- API-Key muss die korrekten Berechtigungen haben.
+- Empfohlen: `host` Netzwerkmodus für beste Konnektivität.
