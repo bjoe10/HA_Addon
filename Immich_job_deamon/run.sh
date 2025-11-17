@@ -6,6 +6,7 @@
 # Ziel:
 # - Alle Jobs normal laufen lassen
 # - Sicherstellen, dass OCR und smartSearch nie gleichzeitig aktiv sind
+# - OCR wird beim Start pausiert
 # ==============================
 
 # Konfiguration aus Home Assistant options.json laden
@@ -91,16 +92,16 @@ manage_jobs() {
     smart_paused=$(echo "$jobs" | jq -r '.smartSearch.jobCounts.paused // 0')
     ocr_paused=$(echo "$jobs" | jq -r '.OCR.jobCounts.paused // 0')
 
-    # Konflikt: Beide aktiv -> OCR pausieren (OCR darf warten)
-    if [ "$smart_active" -gt 0 ] && [ "$ocr_active" -gt 0 ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ Beide aktiv. Pausiere OCR..."
-        set_job "OCR" "pause"
-    fi
-
     # Wenn OCR aktiv -> smartSearch pausieren
     if [ "$ocr_active" -gt 0 ] && [ "$smart_active" -gt 0 ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ OCR aktiv. Pausiere smartSearch..."
         set_job "smartSearch" "pause"
+    fi
+
+    # Wenn smartSearch aktiv -> OCR pausieren
+    if [ "$smart_active" -gt 0 ] && [ "$ocr_active" -gt 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ smartSearch aktiv. Pausiere OCR..."
+        set_job "OCR" "pause"
     fi
 
     # Wiederaufnahme: Wenn OCR inaktiv und smartSearch pausiert -> Resume smartSearch
@@ -127,6 +128,10 @@ cleanup() {
 }
 
 trap cleanup TERM INT
+
+# OCR direkt beim Start pausieren
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⏸️ Pausiere OCR beim Start..."
+set_job "OCR" "pause"
 
 # Start Loop
 echo "🚀 Job-Daemon gestartet. Drücke Ctrl+C zum Stoppen."
