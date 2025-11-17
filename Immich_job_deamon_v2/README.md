@@ -2,12 +2,16 @@
 
 ![Icon](icon.png)
 
-Dieses Home Assistant Add-on hilft dir, **Immich Hintergrundjobs sicher zu steuern**, indem es Konflikte zwischen bestimmten Jobs verhindert. Es sorgt dafür, dass **OCR und smartSearch niemals gleichzeitig laufen**, um Ressourcen zu schonen und unerwünschte parallele Verarbeitung zu vermeiden.
+Dieses Home Assistant Add-on hilft dir, **Immich Hintergrundjobs sicher zu steuern**, indem es Konflikte zwischen bestimmten Jobs verhindert. Es sorgt dafür, dass **OCR und smartSearch niemals gleichzeitig laufen**, und berücksichtigt dabei Systemressourcen durch einen Delay beim Wechsel.
 
 ---
 
 ## 🔧 Basierend auf
-Dieses Add-on basiert auf dem Projekt [immich-job-daemon](https://github.com/alternativniy/immich-job-daemon), wurde aber für einen speziellen Anwendungsfall angepasst: **Statt globaler Job-Priorisierung wird nur die Kollision zwischen OCR und smartSearch verhindert.**
+Dieses Add-on basiert auf dem Projekt [immich-job-daemon](https://github.com/alternativniy/immich-job-daemon), wurde aber für einen speziellen Anwendungsfall angepasst:
+
+✅ OCR wird beim Start pausiert
+✅ smartSearch wird beim Start aktiviert
+✅ 10 Sekunden Delay beim Wechsel zwischen den Jobs
 
 ---
 
@@ -23,11 +27,13 @@ Dieses Add-on basiert auf dem Projekt [immich-job-daemon](https://github.com/alt
 
 ## 🚀 Features
 
-- 🐧 Minimaler Footprint (Alpine Linux)
+
 - 🔒 Läuft als nicht privilegierter Benutzer
 - 🌐 Konfiguration über Home Assistant
 - ✅ Verhindert, dass OCR und smartSearch gleichzeitig aktiv sind
-- ⏸ OCR wird beim Start automatisch pausiert, damit smartSearch sofort starten kann
+- ⏸ OCR wird beim Start automatisch pausiert
+- ▶️ smartSearch wird beim Start aktiviert
+- ⏳ 10 Sekunden Delay beim Wechsel zwischen den Jobs, um RAM-Spitzen zu vermeiden
 - 🔄 Automatisches Resume:
   - Wenn OCR fertig ist → smartSearch wird wieder aktiviert
   - Wenn smartSearch fertig ist → OCR wird wieder aktiviert
@@ -39,11 +45,12 @@ Dieses Add-on basiert auf dem Projekt [immich-job-daemon](https://github.com/alt
 Der Daemon läuft alle `POLL_INTERVAL` Sekunden und führt folgende Schritte aus:
 
 1. Pausiert **OCR direkt beim Start**, um Konflikte zu vermeiden.
-2. Prüft den Status der Jobs über die Immich API.
-3. Wenn **OCR aktiv ist**, wird **smartSearch pausiert**.
-4. Wenn **smartSearch aktiv ist**, wird **OCR pausiert**.
-5. Sobald einer der beiden Jobs fertig ist, wird der andere automatisch wieder gestartet.
-6. Alle anderen Jobs laufen unbeeinträchtigt weiter.
+2. Aktiviert **smartSearch direkt beim Start**, damit es sofort loslegt.
+3. Prüft den Status der Jobs über die Immich API.
+4. Wenn **OCR aktiv ist**, wird **smartSearch pausiert**.
+5. Wenn **smartSearch aktiv ist**, wird **OCR pausiert**.
+6. Sobald einer der beiden Jobs fertig ist, wird der andere automatisch wieder gestartet – mit einem **10-Sekunden-Delay**.
+7. Alle anderen Jobs laufen unbeeinträchtigt weiter.
 
 ---
 
