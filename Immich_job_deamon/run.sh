@@ -6,7 +6,6 @@
 # Ziel:
 # - Alle Jobs normal laufen lassen
 # - Sicherstellen, dass OCR und smartSearch nie gleichzeitig aktiv sind
-# - OCR darf immer warten
 # ==============================
 
 # Konfiguration aus Home Assistant options.json laden
@@ -89,17 +88,30 @@ manage_jobs() {
 
     smart_active=$(echo "$jobs" | jq -r '.smartSearch.jobCounts.active // 0')
     ocr_active=$(echo "$jobs" | jq -r '.OCR.jobCounts.active // 0')
+    smart_paused=$(echo "$jobs" | jq -r '.smartSearch.jobCounts.paused // 0')
     ocr_paused=$(echo "$jobs" | jq -r '.OCR.jobCounts.paused // 0')
 
-    # Wenn beide aktiv -> OCR pausieren
+    # Konflikt: Beide aktiv -> OCR pausieren (OCR darf warten)
     if [ "$smart_active" -gt 0 ] && [ "$ocr_active" -gt 0 ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ smartSearch und OCR laufen gleichzeitig. Pausiere OCR..."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ Beide aktiv. Pausiere OCR..."
         set_job "OCR" "pause"
     fi
 
-    # Wenn smartSearch inaktiv und OCR pausiert -> OCR wieder starten
+    # Wenn OCR aktiv -> smartSearch pausieren
+    if [ "$ocr_active" -gt 0 ] && [ "$smart_active" -gt 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ OCR aktiv. Pausiere smartSearch..."
+        set_job "smartSearch" "pause"
+    fi
+
+    # Wiederaufnahme: Wenn OCR inaktiv und smartSearch pausiert -> Resume smartSearch
+    if [ "$ocr_active" -eq 0 ] && [ "$smart_paused" -gt 0 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️ OCR inaktiv. Resumiere smartSearch..."
+        set_job "smartSearch" "resume"
+    fi
+
+    # Wiederaufnahme: Wenn smartSearch inaktiv und OCR pausiert -> Resume OCR
     if [ "$smart_active" -eq 0 ] && [ "$ocr_paused" -gt 0 ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️ smartSearch ist inaktiv. Resumiere OCR..."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️ smartSearch inaktiv. Resumiere OCR..."
         set_job "OCR" "resume"
     fi
 }
@@ -107,8 +119,9 @@ manage_jobs() {
 # Graceful Shutdown
 cleanup() {
     echo ""
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🛑 Shutdown erkannt. Pausiere OCR zur Sicherheit..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🛑 Shutdown erkannt. Pausiere OCR und smartSearch zur Sicherheit..."
     set_job "OCR" "pause"
+    set_job "smartSearch" "pause"
     echo "Beende Job-Daemon."
     exit 0
 }
