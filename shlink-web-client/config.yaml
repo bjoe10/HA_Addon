@@ -1,8 +1,8 @@
 
 name: "Shlink Web Client"
 slug: "shlink-web-client"
-description: "Offizieller Shlink Web Client als Home Assistant Add-on (Ingress)"
-version: "latest"              # entspricht dem Docker-Tag; auf Wunsch auf feste Version pinnen (z.B. "4.0.0")
+description: "Offizieller Shlink Web Client (Ingress in Home Assistant)"
+version: "latest"                # nutzt das aktuelle Docker-Tag
 arch:
   - aarch64
   - amd64
@@ -10,25 +10,18 @@ arch:
   - armhf
   - i386
 startup: application
-stage: stable
 
-# Wir verwenden das offizielle Image, kein eigener Dockerfile nötig.
-image: "shlinkio/shlink-web-client"
-legacy: true
+# Wir verwenden das fertige Docker-Image (ohne eigenen Dockerfile)
+image: "shlinkio/shlink-web-client:latest"
+legacy: true                     # weil das Image keine hass.io-Labels hat
 
-# Ingress aktivieren; der Client wird im HA-Frontend eingeblendet.
+# Ingress aktiviert: Panel in der Seitenleiste, keine externen Ports
 ingress: true
-ingress_port: 8080             # Shlink Web Client bedient 8080
+ingress_port: 8080               # Shlink Web Client bedient Port 8080
 panel_icon: "mdi:link-variant"
 panel_title: "Shlink"
 
-# Optionaler Direktzugriff (wenn du doch Ports öffnen willst):
+# Keine Port-Freigaben; alles läuft über Ingress
 ports:
-  8080/tcp: null               # null => keine externe Freigabe, nur Ingress
+  8080/tcp: null
 
-# Datei-Mapping:
-# Wir legen 'servers.json' im Add-on-Konfigpfad ab und binden ihn ins Document-Root des Containers.
-map:
-  - type: addon_config
-    read_only: false
-    path: /usr/share/nginx/html
