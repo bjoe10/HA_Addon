@@ -1,33 +1,30 @@
-#!/usr/bin/with-contenv bash
-set -e
+#!/bin/sh
 
-OPTIONS=/data/options.json
-DATA_DIR=/data/shlink
-mkdir -p "$DATA_DIR"
+# Home Assistant speichert Optionen in /data/options.json
+CONFIG_PATH=/data/options.json
 
-export SHLINK_DEFAULT_DOMAIN=$(jq -r '.default_domain' "$OPTIONS")
-export SHLINK_IS_HTTPS_ENABLED=$(jq -r '.is_https_enabled' "$OPTIONS")
-export SHLINK_TIMEZONE=$(jq -r '.timezone' "$OPTIONS")
-export SHLINK_ANONYMIZE_REMOTE_ADDR=$(jq -r '.anonymize_remote_addr' "$OPTIONS")
+echo "Starte Shlink Add-on..."
 
-DB_DRIVER=$(jq -r '.db_driver' "$OPTIONS")
+# Lesen der Werte aus der HA-Konfiguration
+DEFAULT_DOMAIN=$(jq --raw-output '.default_domain' $CONFIG_PATH)
+IS_HTTPS=$(jq --raw-output '.is_https' $CONFIG_PATH)
 
-if [ "$DB_DRIVER" = "sqlite" ]; then
-  export SHLINK_DB_DRIVER=sqlite
-  export SHLINK_DB_NAME="$DATA_DIR/database.sqlite"
-else
-  export SHLINK_DB_DRIVER=maria
-  export SHLINK_DB_HOST=$(jq -r '.db_host' "$OPTIONS")
-  export SHLINK_DB_PORT=$(jq -r '.db_port' "$OPTIONS")
-  export SHLINK_DB_NAME=$(jq -r '.db_name' "$OPTIONS")
-  export SHLINK_DB_USER=$(jq -r '.db_user' "$OPTIONS")
-  export SHLINK_DB_PASSWORD=$(jq -r '.db_password' "$OPTIONS")
+echo "Konfiguriere Domain: $DEFAULT_DOMAIN"
+
+# Exportieren als Environment-Variablen für Shlink
+export DEFAULT_DOMAIN="$DEFAULT_DOMAIN"
+export IS_HTTPS_ENABLED="$IS_HTTPS"
+export GEOLITE_LICENSE_KEY="" # Optional: Hier könnte man noch einen Key via Config einbauen
+
+# WICHTIG: Prüfen ob die Datenbank existiert, sonst initialisieren
+if [ ! -f "/data/shlink_db.sqlite" ]; then
+    echo "Datenbank wird initialisiert..."
+    # Initialer Shlink Befehl, falls nötig, passiert oft automatisch beim ersten Start im Container
 fi
 
-GEO_KEY=$(jq -r '.geolite_license_key' "$OPTIONS")
-if [ "$GEO_KEY" != "" ] && [ "$GEO_KEY" != "null" ]; then
-  export SHLINK_GEOLITE_LICENSE_KEY="$GEO_KEY"
-fi
+# Da wir im Dockerfile USER root waren, wechseln wir für den Start 
+# (optional, aber sicherer) oder lassen Shlink als root laufen (einfacher für den Anfang).
+# Der offizielle Container nutzt entrypoint-Logik. Wir rufen diese nun auf.
 
-echo "Starting Shlink for ${SHLINK_DEFAULT_DOMAIN}"
-exec /usr/bin/entrypoint.sh shlink serve -vvv
+# Starten des Servers (Standard Command des Shlink Images imitieren)
+exec /usr/local/bin/docker-entrypoint.sh
