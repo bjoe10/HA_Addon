@@ -4,15 +4,25 @@ CONFIG_PATH=/data/options.json
 
 echo "Starte Shlink Web Client Add-on..."
 
-# Lesen der API-URL
+# Lesen der API-URL aus der HA-Konfiguration
 API_URL=$(jq --raw-output '.shlink_api_url' $CONFIG_PATH)
 
 echo "Konfiguriere API-URL für Web Client: $API_URL"
 
-# Der Shlink Web Client nutzt eine environment-Variable, die im Nginx-Config gesetzt werden muss.
-# Wir nutzen sed, um die URL in die JavaScript-Konfigurationsdatei des Clients einzufügen.
-# Der Web Client erwartet die URL in der Form SHLINK_SERVER_URL=...
-sed -i "s|// REPLACE_SERVER_URL|window.SHLINK_SERVER_URL = \"$API_URL\";|" /usr/share/nginx/html/assets/config.js
+# Pfad zur Nginx-Wurzel
+WEB_ROOT=/usr/share/nginx/html
+
+# Erstellen der neuen config.js-Datei direkt im Web Client Verzeichnis
+# Dies ist die korrekte Methode für diesen Client, die URL zu injizieren.
+echo "window.SHLINK_SERVER_URL = \"$API_URL\";" > "$WEB_ROOT/assets/config.js"
+
+# Überprüfen, ob die Datei erfolgreich erstellt wurde (optional)
+if [ -f "$WEB_ROOT/assets/config.js" ]; then
+    echo "config.js erfolgreich erstellt und URL injiziert."
+else
+    echo "FEHLER: Konnte config.js nicht erstellen. Prüfe Pfade."
+    exit 1
+fi
 
 # Starten des Nginx-Servers, der das Frontend ausliefert
 echo "Starte Nginx Webserver auf Port 8081..."
