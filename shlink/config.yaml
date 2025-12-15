@@ -1,0 +1,27 @@
+name: Shlink URL Shortener
+slug: shlink
+description: Self-hosted URL shortener with QR codes and statistics
+version: "4.3.0"
+arch:
+  - amd64
+  - arm64
+startup: services
+boot: auto
+init: false
+
+ports:
+  8080/tcp: 8080
+
+options:
+  default_domain: qr.deinedomain.de
+  is_https_enabled: true
+  timezone: Europe/Berlin
+
+schema:
+  default_domain: str
+  is_https_enabled: bool
+  timezone: str
+
+map:
+  - addon_config:rw
+  - data:rw
