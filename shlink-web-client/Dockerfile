@@ -1,15 +1,18 @@
-# Nutze das offizielle Shlink Web Client Image
-FROM shlinkio/shlink-web-client:latest
+ARG BUILD_FROM
+FROM $BUILD_FROM
 
-# Wir wechseln zu Root, um das Startskript hinzuzufügen
-USER root
+# Set environment
+ENV LANG C.UTF-8
 
-# Installiere jq
-RUN apk add --no-cache jq
+# Use official Shlink Web Client image
+LABEL "io.hass.version"="1.0"
+LABEL "io.hass.type"="addon"
 
-# Kopiere das Startskript
-COPY run.sh /run.sh
-RUN chmod a+x /run.sh
+# Tell HA Supervisor which architecture is supported
+ARG BUILD_ARCH
 
-# Da das Image Nginx nutzt, müssen wir es über das Skript starten
-CMD [ "/run.sh" ]
+# Pull the Web Client image
+RUN apk add --no-cache bash curl
+
+# Equivalent of `docker run shlinkio/shlink-web-client`
+CMD ["sh", "-c", "exec /usr/bin/docker run --rm -p 8080:8080 shlinkio/shlink-web-client"]
