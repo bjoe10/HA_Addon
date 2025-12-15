@@ -4,6 +4,7 @@
   "maintainer": "bjoe10",
   "addons": [
     "immich_job_deamon",
-    "shlink"
+    "shlink",
+    "shlink-web-client"
   ]
 }
