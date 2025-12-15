@@ -1,18 +1,14 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
 
-# Set environment
-ENV LANG C.UTF-8
+# /addons/shlink-web-client/Dockerfile
+FROM shlinkio/shlink-web-client:stable
 
-# Use official Shlink Web Client image
-LABEL "io.hass.version"="1.0"
-LABEL "io.hass.type"="addon"
+# Minimal-Tools für das Startskript
+RUN apk add --no-cache bash jq tzdata
 
-# Tell HA Supervisor which architecture is supported
-ARG BUILD_ARCH
+# Startskript einbinden
+COPY run.sh /run.sh
+RUN chmod +x /run.sh
 
-# Pull the Web Client image
-RUN apk add --no-cache bash curl
-
-# Equivalent of `docker run shlinkio/shlink-web-client`
-CMD ["sh", "-c", "exec /usr/bin/docker run --rm -p 8080:8080 shlinkio/shlink-web-client"]
+EXPOSE 8080
+CMD ["/run.sh"]
+``
