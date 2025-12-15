@@ -1,7 +1,7 @@
 name: "Shlink"
 version: "1.0.0"
 slug: "shlink"
-description: "Ein selbst gehosteter URL-Shortener."
+description: "URL Shortener"
 url: "https://shlink.io"
 arch:
   - aarch64
@@ -12,9 +12,23 @@ ports:
   8080/tcp: 8080
 map:
   - config:rw
+
+# Hier definieren wir die Standardwerte
 options:
-  default_domain: "deine-domain.de"
-  is_https: true
+  default_domain: "bit.ly.local"
+  is_https: false
+  db_driver: "sqlite"
+  db_user: ""
+  db_password: ""
+  db_host: ""
+  geolite_license_key: ""
+
+# Hier definieren wir, wie die Felder im UI aussehen
 schema:
   default_domain: str
   is_https: bool
+  db_driver: list(sqlite, mysql, postgres)
+  db_user: str?
+  db_password: password?
+  db_host: str?
+  geolite_license_key: str?
