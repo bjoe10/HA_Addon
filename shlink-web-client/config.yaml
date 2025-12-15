@@ -8,6 +8,7 @@ arch:
   - amd64
 startup: application
 boot: auto
+host_network: true
 # Port 8081 für den Web Client
 ports:
   8081/tcp: 8081 
