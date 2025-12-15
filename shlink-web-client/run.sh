@@ -12,11 +12,10 @@ echo "Konfiguriere API-URL für Web Client: $API_URL"
 # Pfad zur Nginx-Wurzel
 WEB_ROOT=/usr/share/nginx/html
 
-# Erstellen der neuen config.js-Datei direkt im Web Client Verzeichnis
-# Dies ist die korrekte Methode für diesen Client, die URL zu injizieren.
+# Erstellen der config.js-Datei, um die API-URL zu injizieren
+# Dies ist die korrekte Methode für diesen Client.
 echo "window.SHLINK_SERVER_URL = \"$API_URL\";" > "$WEB_ROOT/assets/config.js"
 
-# Überprüfen, ob die Datei erfolgreich erstellt wurde (optional)
 if [ -f "$WEB_ROOT/assets/config.js" ]; then
     echo "config.js erfolgreich erstellt und URL injiziert."
 else
