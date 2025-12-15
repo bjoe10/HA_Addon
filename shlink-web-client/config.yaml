@@ -1,22 +1,10 @@
-name: "Shlink Web Client"
-version: "1.0.0"
-slug: "shlink_web_client"
-description: "Grafisches Frontend zur Verwaltung des Shlink URL Shorteners."
-url: "https://shlink.io/web-client"
-arch:
-  - aarch64
-  - amd64
-startup: application
+name: Shlink Web Client
+version: "0.1.0"
+slug: shlink-web-client
+description: >
+  A Home Assistant Addon to run the Shlink Web Client (UI) via Docker.
+    
+startup: services
 boot: auto
-host_network: true
-# Port 8081 für den Web Client
-ports:
-  8081/tcp: 8081 
-# Wir brauchen hier keine /data, da es ein statisches Frontend ist
-map:
-  - config:rw 
-
-options:
-  shlink_api_url: "http://localhost:8080"
-schema:
-  shlink_api_url: str # Die Adresse des ersten Shlink Add-ons
+options: {}
+schema: {}
