@@ -17,6 +17,12 @@ map:
 
 # Standardwerte, die im HA-Konfigurations-UI angezeigt werden
 options:
+  trusted_hosts: "http://192.168.178.108:8081"
+  initial_api_key: ""
+schema:
+# ...
+  trusted_hosts: str?
+  initial_api_key: password? # Optional: API Key hier festlegen, falls er aus den Logs verschwindet
   default_domain: "deine-kurz-url.de"
   is_https: true
   geolite_license_key: ""
