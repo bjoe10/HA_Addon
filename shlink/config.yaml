@@ -1,6 +1,6 @@
 name: "Shlink"
 version: "1.0.0"
-slug: "shlink_addon"
+slug: "shlink"
 description: "Ein selbst gehosteter URL-Shortener."
 url: "https://shlink.io"
 arch:
