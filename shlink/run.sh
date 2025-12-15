@@ -1,30 +1,49 @@
-#!/bin/sh
+#!/usr/bin/with-contenv bashio
 
-# Home Assistant speichert Optionen in /data/options.json
+# Wir nutzen hier "bashio", das macht das Lesen der Config viel einfacher als jq!
+# Bashio ist in den meisten HA Base-Images dabei. Da wir das Shlink-Image nutzen,
+# müssen wir improvisieren oder bei jq bleiben.
+# Um es einfach und kompatibel mit dem vorherigen Dockerfile zu halten, nutzen wir wieder jq.
+
 CONFIG_PATH=/data/options.json
 
-echo "Starte Shlink Add-on..."
+echo "Lese Konfiguration aus Home Assistant..."
 
-# Lesen der Werte aus der HA-Konfiguration
-DEFAULT_DOMAIN=$(jq --raw-output '.default_domain' $CONFIG_PATH)
-IS_HTTPS=$(jq --raw-output '.is_https' $CONFIG_PATH)
+# 1. Basis-Einstellungen
+DOMAIN=$(jq --raw-output '.default_domain' $CONFIG_PATH)
+HTTPS=$(jq --raw-output '.is_https' $CONFIG_PATH)
+GEO_KEY=$(jq --raw-output '.geolite_license_key // empty' $CONFIG_PATH)
 
-echo "Konfiguriere Domain: $DEFAULT_DOMAIN"
+# Export für Shlink
+export DEFAULT_DOMAIN="$DOMAIN"
+export IS_HTTPS_ENABLED="$HTTPS"
+export GEOLITE_LICENSE_KEY="$GEO_KEY"
 
-# Exportieren als Environment-Variablen für Shlink
-export DEFAULT_DOMAIN="$DEFAULT_DOMAIN"
-export IS_HTTPS_ENABLED="$IS_HTTPS"
-export GEOLITE_LICENSE_KEY="" # Optional: Hier könnte man noch einen Key via Config einbauen
+# 2. Datenbank-Einstellungen
+DB_DRIVER=$(jq --raw-output '.db_driver' $CONFIG_PATH)
 
-# WICHTIG: Prüfen ob die Datenbank existiert, sonst initialisieren
-if [ ! -f "/data/shlink_db.sqlite" ]; then
-    echo "Datenbank wird initialisiert..."
-    # Initialer Shlink Befehl, falls nötig, passiert oft automatisch beim ersten Start im Container
+if [ "$DB_DRIVER" == "sqlite" ]; then
+    echo "Nutze interne SQLite Datenbank."
+    export DB_DRIVER="sqlite"
+    export DB_NAME="/data/shlink_db.sqlite"
+else
+    # Für MySQL (MariaDB) oder Postgres
+    echo "Nutze externe Datenbank: $DB_DRIVER"
+    export DB_DRIVER="$DB_DRIVER"
+    export DB_USER=$(jq --raw-output '.db_user' $CONFIG_PATH)
+    export DB_PASSWORD=$(jq --raw-output '.db_password' $CONFIG_PATH)
+    export DB_HOST=$(jq --raw-output '.db_host' $CONFIG_PATH)
+    # Standard DB Name für Externe
+    export DB_NAME="shlink" 
 fi
 
-# Da wir im Dockerfile USER root waren, wechseln wir für den Start 
-# (optional, aber sicherer) oder lassen Shlink als root laufen (einfacher für den Anfang).
-# Der offizielle Container nutzt entrypoint-Logik. Wir rufen diese nun auf.
+# Prüfen ob initialer Setup nötig ist (nur bei SQLite wichtig für die Datei)
+if [ "$DB_DRIVER" == "sqlite" ] && [ ! -f "/data/shlink_db.sqlite" ]; then
+    echo "SQLite Datei wird neu angelegt..."
+    touch /data/shlink_db.sqlite
+fi
 
-# Starten des Servers (Standard Command des Shlink Images imitieren)
+echo "Starte Shlink auf Port 8080..."
+
+# Original Entrypoint von Shlink aufrufen
 exec /usr/local/bin/docker-entrypoint.sh
