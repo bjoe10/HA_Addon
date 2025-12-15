@@ -16,6 +16,6 @@ map:
   - config:rw 
 
 options:
-  shlink_api_url: "http://192.168.178.108:8080"
+  shlink_api_url: "http://localhost:8080"
 schema:
   shlink_api_url: str # Die Adresse des ersten Shlink Add-ons
