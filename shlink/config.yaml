@@ -1,5 +1,5 @@
 name: "Shlink URL Shortener (SQLite)"
-version: "1.0.1"
+version: "1.1.0" # Version erhöht
 slug: "shlink"
 description: "Ein selbst gehosteter URL-Shortener auf Basis von Shlink mit SQLite-Datenbank."
 url: "https://shlink.io"
@@ -8,27 +8,21 @@ arch:
   - amd64
 startup: application
 boot: auto
-# Port 8080 für den Shlink Server (API)
 ports:
   8080/tcp: 8080
-# Ermöglicht dem Add-on den Zugriff auf den persistenten Speicher (/data)
 map:
-  - config:rw 
+  - config:rw
 
-# Standardwerte, die im HA-Konfigurations-UI angezeigt werden
+# NEUE Felder für Trusted Hosts und optionalen Initial API Key
 options:
-  trusted_hosts: "http://192.168.178.108:8081"
-  initial_api_key: ""
-schema:
-# ...
-  trusted_hosts: str?
-  initial_api_key: password? # Optional: API Key hier festlegen, falls er aus den Logs verschwindet
   default_domain: "deine-kurz-url.de"
   is_https: true
   geolite_license_key: ""
-
-# Definition der UI-Felder
+  trusted_hosts: "http://192.168.178.108:8081" # Hier muss die Adresse des Web Clients rein
+  initial_api_key: ""
 schema:
-  default_domain: str # Deine Hauptdomain für kurze URLs
-  is_https: bool      # Ist HTTPS auf der Domain aktiviert?
-  geolite_license_key: str? # Optionaler Schlüssel für Geo-Location Daten
+  default_domain: str
+  is_https: bool
+  geolite_license_key: str?
+  trusted_hosts: str?
+  initial_api_key: password?
