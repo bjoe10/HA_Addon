@@ -1,22 +1,20 @@
-ARG BUILD_FROM
-# Wir nutzen das offizielle Image als Basis, nicht das HA-Base-Image, 
-# da Shlink komplexe PHP-Abhängigkeiten hat.
+# Nutze das offizielle, stabile Shlink Docker-Image als Basis
 FROM shlinkio/shlink:stable
 
-# Wir wechseln zu Root, um Pakete zu installieren und Rechte zu setzen
+# Wir wechseln zu Root, um Pakete zu installieren
 USER root
 
-# Installiere jq (notwendig um options.json von HA zu parsen)
+# Installiere jq (notwendig um die options.json von HA zu parsen)
 RUN apk add --no-cache jq
 
-# Kopiere das Startskript
+# Kopiere das Startskript und setze Ausführungsrechte
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
-# Environment Variablen für Persistenz (Wichtig!)
-# Wir legen die Datenbank in /data, damit sie bei Updates nicht gelöscht wird.
+# Environment Variablen für die SQLite-Datenbank im persistenten Speicher (/data)
+# Dies ist die Standardeinstellung und muss nicht mehr vom Nutzer geändert werden
 ENV DB_DRIVER=sqlite
 ENV DB_NAME=/data/shlink_db.sqlite
 
-# Startbefehl
+# Der Startbefehl ruft unser Skript auf
 CMD [ "/run.sh" ]
