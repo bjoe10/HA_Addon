@@ -1,5 +1,5 @@
 {
-  "name": "Shlink URL Shortener",
+  "name": "Shlink",
   "slug": "shlink",
   "description": "Self-hosted URL shortener with QR codes and statistics",
   "version": "4.3.0",
