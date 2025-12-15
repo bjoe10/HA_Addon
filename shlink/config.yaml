@@ -1,34 +1,28 @@
-name: "Shlink"
-version: "1.0.0"
+name: "Shlink URL Shortener (SQLite)"
+version: "1.0.1"
 slug: "shlink"
-description: "URL Shortener"
+description: "Ein selbst gehosteter URL-Shortener auf Basis von Shlink mit SQLite-Datenbank."
 url: "https://shlink.io"
 arch:
   - aarch64
   - amd64
 startup: application
 boot: auto
+# Port 8080 für den Shlink Server (API)
 ports:
   8080/tcp: 8080
+# Ermöglicht dem Add-on den Zugriff auf den persistenten Speicher (/data)
 map:
-  - config:rw
+  - config:rw 
 
-# Hier definieren wir die Standardwerte
+# Standardwerte, die im HA-Konfigurations-UI angezeigt werden
 options:
-  default_domain: "bit.ly.local"
-  is_https: false
-  db_driver: "sqlite"
-  db_user: ""
-  db_password: ""
-  db_host: ""
+  default_domain: "deine-kurz-url.de"
+  is_https: true
   geolite_license_key: ""
 
-# Hier definieren wir, wie die Felder im UI aussehen
+# Definition der UI-Felder
 schema:
-  default_domain: str
-  is_https: bool
-  db_driver: list(sqlite, mysql, postgres)
-  db_user: str?
-  db_password: password?
-  db_host: str?
-  geolite_license_key: str?
+  default_domain: str # Deine Hauptdomain für kurze URLs
+  is_https: bool      # Ist HTTPS auf der Domain aktiviert?
+  geolite_license_key: str? # Optionaler Schlüssel für Geo-Location Daten
