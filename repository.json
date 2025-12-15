@@ -3,7 +3,7 @@
   "url": "https://github.com/bjoe10/HA_Addon",
   "maintainer": "bjoe10",
   "addons": [
-    "immich_job_daemon",
+    "immich_job_deamon",
     "shlink"
   ]
 }
