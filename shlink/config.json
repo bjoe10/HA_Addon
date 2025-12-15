@@ -1,6 +1,6 @@
 {
   "name": "Shlink",
-  "slug": "shlink",
+  "slug": "shlink_addon",
   "description": "Self-hosted URL shortener with QR codes and statistics",
   "version": "4.3.0",
   "arch": ["amd64", "arm64"],
