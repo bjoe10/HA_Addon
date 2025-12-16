@@ -1,31 +1,36 @@
 
-#!/usr/bin/env bash
-# HA_Addon/shlink/run.sh
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 CONFIG_PATH="/data/options.json"
 API_KEY_FILE="/data/api_key.txt"
 
-echo "[INFO] Shlink Server Add-on startet. Lese Optionen aus ${CONFIG_PATH}"
+echo "[INFO] Shlink Add-on startet. Lese Optionen aus ${CONFIG_PATH}"
 
-# --- Optionen lesen ---
-DEFAULT_DOMAIN="$(jq -r '.default_domain // empty' "$CONFIG_PATH")"   # z.B. s.example (ohne Schema)
-IS_HTTPS_ENABLED="$(jq -r '.is_https_enabled // true' "$CONFIG_PATH")"
-GEOLITE_LICENSE_KEY="$(jq -r '.geolite_license_key // empty' "$CONFIG_PATH")"
-INITIAL_API_KEY_CFG="$(jq -r '.initial_api_key // empty' "$CONFIG_PATH")"
+# --- JSON lesen mit PHP (keine Zusatztools nötig) ---
+json_get() {
+  KEY="$1"
+  php -r '($o=json_decode(file_get_contents("'"$CONFIG_PATH"'"), true)) && isset($o["'"$KEY"'"]) ? print($o["'"$KEY"'"]) : "";' 2>/dev/null || true
+}
 
-DB_DRIVER="$(jq -r '.db_driver // "sqlite"' "$CONFIG_PATH")"
-DB_HOST="$(jq -r '.db_host // empty' "$CONFIG_PATH")"
-DB_PORT_RAW="$(jq -r '.db_port // 0' "$CONFIG_PATH")"
-DB_NAME="$(jq -r '.db_name // "shlink"' "$CONFIG_PATH")"
-DB_USER="$(jq -r '.db_user // empty' "$CONFIG_PATH")"
-DB_PASSWORD="$(jq -r '.db_password // empty' "$CONFIG_PATH")"
+# --- Optionen ---
+DEFAULT_DOMAIN="$(json_get default_domain)"
+IS_HTTPS_ENABLED="$(json_get is_https_enabled)"
+GEOLITE_LICENSE_KEY="$(json_get geolite_license_key)"
+INITIAL_API_KEY_CFG="$(json_get initial_api_key)"
 
-TIMEZONE="$(jq -r '.timezone // "UTC"' "$CONFIG_PATH")"
-TRUSTED_PROXIES="$(jq -r '.trusted_proxies // empty' "$CONFIG_PATH")"
+DB_DRIVER="$(json_get db_driver)"; [ -n "${DB_DRIVER}" ] || DB_DRIVER="sqlite"
+DB_HOST="$(json_get db_host)"
+DB_PORT_RAW="$(json_get db_port)"; [ -n "${DB_PORT_RAW}" ] || DB_PORT_RAW="0"
+DB_NAME="$(json_get db_name)"; [ -n "${DB_NAME}" ] || DB_NAME="shlink"
+DB_USER="$(json_get db_user)"
+DB_PASSWORD="$(json_get db_password)"
 
-# --- Pflichtprüfungen ---
-if [ -z "$DEFAULT_DOMAIN" ]; then
+TIMEZONE="$(json_get timezone)"; [ -n "${TIMEZONE}" ] || TIMEZONE="UTC"
+TRUSTED_PROXIES="$(json_get trusted_proxies)"
+
+# --- Pflicht ---
+if [ -z "${DEFAULT_DOMAIN}" ]; then
   echo "[ERROR] 'default_domain' ist erforderlich (z. B. s.example)."
   exit 10
 fi
@@ -37,82 +42,82 @@ if [ ! -L /etc/shlink ]; then
     rm -rf /etc/shlink
   fi
   ln -s /data/shlink /etc/shlink
-  echo "[INFO] /etc/shlink → /data/shlink verlinkt (persistente Daten)."
 fi
 
-# --- API-Key bestimmen (GUI-Wert oder automatisch generieren) ---
-if [ -n "$INITIAL_API_KEY_CFG" ]; then
-  INITIAL_API_KEY="$INITIAL_API_KEY_CFG"
-  echo -n "$INITIAL_API_KEY" > "$API_KEY_FILE"
-  echo "[INFO] Initialer API-Key (aus GUI) wurde in ${API_KEY_FILE} gespeichert."
+# --- API-Key bestimmen und IM KLARTEXT INS LOG schreiben ---
+API_KEY_TO_USE=""
+if [ -n "${INITIAL_API_KEY_CFG}" ]; then
+  # GUI-Key verwenden
+  API_KEY_TO_USE="${INITIAL_API_KEY_CFG}"
+  printf "%s" "${API_KEY_TO_USE}" > "${API_KEY_FILE}" || true
+  echo "[INFO] API-Key (Klartext, aus GUI): ${API_KEY_TO_USE}"
 else
-  INITIAL_API_KEY="$(cat /proc/sys/kernel/random/uuid)"
-  echo -n "$INITIAL_API_KEY" > "$API_KEY_FILE"
-  echo "[INFO] Initialer API-Key (automatisch) wurde in ${API_KEY_FILE} gespeichert."
+  if [ -s "${API_KEY_FILE}" ]; then
+    # Bereits einmal erzeugt -> aus Datei lesen (nur intern), ins Log schreiben
+    API_KEY_TO_USE="$(cat "${API_KEY_FILE}")"
+    echo "[INFO] API-Key (Klartext, bereits erzeugt): ${API_KEY_TO_USE}"
+  else
+    # Noch kein Key -> jetzt über CLI erzeugen und direkt loggen
+    echo "[INFO] Erzeuge neuen API-Key über Shlink CLI ..."
+    # Name vergeben, damit man ihn später in der Liste erkennt
+    GENERATED_LINE="$(shlink api-key:generate --name=ha_admin 2>/dev/null || true)"
+    # Die CLI druckt den Key im Klartext; wir extrahieren robust: letztes "UUID/Hex"-ähnliches Token
+    API_KEY_TO_USE="$(printf "%s" "${GENERATED_LINE}" | awk '{print $NF}' | tr -d '\r\n')"
+    if [ -z "${API_KEY_TO_USE}" ]; then
+      # Fallback: UUID
+      API_KEY_TO_USE="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || php -r 'echo bin2hex(random_bytes(16));')"
+      echo "[WARN] Konnte CLI-Ausgabe nicht lesen, verwende Fallback-Key."
+      # Diesen Fallback auch in Shlink persistieren:
+      shlink api-key:disable "${API_KEY_TO_USE}" >/dev/null 2>&1 || true # no-op
+    fi
+    printf "%s" "${API_KEY_TO_USE}" > "${API_KEY_FILE}" || true
+    echo "[INFO] API-Key (Klartext, neu erzeugt): ${API_KEY_TO_USE}"
+  fi
 fi
 
-# --- ENV für Shlink setzen ---
-export DEFAULT_DOMAIN="$DEFAULT_DOMAIN"
-export IS_HTTPS_ENABLED="$IS_HTTPS_ENABLED"
-export INITIAL_API_KEY="$INITIAL_API_KEY"
-export TIMEZONE="$TIMEZONE"
+# --- ENV für Shlink setzen (gem. Doku) ---
+export DEFAULT_DOMAIN="${DEFAULT_DOMAIN}"                 # Pflicht
+export IS_HTTPS_ENABLED="${IS_HTTPS_ENABLED:-true}"       # Pflicht
+export INITIAL_API_KEY="${API_KEY_TO_USE}"                # wird nur beim allerersten Start übernommen
+export TIMEZONE="${TIMEZONE}"
 
-# Optionale ENV
-[ -n "$GEOLITE_LICENSE_KEY" ] && export GEOLITE_LICENSE_KEY="$GEOLITE_LICENSE_KEY"
-[ -n "$TRUSTED_PROXIES" ]    && export TRUSTED_PROXIES="$TRUSTED_PROXIES"
+# Optional
+[ -n "${GEOLITE_LICENSE_KEY}" ] && export GEOLITE_LICENSE_KEY="${GEOLITE_LICENSE_KEY}"
+[ -n "${TRUSTED_PROXIES}" ] && export TRUSTED_PROXIES="${TRUSTED_PROXIES}"
 
-# DB-Ports je nach Treiber
-DB_PORT="$DB_PORT_RAW"
-if [ "$DB_PORT" = "0" ] || [ -z "$DB_PORT" ]; then
-  case "$DB_DRIVER" in
-    mysql|maria) DB_PORT=3306 ;;
-    postgres)    DB_PORT=5432 ;;
-    mssql)       DB_PORT=1433 ;;
-    *)           DB_PORT=0 ;; # sqlite braucht keinen Port
+# DB-Port je Treiber
+DB_PORT="${DB_PORT_RAW}"
+if [ "${DB_PORT}" = "0" ] || [ -z "${DB_PORT}" ]; then
+  case "${DB_DRIVER}" in
+    mysql|maria) DB_PORT="3306" ;;
+    postgres)    DB_PORT="5432" ;;
+    mssql)       DB_PORT="1433" ;;
+    *)           DB_PORT="0" ;;
   esac
 fi
 
-# Externe DB konfigurieren
-case "$DB_DRIVER" in
+# Externe DB
+case "${DB_DRIVER}" in
   mysql|maria|postgres|mssql)
-    export DB_DRIVER="$DB_DRIVER" \
-           DB_HOST="$DB_HOST" \
-           DB_PORT="$DB_PORT" \
-           DB_NAME="$DB_NAME" \
-           DB_USER="$DB_USER" \
-           DB_PASSWORD="$DB_PASSWORD"
-
-    if [ -z "$DB_HOST" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
-      echo "[WARN] Externe DB ($DB_DRIVER) gewählt, aber Host/User/Passwort unvollständig."
-    fi
+    export DB_DRIVER="${DB_DRIVER}" DB_HOST="${DB_HOST}" DB_PORT="${DB_PORT}" \
+           DB_NAME="${DB_NAME}" DB_USER="${DB_USER}" DB_PASSWORD="${DB_PASSWORD}"
     ;;
   sqlite|"")
     echo "[INFO] Verwende interne SQLite-Datenbank (für Produktion externe DB empfohlen)."
     ;;
   *)
-    echo "[ERROR] Unbekannter db_driver: $DB_DRIVER (erlaubt: sqlite|mysql|maria|postgres|mssql)"
+    echo "[ERROR] Unbekannter db_driver: ${DB_DRIVER} (sqlite|mysql|maria|postgres|mssql)"
     exit 11
     ;;
 esac
 
-# --- API-Key im KLARTEXT ins Log ausgeben ---
-echo "[INFO] API-Key (Klartext): ${INITIAL_API_KEY}"
-echo "[INFO] Vollständiger API-Key auch in Datei: ${API_KEY_FILE}"
+# --- WICHTIG: Key im Log ist dein Klartext-Key für den Header 'X-Api-Key' ---
+echoecho "[INFO] Verwende für REST-Aufrufe den Header: X-Api-Key: ${API_KEY_TO_USE}"
 
-# --- Shlink starten: Upstream-Entrypoint nutzen ---
-echo "[INFO] Starte Shlink Server ..."
-if [ -x /usr/local/bin/docker-entrypoint.sh ]; then
-  exec /usr/local/bin/docker-entrypoint.sh
-elif [ -x /docker-entrypoint.sh ]; then
-  exec /docker-entrypoint.sh
+# --- Upstream-Entrypoint starten (liegt im Workdir /etc/shlink) ---
+if [ -x "./docker-entrypoint.sh" ]; then
+  exec /bin/sh ./docker-entrypoint.sh
 else
-  # Fallback: RoadRunner direkt starten
-  echo "[WARN] Upstream-Entrypoint nicht gefunden. Versuche RoadRunner..."
-  if command -v rr >/dev/null 2>&1; then
-    exec rr serve -c /etc/rr.yaml
-  else
-    echo "[ERROR] Weder Entrypoint noch RoadRunner gefunden."
-    exit 12
-  fi
-fi
+  echo "[ERROR] Upstream-Entrypoint ./docker-entrypoint.sh nicht gefunden."
+  exit 12
 
