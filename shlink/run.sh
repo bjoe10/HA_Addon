@@ -51,20 +51,20 @@ else
     echo "Datenbank existiert bereits ($DB_SIZE bytes). Überspringe Initialisierung."
 fi
 
-# 4. Server Starten (FINALE ANPASSUNG)
+# 4. Server Starten (FINALE ANPASSUNG V4)
 echo "Starte Shlink Server Prozess..."
 
-# Wir verwenden den wahrscheinlichsten Pfad für die FrankenPHP Binary in Alpine-basierten Images.
-# In Shlink v4 ist dies der exakte Befehl, den Docker ausführt, um den Server zu starten.
-
-if [ -f "/usr/local/bin/frankenphp" ]; then
-    echo "FrankenPHP Binary gefunden. Starte Shlink Server über den direkten Befehl."
-    # Das ist der Startbefehl für Shlink v4+
-    exec /usr/local/bin/frankenphp run --config /etc/caddy/Caddyfile
+# Nächster Versuch: /usr/bin/frankenphp (typisch für Alpine)
+if [ -f "/usr/bin/frankenphp" ]; then
+    echo "FrankenPHP Binary gefunden unter /usr/bin/frankenphp. Starte Server..."
+    exec /usr/bin/frankenphp run --config /etc/caddy/Caddyfile
 else
-    # Fallback, falls der Pfad nicht stimmt (sehr unwahrscheinlich bei v4)
-    echo "FEHLER: FrankenPHP Binary nicht unter /usr/local/bin/frankenphp gefunden."
-    echo "Der Container ist möglicherweise nicht das erwartete Shlink v4 Image."
-    # Wir lassen den Container abstürzen, um den Fehler sichtbar zu machen.
-    exit 1
+    # Letzter Fallback-Versuch (Originalpfad aus der offiziellen Dokumentation)
+    echo "FrankenPHP Binary nicht unter /usr/bin/frankenphp gefunden. Letzter Versuch: /frankenphp"
+    if [ -f "/frankenphp" ]; then
+        exec /frankenphp run --config /etc/caddy/Caddyfile
+    else
+        echo "FEHLER: FrankenPHP Binary konnte unter keinem erwarteten Pfad gefunden werden. Beende."
+        exit 1
+    fi
 fi
