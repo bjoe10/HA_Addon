@@ -3,7 +3,7 @@ slug: shlink
 version: "0.1.0"
 description: "Shlink URL-Shortener (Server & REST API) als Home Assistant Add-on."
 arch:
-  - amd64
+  - arm64
   - aarch64
   - armv7
   - armhf
