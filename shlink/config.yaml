@@ -1,63 +1,28 @@
-
-name: "Shlink URL Shortener"
-slug: "shlink"
-description: "Self-hosted URL-Shortener (Shlink) mit REST-API. Konfiguration über die HA-GUI."
+name: "Shlink Server"
 version: "1.0.0"
+slug: "shlink_server"
+description: "Der selbst gehostete URL-Shortener (API & Server)."
+url: "https://shlink.io"
+startup: application
 arch:
   - aarch64
   - amd64
-startup: "services"
-boot: "auto"
-
-# WICHTIG: S6 nicht verwenden -> init:false
 init: false
-
-# Persistenter Speicher für Add-on-Daten
 map:
-  - data:rw
+  - config: rw
+  - share: rw
 
-# Port 8080 aus dem Container nach außen freigeben (über die GUI anpassbar)
+# Exponiert den Port, damit du von außen darauf zugreifen kannst
 ports:
-  "8080/tcp": 8080
-ports_description:
-  "8080/tcp": "Shlink REST-API & Redirect-Server"
+  8080/tcp: 8080
 
-# Link in der Add-on-Detailseite
-webui: "http://[HOST]:[PORT:8080]"
-
-# Standard-Optionen (über die GUI änderbar)
+# Hier definieren wir die GUI-Optionen
 options:
-  default_domain: "s.test"
-  is_https_enabled: true
+  default_domain: "dein-shortener.de"
   geolite_license_key: ""
-  base_path: ""
-  timezone: "UTC"
-  trusted_proxies: ""
-  db:
-    driver: "sqlite"    # sqlite|mysql|maria|postgres|mssql
-    host: ""
-    port: 0
-    name: "shlink"
-    user: ""
-    password: ""
-  auto_generate_api_key: true
-  api_key_name: "homeassistant"
+  disable_track_param: ""
 
-# Validiere die Optionen
 schema:
   default_domain: str
-  is_https_enabled: bool
   geolite_license_key: str?
-  base_path: str?
-  timezone: str?
-  trusted_proxies: str?
-  db:
-    driver: list(mysql|maria|postgres|mssql|sqlite)
-    host: str?
-    port: int?
-    name: str?
-    user: str?
-    password: str?
-  auto_generate_api_key: bool
-  api_key_name: str?
-
+  disable_track_param: str?
