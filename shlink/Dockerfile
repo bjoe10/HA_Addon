@@ -15,5 +15,4 @@ EXPOSE 8080
 # Start: Optionen einlesen, ENV setzen, Upstream-Entrypoint starten
 CMD ["/usr/local/bin/run.sh"]
 EOF
-``
 
