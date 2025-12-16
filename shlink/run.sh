@@ -25,15 +25,13 @@ export DB_DRIVER=sqlite
 export DB_CONNECTION=sqlite
 export DB_DATABASE="/data/database.sqlite"
 
-# Sicherstellen, dass die Berechtigungen stimmen (Home Assistant spezifisch)
+# Sicherstellen, dass die Berechtigungen stimmen
 touch "$DB_DATABASE"
 chmod 777 "$DB_DATABASE"
 
 echo "Nutze Datenbank unter: $DB_DATABASE"
 
 # 3. Initialisierung prüfen
-# Wir prüfen, ob die Datenbank Tabellen enthält, indem wir die Größe prüfen oder ob sie neu ist.
-# Da 'touch' die Datei oben anlegt, prüfen wir, ob sie leer ist.
 DB_SIZE=$(wc -c < "$DB_DATABASE")
 
 if [ "$DB_SIZE" -eq 0 ]; then
@@ -49,7 +47,6 @@ if [ "$DB_SIZE" -eq 0 ]; then
     echo "#   Bitte kopiere den Key zwischen den Anführungszeichen!      #"
     echo "################################################################"
     
-    # Wir führen den Befehl direkt aus, damit er sauber im Log landet
     php /etc/shlink/bin/cli api-key:generate
     
     echo "################################################################"
@@ -58,14 +55,15 @@ else
     echo "Datenbank existiert bereits ($DB_SIZE bytes). Überspringe Initialisierung."
 fi
 
-# 4. Server Starten
+# 4. Server Starten (Angepasst für Shlink v4 / FrankenPHP)
 echo "Starte Shlink Server Prozess..."
 
-# KORREKTUR: Der Pfad ist /docker-entrypoint.sh (im Root), nicht in /usr/local/bin
-if [ -f "/docker-entrypoint.sh" ]; then
-    exec /docker-entrypoint.sh
+# Wir prüfen zuerst, ob es ein Standard-Entrypoint-Skript gibt (für Abwärtskompatibilität)
+if [ -f "/usr/local/bin/docker-entrypoint.sh" ]; then
+    echo "Standard Entrypoint gefunden. Führe aus..."
+    exec /usr/local/bin/docker-entrypoint.sh
 else
-    # Fallback, falls sich das Image ändert: Wir starten den Server direkt
-    echo "Entrypoint nicht gefunden, starte RoadRunner direkt..."
-    exec php -d variables_order=EGPCS /etc/shlink/vendor/bin/rr serve -c /etc/shlink/.rr.yaml
+    echo "Kein Entrypoint-Skript gefunden. Starte FrankenPHP (Shlink v4 Standard)..."
+    # Das ist der neue Startbefehl für Shlink v4+
+    exec frankenphp run --config /etc/caddy/Caddyfile
 fi
