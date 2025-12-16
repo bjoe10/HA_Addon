@@ -1,9 +1,16 @@
-
+# Wir nutzen das offizielle Stable Image als Basis
 FROM shlinkio/shlink:stable
 
-# Add-on-Wrapper: liest HA-Optionen und startet den originalen Shlink-Entrypoint
-COPY run.sh /usr/local/bin/ha-run.sh
+# Wir wechseln zu root, um Pakete zu installieren und Rechte zu setzen
+USER root
 
-# Wichtig: Start über /bin/sh, daher ist kein chmod notwendig
-ENTRY
+# jq wird benötigt, um die options.json von Home Assistant zu parsen
+RUN apk add --no-cache jq bash
 
+# Kopiere das Start-Skript
+COPY run.sh /run.sh
+RUN chmod +x /run.sh
+
+# Das offizielle Image hat einen Entrypoint. Wir überschreiben ihn,
+# damit unser Skript zuerst läuft.
+ENTRYPOINT ["/run.sh"]
