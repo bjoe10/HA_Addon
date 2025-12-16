@@ -1,8 +1,5 @@
 
-# Datei löschen & neu schreiben (GENAU so übernehmen)
-rm -f HA_Addon/shlink/Dockerfile
-
-cat > HA_Addon/shlink/Dockerfile <<'EOF'
+# HA_Addon/shlink/Dockerfile
 FROM shlinkio/shlink:stable
 
 # Startskript ins Image legen
@@ -14,5 +11,4 @@ EXPOSE 8080
 
 # Start: Optionen einlesen, ENV setzen, Upstream-Entrypoint starten
 CMD ["/usr/local/bin/run.sh"]
-EOF
 
