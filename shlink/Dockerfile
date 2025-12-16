@@ -1,5 +1,8 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/addon-base/amd64:latest
 FROM ${BUILD_FROM}
+
+# Install Docker client
+RUN apk add --no-cache docker
 
 # Labels
 LABEL \
@@ -8,20 +11,11 @@ LABEL \
     io.hass.type="addon" \
     io.hass.version="4.0.1"
 
-# Install dependencies
-RUN apk add --no-cache \
-    bash \
-    curl \
-    jq
-
 # Copy run script
 COPY run.sh /
 RUN chmod a+x /run.sh
 
 # Set working directory
 WORKDIR /data
-
-# Run as non-root user
-USER 1000:1000
 
 CMD [ "/run.sh" ]
