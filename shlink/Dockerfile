@@ -10,7 +10,7 @@ LABEL io.hass.version="${BUILD_VERSION}" \
       io.hass.type="addon" \
       io.hass.arch="${BUILD_ARCH}"
 
-# Kleine Hilfstools zum Parsen der Add-on-Optionen
+# Hilfstools zum Parsen der Add-on-Optionen
 RUN if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash jq; \
     elif command -v apt-get >/dev/null 2>&1; then \
