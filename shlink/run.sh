@@ -46,21 +46,20 @@ if [ -n "$INITIAL_API_KEY_CFG" ]; then
   echo -n "$INITIAL_API_KEY" > "$API_KEY_FILE"
   echo "[INFO] Initialer API-Key (aus GUI) wurde in ${API_KEY_FILE} gespeichert."
 else
-  # sichere UUID ohne Zusatztools
   INITIAL_API_KEY="$(cat /proc/sys/kernel/random/uuid)"
   echo -n "$INITIAL_API_KEY" > "$API_KEY_FILE"
   echo "[INFO] Initialer API-Key (automatisch) wurde in ${API_KEY_FILE} gespeichert."
 fi
 
-# --- ENV für Shlink setzen (gem. offizieller Doku) ---
-export DEFAULT_DOMAIN="$DEFAULT_DOMAIN"        # Pflicht
-export IS_HTTPS_ENABLED="$IS_HTTPS_ENABLED"    # Pflicht
-export INITIAL_API_KEY="$INITIAL_API_KEY"      # Shlink übernimmt diesen Key beim Erststart
+# --- ENV für Shlink setzen ---
+export DEFAULT_DOMAIN="$DEFAULT_DOMAIN"
+export IS_HTTPS_ENABLED="$IS_HTTPS_ENABLED"
+export INITIAL_API_KEY="$INITIAL_API_KEY"
 export TIMEZONE="$TIMEZONE"
 
 # Optionale ENV
-[ -n "$GEOLITE_LICENSE_KEY" ] && export GEOLITE_LICENSE_KEY="$GEOLITE_LICENSE_KEY"   # Geolokalisierung (optional)
-[ -n "$TRUSTED_PROXIES" ]    && export TRUSTED_PROXIES="$TRUSTED_PROXIES"           # Proxies (optional)
+[ -n "$GEOLITE_LICENSE_KEY" ] && export GEOLITE_LICENSE_KEY="$GEOLITE_LICENSE_KEY"
+[ -n "$TRUSTED_PROXIES" ]    && export TRUSTED_PROXIES="$TRUSTED_PROXIES"
 
 # DB-Ports je nach Treiber
 DB_PORT="$DB_PORT_RAW"
@@ -96,12 +95,9 @@ case "$DB_DRIVER" in
     ;;
 esac
 
-# --- Maskierte Logausgabe des API-Keys (erste/letzte 4 Zeichen) ---
-if [ "${#INITIAL_API_KEY}" -ge 9 ]; then
-  echo "[INFO] API-Key gesetzt: ${INITIAL_API_KEY:0:4}****${INITIAL_API_KEY: -4}  (vollständig in ${API_KEY_FILE})"
-else
-  echo "[INFO] API-Key gesetzt (gekürzt, vollständig in ${API_KEY_FILE})"
-fi
+# --- API-Key im KLARTEXT ins Log ausgeben ---
+echo "[INFO] API-Key (Klartext): ${INITIAL_API_KEY}"
+echo "[INFO] Vollständiger API-Key auch in Datei: ${API_KEY_FILE}"
 
 # --- Shlink starten: Upstream-Entrypoint nutzen ---
 echo "[INFO] Starte Shlink Server ..."
