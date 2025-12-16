@@ -58,12 +58,13 @@ fi
 # 4. Server Starten (Angepasst für Shlink v4 / FrankenPHP)
 echo "Starte Shlink Server Prozess..."
 
-# Wir prüfen zuerst, ob es ein Standard-Entrypoint-Skript gibt (für Abwärtskompatibilität)
-if [ -f "/usr/local/bin/docker-entrypoint.sh" ]; then
-    echo "Standard Entrypoint gefunden. Führe aus..."
-    exec /usr/local/bin/docker-entrypoint.sh
+# KORREKTUR: Der Pfad zur FrankenPHP Binary ist /frankenphp (im Root), nicht im Standard-Pfad.
+if [ -f "/frankenphp" ]; then
+    echo "FrankenPHP Binary gefunden. Starte Shlink Server..."
+    # Dies ist der Startbefehl für Shlink v4+ (Verwendung des absoluten Pfades)
+    exec /frankenphp run --config /etc/caddy/Caddyfile
 else
-    echo "Kein Entrypoint-Skript gefunden. Starte FrankenPHP (Shlink v4 Standard)..."
-    # Das ist der neue Startbefehl für Shlink v4+
-    exec frankenphp run --config /etc/caddy/Caddyfile
+    # Fallback, falls sich das Image ändert
+    echo "FEHLER: Konnte /frankenphp nicht finden. Versuche Standard Entrypoint."
+    exec /usr/local/bin/docker-entrypoint.sh
 fi
