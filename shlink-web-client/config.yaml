@@ -2,7 +2,7 @@
 name: "Shlink Web Client"
 slug: "shlink-web-client"
 description: "Offizieller Shlink Web Client (Ingress in Home Assistant)"
-version: "latest"
+version: "latest"   # muss zum Docker-Tag passen, wenn 'image:' verwendet wird
 arch:
   - aarch64
   - amd64
@@ -13,16 +13,16 @@ startup: application
 stage: stable
 url: "https://shlink.io/documentation/shlink-web-client/"
 
-# Offizielles Docker-Image nutzen
+# Offizielles Docker-Image (kein lokaler Build nötig)
 image: "shlinkio/shlink-web-client:latest"
-legacy: true
+legacy: true  # Image hat keine hass.io-Labels
 
-# Ingress-Panel
-ingress: true
+# Ingress-Panel; der Client bedient seit v4.x Port 8080
+ingress:ingress: true
 ingress_port: 8080
 panel_icon: "mdi:link-variant"
 panel_title: "Shlink"
 
-# Keine externe Portfreigabe
-portsports:
+# Keine externe Portfreigabe (alles per Ingress)
+ports:
 
