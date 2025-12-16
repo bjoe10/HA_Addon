@@ -12,11 +12,18 @@ arch:
 startup: "application"
 boot: "auto"
 ports:
-  8080/tcp: null
+  8080/tcp: 8080
 ports_description:
   8080/tcp: "Web interface and API"
+host_network: false
+host_dbus: false
+privileged:
+  - SYS_ADMIN
+  - NET_ADMIN
 map:
   - config:rw
+  - share:rw
+  - ssl:rw
 options:
   default_domain: "s.example.com"
   is_https_enabled: false
@@ -38,6 +45,6 @@ schema:
   db_password: "password"
   db_user: "str"
   db_host: "str"
-  db_port: "str"
+  db_port: "int?"
   redis_servers: "str"
   initial_api_key: "password"
