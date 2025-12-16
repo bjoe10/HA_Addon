@@ -1,4 +1,6 @@
-
-name: "Bjorns HA Add-ons"
-url: "https://github.com/bjoe10/HA_Addon"
-maint
+{
+  "name": "Bjorns HA Add-ons",
+  "udev": true,
+  "url": "https://github.com/bjoe10/HA_Addon",
+  "maintainer": "Bjoern"
+}
