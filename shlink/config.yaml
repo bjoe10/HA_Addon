@@ -1,28 +1,43 @@
-name: "Shlink Server"
-version: "1.0.0"
-slug: "shlink_server"
-description: "Der selbst gehostete URL-Shortener (API & Server)."
+name: "Shlink URL Shortener"
+version: "4.0.1"
+slug: "shlink"
+description: "Self-hosted URL shortener with REST API and web interface"
 url: "https://shlink.io"
-startup: application
 arch:
   - aarch64
   - amd64
-init: false
-map:
-  - config: rw
-  - share: rw
-
-# Exponiert den Port, damit du von außen darauf zugreifen kannst
+  - armhf
+  - armv7
+  - i386
+startup: "application"
+boot: "auto"
 ports:
-  8080/tcp: 8080
-
-# Hier definieren wir die GUI-Optionen
+  8080/tcp: null
+ports_description:
+  8080/tcp: "Web interface and API"
+map:
+  - config:rw
 options:
-  default_domain: "dein-shortener.de"
+  default_domain: "s.example.com"
+  is_https_enabled: false
   geolite_license_key: ""
-  disable_track_param: ""
-
+  db_driver: "sqlite"
+  db_name: "shlink"
+  db_user: ""
+  db_password: ""
+  db_host: ""
+  db_port: ""
+  redis_servers: ""
+  initial_api_key: ""
 schema:
-  default_domain: str
-  geolite_license_key: str?
-  disable_track_param: str?
+  default_domain: "str"
+  is_https_enabled: "bool"
+  geolite_license_key: "str"
+  db_driver: "list(sqlite|mysql|maria|postgres|mssql)"
+  db_name: "str"
+  db_password: "password"
+  db_user: "str"
+  db_host: "str"
+  db_port: "str"
+  redis_servers: "str"
+  initial_api_key: "password"
