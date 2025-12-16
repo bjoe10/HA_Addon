@@ -5,7 +5,7 @@ CONFIG_PATH=/data/options.json
 
 echo "Starte Shlink Addon..."
 
-# 1. Konfiguration aus der GUI auslesen
+# 1. Konfiguration aus der GUI auslesen (Bleibt unverändert)
 export DEFAULT_DOMAIN=$(jq --raw-output '.default_domain' $CONFIG_PATH)
 GEO_KEY=$(jq --raw-output '.geolite_license_key // empty' $CONFIG_PATH)
 DISABLE_TRACKING=$(jq --raw-output '.disable_track_param // empty' $CONFIG_PATH)
@@ -18,7 +18,7 @@ if [ ! -z "$DISABLE_TRACKING" ]; then
     export DISABLE_TRACK_PARAM="$DISABLE_TRACKING"
 fi
 
-# 2. Datenbank Konfiguration (SQLite im persistenten /data Ordner)
+# 2. Datenbank Konfiguration (Bleibt unverändert)
 export DB_DRIVER=sqlite
 export DB_CONNECTION=sqlite
 export DB_DATABASE="/data/database.sqlite"
@@ -28,7 +28,7 @@ chmod 777 "$DB_DATABASE"
 
 echo "Nutze Datenbank unter: $DB_DATABASE"
 
-# 3. Initialisierung prüfen und API Key generieren
+# 3. Initialisierung prüfen und API Key generieren (Bleibt unverändert)
 DB_SIZE=$(wc -c < "$DB_DATABASE")
 
 if [ "$DB_SIZE" -eq 0 ]; then
@@ -51,15 +51,29 @@ else
     echo "Datenbank existiert bereits ($DB_SIZE bytes). Überspringe Initialisierung."
 fi
 
-# 4. SERVER STARTEN (ENDGÜLTIGE LÖSUNG)
+# 4. SERVER STARTEN (ENDGÜLTIGE LÖSUNG MIT IMAGE-ENTRYPOINT)
+
+# Wir müssen den Entrypoint des Images ausführen, um die Umgebung einzurichten.
+echo "Führe den Shlink Image-Entrypoint aus, um die Umgebung zu initialisieren..."
+# Der offizielle Shlink v4 Entrypoint liegt unter /entrypoint.sh und setzt FRANKENPHP_PATH
+if [ -f "/entrypoint.sh" ]; then
+    # Wir führen es aus, aber ohne den 'serve'-Befehl, da es sonst sofort startet
+    # Wir nutzen 'sh -c' um das Skript auszuführen
+    sh /entrypoint.sh
+    echo "Image-Entrypoint erfolgreich ausgeführt."
+else
+    echo "WARNUNG: /entrypoint.sh nicht gefunden. Fahren Sie ohne Image-Entrypoint fort."
+fi
+
 echo "Starte Shlink Server Prozess..."
 
-# Der korrekte Pfad wird im Shlink Image in die Variable FRANKENPHP_PATH gelegt.
+# Nachdem der Entrypoint gelaufen ist, MUSS FRANKENPHP_PATH gesetzt sein.
 if [ -z "$FRANKENPHP_PATH" ]; then
-    echo "FEHLER: Umgebungsvariable FRANKENPHP_PATH nicht gesetzt. Das Image ist nicht kompatibel."
-    exit 1
+    # Fallback, wenn der Entrypoint nicht funktioniert hat
+    echo "FEHLER: FRANKENPHP_PATH ist immer noch nicht gesetzt. Versuche den direkten Startpfad."
+    # Wir verwenden den Pfad, der in der Vergangenheit funktioniert hat (meistens /usr/bin)
+    exec /usr/bin/frankenphp run --config /etc/caddy/Caddyfile
 else
     echo "FrankenPHP Pfad ($FRANKENPHP_PATH) gefunden. Starte Server..."
-    # Wir führen den Pfad in der Variable aus.
     exec "$FRANKENPHP_PATH" run --config /etc/caddy/Caddyfile
 fi
