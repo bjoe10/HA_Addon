@@ -1,13 +1,18 @@
 
-# Nutze das offizielle Shlink Web Client Image (liefert statische App über nginx:alpine). [1](https://hub.docker.com/r/shlinkio/shlink-web-client/)
+# Offizielles Shlink Web Client Image (nginx:alpine + App)
 FROM shlinkio/shlink-web-client:latest
 
-# Hilfstools für das Startskript
+# Für Paketinstallation Root-Rechte verwenden
+USER root
+
+# Hilfstools fürs Startskript
 RUN apk add --no-cache bash jq
 
-# Add-on Startskript einspielen
+# Startskript einspielen
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-## Container startet unser Skript, das servers.json erzeugt und nginx im Vordergrund startet
+EXPOSE 8080
+
+## Unser Skript erzeugt servers.json und startet nginx im Vordergrund
 
