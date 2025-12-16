@@ -5,7 +5,7 @@ CONFIG_PATH=/data/options.json
 
 echo "Starte Shlink Addon..."
 
-# 1. Konfiguration aus der GUI auslesen (Umgebungsvariablen setzen)
+# 1. Konfiguration aus der GUI auslesen
 export DEFAULT_DOMAIN=$(jq --raw-output '.default_domain' $CONFIG_PATH)
 GEO_KEY=$(jq --raw-output '.geolite_license_key // empty' $CONFIG_PATH)
 DISABLE_TRACKING=$(jq --raw-output '.disable_track_param // empty' $CONFIG_PATH)
@@ -39,7 +39,8 @@ if [ "$DB_SIZE" -eq 0 ]; then
 
     echo " "
     echo "################################################################"
-    echo "#   ERSTELLUNG DES API KEYS (DEBUG)                            #"
+    echo "#   ERSTELLUNG DES API KEYS                                    #"
+    echo "#   Bitte kopiere den Key zwischen den Anführungszeichen!      #"
     echo "################################################################"
     
     php /etc/shlink/bin/cli api-key:generate
@@ -50,16 +51,15 @@ else
     echo "Datenbank existiert bereits ($DB_SIZE bytes). Überspringe Initialisierung."
 fi
 
-# 4. SERVER STARTEN (DEBUG MODUS)
+# 4. SERVER STARTEN (ENDGÜLTIGE LÖSUNG)
 echo "Starte Shlink Server Prozess..."
 
-echo "--------------------------------------------------------"
-echo "DEBUG: SUCHE NACH 'frankenphp' BINARY"
-# Wir suchen auf dem gesamten Dateisystem nach der ausführbaren Datei 'frankenphp'
-# 2>/dev/null blendet Fehlermeldungen für Verzeichnisse ohne Leserechte aus.
-find / -name frankenphp 2>/dev/null
-echo "--------------------------------------------------------"
-echo "DEBUG: BITTE DEN OBEN AUSGEGEBENEN ABSOLUTEN PFAD MERKEN UND IN DIE RUN.SH EINTRAGEN."
-
-# Container beenden, damit der Output sichtbar bleibt
-exit 1
+# Der korrekte Pfad wird im Shlink Image in die Variable FRANKENPHP_PATH gelegt.
+if [ -z "$FRANKENPHP_PATH" ]; then
+    echo "FEHLER: Umgebungsvariable FRANKENPHP_PATH nicht gesetzt. Das Image ist nicht kompatibel."
+    exit 1
+else
+    echo "FrankenPHP Pfad ($FRANKENPHP_PATH) gefunden. Starte Server..."
+    # Wir führen den Pfad in der Variable aus.
+    exec "$FRANKENPHP_PATH" run --config /etc/caddy/Caddyfile
+fi
