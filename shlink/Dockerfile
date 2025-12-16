@@ -24,9 +24,8 @@ RUN if command -v apk >/dev/null 2>&1; then \
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-# Shlink-API-Port
+## Shlink-API-Port
 EXPOSE 8080
 
 # Starte unser Skript (setzt ENV, persistiert API-Key, ruft dann Upstream-Entrypoint)
-CMD ["/run.sh"]
 
