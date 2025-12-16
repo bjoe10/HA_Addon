@@ -1,5 +1,3 @@
-
-# HA_Addon/shlink/config.yaml
 name: Shlink Server (API)
 slug: shlink
 version: "0.1.0"
