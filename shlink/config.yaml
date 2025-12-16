@@ -1,54 +1,63 @@
 
-# HA_Addon/shlink/config.yaml
-name: Shlink Server (API)
-slug: shlink
-version: "0.1.0"
-description: "Shlink URL-Shortener (Server & REST API) als Home Assistant Add-on."
+name: "Shlink URL Shortener"
+slug: "shlink"
+description: "Self-hosted URL-Shortener (Shlink) mit REST-API. Konfiguration über die HA-GUI."
+version: "1.0.0"
 arch:
-  - amd64
   - aarch64
-  - armv7
-  - armhf
-  - i386
+  - amd64
+startup: "services"
+boot: "auto"
 
-startup: services
-boot: auto
+# WICHTIG: S6 nicht verwenden -> init:false
+init: false
 
-# Shlink lauscht im Container auf 8080
+# Persistenter Speicher für Add-on-Daten
+map:
+  - data:rw
+
+# Port 8080 aus dem Container nach außen freigeben (über die GUI anpassbar)
 ports:
-  8080/tcp: null
+  "8080/tcp": 8080
 ports_description:
-  8080/tcp: "Shlink API (HTTP)"
+  "8080/tcp": "Shlink REST-API & Redirect-Server"
 
-# Praktischer Link zur API-Basis (Health/Version)
+# Link in der Add-on-Detailseite
 webui: "http://[HOST]:[PORT:8080]"
 
-# GUI-Optionen (Defaultwerte)
+# Standard-Optionen (über die GUI änderbar)
 options:
-  default_domain: "s.example"   # z. B. s.deine-domain.tld (ohne http/https)
+  default_domain: "s.test"
   is_https_enabled: true
   geolite_license_key: ""
-  initial_api_key: ""           # leer lassen -> wird automatisch generiert und gespeichert
-  db_driver: "sqlite"           # sqlite|mysql|maria|postgres|mssql
-  db_host: ""
-  db_port: 0                    # 0 = Auto je nach Treiber
-  db_name: "shlink"
-  db_user: ""
-  db_password: ""
+  base_path: ""
   timezone: "UTC"
   trusted_proxies: ""
+  db:
+    driver: "sqlite"    # sqlite|mysql|maria|postgres|mssql
+    host: ""
+    port: 0
+    name: "shlink"
+    user: ""
+    password: ""
+  auto_generate_api_key: true
+  api_key_name: "homeassistant"
 
-# Schema (erzwingt/erlaubt Eingaben & sorgt dafür, dass Optionen in /data/options.json landen)
+# Validiere die Optionen
 schema:
   default_domain: str
   is_https_enabled: bool
-  geolite_license_key: password
-  initial_api_key: password
-  db_driver: str
-  db_host: str
-  db_port: int
-  db_name: str
-  db_user: str
-  db_password: password
-  timezone: str
-  trusted_proxies: str
+  geolite_license_key: str?
+  base_path: str?
+  timezone: str?
+  trusted_proxies: str?
+  db:
+    driver: list(mysql|maria|postgres|mssql|sqlite)
+    host: str?
+    port: int?
+    name: str?
+    user: str?
+    password: str?
+  auto_generate_api_key: bool
+  api_key_name: str?
+
