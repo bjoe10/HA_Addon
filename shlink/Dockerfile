@@ -29,5 +29,4 @@ EXPOSE 8080
 
 # Starte unser Skript (setzt ENV, persistiert API-Key, ruft dann Upstream-Entrypoint)
 CMD ["/run.sh"]
-``
 
