@@ -1,15 +1,27 @@
-# WIR NUTZEN JETZT DAS STABILE SLIM IMAGE (RoadRunner-basiert)
-FROM shlinkio/shlink:slim
+ARG BUILD_FROM
+FROM ${BUILD_FROM}
 
-# Wir wechseln zu root, um Pakete zu installieren und Rechte zu setzen
-USER root
+# Labels
+LABEL \
+    io.hass.name="Shlink" \
+    io.hass.description="Self-hosted URL shortener" \
+    io.hass.type="addon" \
+    io.hass.version="4.0.1"
 
-# jq wird benötigt, um die options.json von Home Assistant zu parsen
-RUN apk add --no-cache jq bash
+# Install dependencies
+RUN apk add --no-cache \
+    bash \
+    curl \
+    jq
 
-# Kopiere das Start-Skript
-COPY run.sh /run.sh
-RUN chmod +x /run.sh
+# Copy run script
+COPY run.sh /
+RUN chmod a+x /run.sh
 
-# Das Slim-Image verwendet einen bekannten Entrypoint, den wir für unseren Start beibehalten.
-ENTRYPOINT ["/run.sh"]
+# Set working directory
+WORKDIR /data
+
+# Run as non-root user
+USER 1000:1000
+
+CMD [ "/run.sh" ]
