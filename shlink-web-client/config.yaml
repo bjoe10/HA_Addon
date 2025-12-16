@@ -1,24 +1,44 @@
 
-name: "Shlink Web Client"
-slug: "shlink_web_client"
-description: "Offizieller Shlink Web Client (Ingress in Home Assistant)"
+# https://developers.home-assistant.io/docs/add-ons/configuration
+name: Shlink Web Client
 version: "1.0.0"
+slug: shlink-web-client
+description: "React-basierter Client für Shlink (URL-Shortener), als Home Assistant Add-on."
+url: "https://shlink.io/documentation/shlink-web-client/"
 arch:
   - aarch64
   - amd64
   - armv7
   - armhf
   - i386
-startup: application
-stage: stable
-url: "https://shlink.io/documentation/shlink-web-client/"
 
-# Ingress-Panel (Shlink Web Client bedient Port 8080)
+# Wir nutzen kein S6-Overlay, sondern starten nur unser Skript -> init: false
+init: false
+
+# Ingress: HA proxied die Weboberfläche in einem Panel (Port 8080 im Container). [4](https://deepwiki.com/hassio-addons/addon-vscode/5.1-ingress-and-web-ui)
 ingress: true
 ingress_port: 8080
-panel_icon: "mdi:link-variant"
+panel_icon: mdi:link
 panel_title: "Shlink"
 
-## Keine externe Portfreigabe (Ingress reicht)
+# Zusätzlich (optional) direkter Zugriff per Host-Port 8080
 ports:
+  "8080/tcp": 8080
+ports_description:
+  "8080/tcp": "Weboberfläche (optional, außerhalb von Ingress)"
+webui: "http://[HOST]:[PORT:8080]/"
+
+# Standardoptionen (GUI) und Schema
+options:
+  shlink_server_url: ""
+  shlink_server_api_key: ""
+  shlink_server_name: "Shlink"
+  forward_credentials: false
+schema:
+  shlink_server_url: str
+  shlink_server_api_key: password
+  shlink_server_name: str?
+  forward_credentials: bool?
+
+#
 
