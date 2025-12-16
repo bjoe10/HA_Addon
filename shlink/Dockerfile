@@ -1,20 +1,30 @@
-# Nutze das offizielle, stabile Shlink Docker-Image als Basis
+
+# HA_Addon/shlink/Dockerfile
+ARG BUILD_VERSION
+ARG BUILD_ARCH
+
 FROM shlinkio/shlink:stable
 
-# Wir wechseln zu Root, um Pakete zu installieren
-USER root
+# Labels für Home Assistant Supervisor
+LABEL io.hass.version="${BUILD_VERSION}" \
+      io.hass.type="addon" \
+      io.hass.arch="${BUILD_ARCH}"
 
-# Installiere jq (notwendig um die options.json von HA zu parsen)
-RUN apk add --no-cache jq
+# Hilfstools (Optionen lesen)
+RUN if command -v apk >/dev/null 2>&1; then \
+      apk add --no-cache bash jq; \
+    elif command -v apt-get >/dev/null 2>&1; then \
+      apt-get update && apt-get install -y --no-install-recommends bash jq && \
+      rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "Kein unterstützter Paketmanager gefunden." && exit 1; \
+    fi
 
-# Kopiere das Startskript und setze Ausführungsrechte
+# Startskript
 COPY run.sh /run.sh
-RUN chmod a+x /run.sh
+RUN chmod +x /run.sh
 
-# Environment Variablen für die SQLite-Datenbank im persistenten Speicher (/data)
-# Dies ist die Standardeinstellung und muss nicht mehr vom Nutzer geändert werden
-ENV DB_DRIVER=sqlite
-ENV DB_NAME=/data/shlink_db.sqlite
+## Shlink-API-Port
+EXPOSE 8080
 
-# Der Startbefehl ruft unser Skript auf
-CMD [ "/run.sh" ]
+# Start: Optionen -> ENV -> Upstream Entrypoint
