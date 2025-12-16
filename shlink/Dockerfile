@@ -5,12 +5,12 @@ ARG BUILD_ARCH
 
 FROM shlinkio/shlink:stable
 
-# Labels für Home Assistant Supervisor
+# Labels für den Home Assistant Supervisor
 LABEL io.hass.version="${BUILD_VERSION}" \
       io.hass.type="addon" \
       io.hass.arch="${BUILD_ARCH}"
 
-# Hilfstools (Optionen lesen)
+# Kleine Hilfstools zum Parsen der Add-on-Optionen
 RUN if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash jq; \
     elif command -v apt-get >/dev/null 2>&1; then \
@@ -20,11 +20,14 @@ RUN if command -v apk >/dev/null 2>&1; then \
       echo "Kein unterstützter Paketmanager gefunden." && exit 1; \
     fi
 
-# Startskript
+# Startskript ins Image
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-## Shlink-API-Port
+# Shlink-API-Port
 EXPOSE 8080
 
-# Start: Optionen -> ENV -> Upstream Entrypoint
+# Starte unser Skript (setzt ENV, persistiert API-Key, ruft dann Upstream-Entrypoint)
+CMD ["/run.sh"]
+``
+
