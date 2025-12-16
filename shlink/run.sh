@@ -68,7 +68,7 @@ bashio::log.info "Domain: ${DEFAULT_DOMAIN}"
 bashio::log.info "HTTPS: ${IS_HTTPS_ENABLED}"
 bashio::log.info "Database driver: ${DB_DRIVER}"
 
-# Start Shlink container
+# Start Shlink container im Hintergrund
 CONTAINER_ID=$(docker run -d \
     --name shlink \
     ${ENV_ARGS} \
@@ -82,24 +82,24 @@ bashio::log.info "Shlink container started with ID: ${CONTAINER_ID}"
 extract_api_key() {
     bashio::log.info "Checking for API key generation..."
     
-    # Wait a bit for container to initialize
+    # Warte auf Container-Initialisierung
     sleep 10
     
-    # Check if initial API key was provided
+    # Prüfe, ob ein initialer API-Key bereitgestellt wurde
     if [ -n "${INITIAL_API_KEY}" ]; then
         bashio::log.info "Using provided API key: ${INITIAL_API_KEY}"
         echo "API Key: ${INITIAL_API_KEY}" > /data/api_key.txt
         return 0
     fi
     
-    # Try to extract API key from logs
+    # Versuche, den API-Key aus den Logs zu extrahieren
     for i in {1..10}; do
         bashio::log.info "Attempt ${i}/10 to extract API key from logs..."
         
-        # Get recent logs
+        # Hole die letzten Logs
         LOGS=$(docker logs --tail 100 "${CONTAINER_ID}" 2>/dev/null || true)
         
-        # Look for API key in logs (Shlink typically shows it when generated)
+        # Suche nach API-Key in den Logs (Shlink zeigt ihn normalerweise an, wenn er generiert wird)
         API_KEY=$(echo "${LOGS}" | grep -oE "apiKey_[a-zA-Z0-9]+" | head -1)
         
         if [ -n "${API_KEY}" ]; then
@@ -109,7 +109,7 @@ extract_api_key() {
             return 0
         fi
         
-        # Alternative: try to generate API key via CLI
+        # Alternative: Versuche, den API-Key über CLI zu generieren
         if [ ${i} -eq 3 ]; then
             bashio::log.info "Trying to generate API key via CLI..."
             docker exec "${CONTAINER_ID}" shlink api-key:generate 2>/dev/null || true
@@ -124,19 +124,13 @@ extract_api_key() {
     return 1
 }
 
-# Try to extract API key
+# Versuche, den API-Key zu extrahieren
 extract_api_key || true
 
-# Monitor container
+# Container im Vordergrund halten, indem wir auf die Logs warten
 bashio::log.info "Shlink is running on port 8080"
 bashio::log.info "Web interface: http://[HASS_IP]:8080"
 bashio::log.info "Check /data/api_key.txt for your API key if it was generated"
 
-# Keep script running
-while true; do
-    if ! docker ps --filter "name=shlink" --format "{{.Names}}" | grep -q "shlink"; then
-        bashio::log.error "Shlink container stopped unexpectedly"
-        exit 1
-    fi
-    sleep 30
-done
+# Halte den Container am Laufen, indem wir auf die Logs warten (blockierend)
+docker logs -f "${CONTAINER_ID}"
