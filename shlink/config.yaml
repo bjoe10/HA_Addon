@@ -1,9 +1,11 @@
+
+# HA_Addon/shlink/config.yaml
 name: Shlink Server (API)
 slug: shlink
 version: "0.1.0"
 description: "Shlink URL-Shortener (Server & REST API) als Home Assistant Add-on."
 arch:
-  - arm64
+  - amd64
   - aarch64
   - armv7
   - armhf
@@ -12,21 +14,21 @@ arch:
 startup: services
 boot: auto
 
-# Shlink lauscht im Container standardmäßig auf 8080
+# Shlink lauscht im Container auf 8080
 ports:
   8080/tcp: null
 ports_description:
   8080/tcp: "Shlink API (HTTP)"
 
-# Optionaler Weblink; erleichtert das Öffnen der Base-URL/Health
+# Praktischer Link zur API-Basis (Health/Version)
 webui: "http://[HOST]:[PORT:8080]"
 
-# Optionen (werden in /data/options.json persistiert)
+# GUI-Optionen (Defaultwerte)
 options:
-  default_domain: "s.example"   # z.B. s.deine-domain.tld (ohne Schema)
+  default_domain: "s.example"   # z. B. s.deine-domain.tld (ohne http/https)
   is_https_enabled: true
   geolite_license_key: ""
-  initial_api_key: ""
+  initial_api_key: ""           # leer lassen -> wird automatisch generiert und gespeichert
   db_driver: "sqlite"           # sqlite|mysql|maria|postgres|mssql
   db_host: ""
   db_port: 0                    # 0 = Auto je nach Treiber
@@ -36,6 +38,7 @@ options:
   timezone: "UTC"
   trusted_proxies: ""
 
+# Schema (erzwingt/erlaubt Eingaben & sorgt dafür, dass Optionen in /data/options.json landen)
 schema:
   default_domain: str
   is_https_enabled: bool
@@ -47,4 +50,5 @@ schema:
   db_name: str
   db_user: str
   db_password: password
-   timezone: str
+  timezone: str
+  trusted_proxies: str
