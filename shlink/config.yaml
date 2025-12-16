@@ -39,4 +39,3 @@ schema:
   db_port: port?
   redis_servers: str?
   timezone: str
-image: "ghcr.io/shlinkio/shlink"
