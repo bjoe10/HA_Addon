@@ -1,13 +1,24 @@
 
-# HA_Addon/shlink/Dockerfile
+# Add-on Build-Labels (werden vom HA-Builder gesetzt, wenn vorhanden)
+ARG BUILD_VERSION
+ARG BUILD_ARCH
+
+# ==> Offizielles Shlink-Image als Basis
 FROM shlinkio/shlink:stable
 
-## Unser Startskript in den Arbeitsordner des Basis-Images legen
-# (Workdir/Owner ist /etc/shlink mit USER 1001; dort sind Schreibrechte vorhanden)
-COPY run.sh /etc/shlink/run.sh
+# Hilfstools für das Add-on
+RUN apk add --no-cache jq tzdata
 
-# Shlink API-Port (laut offizieller Doku)
-EXPOSE 8080
+# Unser Entrypoint-Wrapper
+COPY run.sh /usr/local/bin/ha-run.sh
+RUN chmod +x /usr/local/bin/ha-run.sh
 
-# Starte unser Skript per /bin/sh; Executable-Bit ist damit nicht erforderlich.
+# HA-Add-on Labels (wichtig bei eigenem Base-Image)
+LABEL \
+  io.hass.version="${BUILD_VERSION}" \
+  io.hass.type="addon" \
+  io.hass.arch="${BUILD_ARCH}"
+
+# Starte unseren Wrapper; der ruft am Ende den originalen Shlink-Entrypoint auf
+ENTRYPOINT ["/bin/sh", "/usr/local/bin/ha-run.sh"]
 
