@@ -1,29 +1,52 @@
-name: "Shlink URL Shortener (SQLite)"
-version: "1.1.0" # Version erhöht
-slug: "shlink"
-description: "Ein selbst gehosteter URL-Shortener auf Basis von Shlink mit SQLite-Datenbank."
-url: "https://shlink.io"
-arch:
-  - aarch64
-  - amd64
-startup: application
-boot: auto
-host_network: true
-ports:
-  8080/tcp: 8080
-map:
-  - config:rw
 
-# NEUE Felder für Trusted Hosts und optionalen Initial API Key
+# HA_Addon/shlink/config.yaml
+name: Shlink Server (API)
+slug: shlink
+version: "0.1.0"
+description: "Shlink URL-Shortener (Server & REST API) als Home Assistant Add-on."
+arch:
+  - amd64
+  - aarch64
+  - armv7
+  - armhf
+  - i386
+
+startup: services
+boot: auto
+
+# Shlink lauscht im Container standardmäßig auf 8080
+ports:
+  8080/tcp: null
+ports_description:
+  8080/tcp: "Shlink API (HTTP)"
+
+# Optionaler Weblink; erleichtert das Öffnen der Base-URL/Health
+webui: "http://[HOST]:[PORT:8080]"
+
+# Optionen (werden in /data/options.json persistiert)
 options:
-  default_domain: "deine-kurz-url.de"
-  is_https: true
+  default_domain: "s.example"   # z.B. s.deine-domain.tld (ohne Schema)
+  is_https_enabled: true
   geolite_license_key: ""
-  trusted_hosts: "http://192.168.178.108:8081" # Hier muss die Adresse des Web Clients rein
   initial_api_key: ""
+  db_driver: "sqlite"           # sqlite|mysql|maria|postgres|mssql
+  db_host: ""
+  db_port: 0                    # 0 = Auto je nach Treiber
+  db_name: "shlink"
+  db_user: ""
+  db_password: ""
+  timezone: "UTC"
+  trusted_proxies: ""
+
 schema:
   default_domain: str
-  is_https: bool
-  geolite_license_key: str?
-  trusted_hosts: str?
-  initial_api_key: password?
+  is_https_enabled: bool
+  geolite_license_key: password
+  initial_api_key: password
+  db_driver: str
+  db_host: str
+  db_port: int
+  db_name: str
+  db_user: str
+  db_password: password
+   timezone: str
