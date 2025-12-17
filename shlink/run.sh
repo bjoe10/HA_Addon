@@ -5,7 +5,7 @@ set -euo pipefail
 log() { echo "[shlink-addon] $*"; }
 
 OPTIONS_FILE="/data/options.json"
-# Simple JSON reader using jq (fallback ohne jq)
+# JSON-Optionen aus der HA-UI lesen (jq bevorzugt; Fallback ohne jq)
 get_opt(){
   local key="$1"; local default="${2-}"
   if command -v jq >/dev/null 2>&1; then
@@ -19,11 +19,12 @@ get_opt(){
   fi
 }
 
-# --- Persistenz für Shlink-Dateien ---
+# --- Persistenz für Shlink-Dateien (SQLite etc.) ---
 PERSIST_DIR="/data/etc-shlink"
 if [ ! -d "$PERSIST_DIR" ]; then
   mkdir -p "$PERSIST_DIR"
 fi
+# /etc/shlink -> /data/etc-shlink symlink
 if [ -d "/etc/shlink" ] && [ ! -L "/etc/shlink" ]; then
   if [ -z "$(ls -A /etc/shlink)" ]; then
     rmdir /etc/shlink || true
@@ -37,7 +38,7 @@ if [ ! -e "/etc/shlink" ]; then
   ln -s "$PERSIST_DIR" /etc/shlink
 fi
 
-# --- Optionen lesen ---
+# --- Optionen aus der HA-UI ---
 DEFAULT_DOMAIN=$(get_opt default_domain "")
 IS_HTTPS_ENABLED=$(get_opt is_https_enabled "true")
 GEOLITE_LICENSE_KEY=$(get_opt geolite_license_key "")
@@ -46,18 +47,9 @@ TIMEZONE=$(get_opt timezone "UTC")
 TRUSTED_PROXIES=$(get_opt trusted_proxies "")
 LOGS_FORMAT=$(get_opt logs_format "console")
 MEMORY_LIMIT=$(get_opt memory_limit "512M")
-
-DB_DRIVER=$(get_opt db_driver "sqlite")
-DB_HOST=$(get_opt db_host "")
-DB_PORT=$(get_opt db_port "")
-DB_NAME=$(get_opt db_name "shlink")
-DB_USER=$(get_opt db_user "")
-DB_PASSWORD=$(get_opt db_password "")
-
 PROVIDED_API_KEY=$(get_opt initial_api_key "")
-API_KEY_FILE="/data/api_key.txt"
 
-# --- Shlink-ENV Variablen exportieren ---
+# --- Shlink-ENV Variablen ---
 export DEFAULT_DOMAIN="$DEFAULT_DOMAIN"
 export IS_HTTPS_ENABLED="$IS_HTTPS_ENABLED"
 [ -n "$GEOLITE_LICENSE_KEY" ] && export GEOLITE_LICENSE_KEY
@@ -67,25 +59,10 @@ export IS_HTTPS_ENABLED="$IS_HTTPS_ENABLED"
 [ -n "$LOGS_FORMAT" ] && export LOGS_FORMAT
 [ -n "$MEMORY_LIMIT" ] && export MEMORY_LIMIT
 
-case "$DB_DRIVER" in
-  sqlite|"")
-    # SQLite (im /etc/shlink via Symlink) – keine weiteren ENV nötig
-    ;;
-  mysql|maria|postgres|mssql)
-    export DB_DRIVER
-    [ -n "$DB_NAME" ] && export DB_NAME
-    [ -n "$DB_USER" ] && export DB_USER
-    [ -n "$DB_PASSWORD" ] && export DB_PASSWORD
-    [ -n "$DB_HOST" ] && export DB_HOST
-    [ -n "$DB_PORT" ] && export DB_PORT
-    ;;
-  *)
-    log "Unsupported DB driver: $DB_DRIVER. Falling back to SQLite."
-    ;;
-esac
+# --- Keine externe DB: wir bleiben bei SQLite (Shlink nutzt sie automatisch) ---
 
-# --- API-Key: aus Optionen, Datei oder neu generieren ---
-FIRST_RUN=false
+# --- API-Key handhaben ---
+API_KEY_FILE="/data/api_key.txt"
 API_KEY=""
 if [ -s "$API_KEY_FILE" ]; then
   API_KEY=$(cat "$API_KEY_FILE")
@@ -93,9 +70,6 @@ if [ -s "$API_KEY_FILE" ]; then
 else
   if [ -n "$PROVIDED_API_KEY" ]; then
     API_KEY="$PROVIDED_API_KEY"
-    echo -n "$API_KEY" > "$API_KEY_FILE"
-    chmod 600 "$API_KEY_FILE"
-    log "Using user-provided initial API key from options. Saved to $API_KEY_FILE."
   else
     if command -v uuidgen >/dev/null 2>&1; then
       API_KEY=$(uuidgen | tr 'A-Z' 'a-z')
@@ -104,24 +78,22 @@ else
     else
       API_KEY=$(date +%s%N | sha256sum | cut -c1-32)
     fi
-    echo -n "$API_KEY" > "$API_KEY_FILE"
-    chmod 600 "$API_KEY_FILE"
-    FIRST_RUN=true
-    log "Generated new initial API key. Saved to $API_KEY_FILE."
   fi
+  echo -n "$API_KEY" > "$API_KEY_FILE"
+  chmod 600 "$API_KEY_FILE"
 fi
 
-# Shlink ab v3.3 akzeptiert INITIAL_API_KEY als Startwert
+# Shlink >= 3.3: ersten API-Key via INITIAL_API_KEY setzen
 export INITIAL_API_KEY="$API_KEY"
 
-# Deutlich im Log ausgeben
+# Deutlich im Add-on-Log ausgeben
 log "
 ================ SHLINK API KEY ================
 $API_KEY
 ================================================
 "
 
-# --- Shlink starten (an den ursprünglichen Entrypoint delegieren) ---
+# --- Shlink starten: an originalen Entrypoint delegieren ---
 if command -v docker-entrypoint.sh >/dev/null 2>&1; then
   exec docker-entrypoint.sh
 elif [ -x /usr/local/bin/docker-entrypoint.sh ]; then
@@ -129,6 +101,7 @@ elif [ -x /usr/local/bin/docker-entrypoint.sh ]; then
 elif [ -x /entrypoint.sh ]; then
   exec /entrypoint.sh
 else
+  # Fallback RoadRunner/CLI
   if command -v rr >/dev/null 2>&1; then
     exec rr serve
   fi
@@ -138,3 +111,4 @@ else
   log "Could not determine how to start Shlink. Going idle."
   exec tail -f /dev/null
 fi
+
