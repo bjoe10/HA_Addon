@@ -1,14 +1,16 @@
 
-# Home Assistant Add-on Base verwenden
+# Dockerfile
+# Home Assistant Base-Image verwenden
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# (Optional) Zusätzliche Tools
-RUN apk add --no-cache php php-cli php-json
+# Optional: Tools, falls du sie brauchst
+RUN apk add --no-cache php-cli
 
-# Dein Startskript
+# Startskript kopieren, Ausführbarkeit & Windows-CRLF -> LF sicherstellen
 COPY --chmod=0755 run.sh /run.sh
+RUN sed -i 's/\r$//' /run.sh
 
-# s6-overlay erwartet CMD auf dein Skript
-CMD ["/run.sh"
+# s6-overlay erwartet ein CMD (kein eigener ENTRYPOINT)
+CMD [
 
