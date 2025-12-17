@@ -2,113 +2,72 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-log() { echo "[shlink-addon] $*"; }
+CONFIG_PATH="/data/options.json"
 
-OPTIONS_FILE="/data/options.json"
-# JSON-Optionen aus der HA-UI lesen (jq bevorzugt; Fallback ohne jq)
-get_opt(){
-  local key="$1"; local default="${2-}"
-  if command -v jq >/dev/null 2>&1; then
-    local val
-    val=$(jq -r --arg k "$key" '.[$k] // empty' "$OPTIONS_FILE" 2>/dev/null || true)
-    if [ -z "${val}" ] || [ "${val}" = "null" ]; then echo -n "$default"; else echo -n "$val"; fi
+# Fallback-Funktionen zum Lesen aus options.json, ohne bashio
+get_opt() {
+  local key="$1"; local default="${2:-}"
+  if command -v jq >/dev/null 2>&1 && [ -f "$CONFIG_PATH" ]; then
+    jq -r --arg k "$key" '.[$k] // empty' "$CONFIG_PATH" 2>/dev/null || echo -n "$default"
   else
-    local val
-    val=$(sed -n "s/.*\"$key\" *: *\"\(.*\)\".*/\1/p" "$OPTIONS_FILE" | head -n1)
-    if [ -z "${val}" ]; then echo -n "$default"; else echo -n "$val"; fi
+    echo -n "$default"
   fi
 }
 
-# --- Persistenz für Shlink-Dateien (SQLite etc.) ---
-PERSIST_DIR="/data/etc-shlink"
-if [ ! -d "$PERSIST_DIR" ]; then
-  mkdir -p "$PERSIST_DIR"
-fi
-# /etc/shlink -> /data/etc-shlink symlink
-if [ -d "/etc/shlink" ] && [ ! -L "/etc/shlink" ]; then
-  if [ -z "$(ls -A /etc/shlink)" ]; then
-    rmdir /etc/shlink || true
-  else
-    log "Migrating /etc/shlink to $PERSIST_DIR for persistence..."
-    cp -a /etc/shlink/. "$PERSIST_DIR"/
-    rm -rf /etc/shlink
-  fi
-fi
-if [ ! -e "/etc/shlink" ]; then
-  ln -s "$PERSIST_DIR" /etc/shlink
-fi
+# 1) Optionen aus HA GUI laden und als ENV für Shlink setzen
+export DEFAULT_DOMAIN="$(get_opt default_domain s.test)"
+export IS_HTTPS_ENABLED="$(get_opt is_https_enabled false)"
+export GEOLITE_LICENSE_KEY="$(get_opt geolite_license_key "")"
+export BASE_PATH="$(get_opt base_path "")"
+export TIMEZONE="$(get_opt timezone UTC)"
+export TRUSTED_PROXIES="$(get_opt trusted_proxies "")"
+export LOGS_FORMAT="$(get_opt logs_format console)"
 
-# --- Optionen aus der HA-UI ---
-DEFAULT_DOMAIN=$(get_opt default_domain "")
-IS_HTTPS_ENABLED=$(get_opt is_https_enabled "true")
-GEOLITE_LICENSE_KEY=$(get_opt geolite_license_key "")
-BASE_PATH=$(get_opt base_path "")
-TIMEZONE=$(get_opt timezone "UTC")
-TRUSTED_PROXIES=$(get_opt trusted_proxies "")
-LOGS_FORMAT=$(get_opt logs_format "console")
-MEMORY_LIMIT=$(get_opt memory_limit "512M")
-PROVIDED_API_KEY=$(get_opt initial_api_key "")
-
-# --- Shlink-ENV Variablen ---
-export DEFAULT_DOMAIN="$DEFAULT_DOMAIN"
-export IS_HTTPS_ENABLED="$IS_HTTPS_ENABLED"
-[ -n "$GEOLITE_LICENSE_KEY" ] && export GEOLITE_LICENSE_KEY
-[ -n "$BASE_PATH" ] && export BASE_PATH
-[ -n "$TIMEZONE" ] && export TIMEZONE
-[ -n "$TRUSTED_PROXIES" ] && export TRUSTED_PROXIES
-[ -n "$LOGS_FORMAT" ] && export LOGS_FORMAT
-[ -n "$MEMORY_LIMIT" ] && export MEMORY_LIMIT
-
-# --- Keine externe DB: wir bleiben bei SQLite (Shlink nutzt sie automatisch) ---
-
-# --- API-Key handhaben ---
-API_KEY_FILE="/data/api_key.txt"
-API_KEY=""
-if [ -s "$API_KEY_FILE" ]; then
-  API_KEY=$(cat "$API_KEY_FILE")
-  log "Existing API key found in $API_KEY_FILE."
+# 2) Optional: Initialen API-Key setzen oder generieren
+INITIAL_API_KEY_CFG="$(get_opt initial_api_key "")"
+if [ -n "$INITIAL_API_KEY_CFG" ]; then
+  export INITIAL_API_KEY="$INITIAL_API_KEY_CFG"
 else
-  if [ -n "$PROVIDED_API_KEY" ]; then
-    API_KEY="$PROVIDED_API_KEY"
+  # Einmaligen, zufälligen Initial-Key generieren (UUID v4)
+  if command -v uuidgen >/dev/null 2>&1; then
+    export INITIAL_API_KEY="$(uuidgen)"
   else
-    if command -v uuidgen >/dev/null 2>&1; then
-      API_KEY=$(uuidgen | tr 'A-Z' 'a-z')
-    elif [ -r /proc/sys/kernel/random/uuid ]; then
-      API_KEY=$(cat /proc/sys/kernel/random/uuid)
-    else
-      API_KEY=$(date +%s%N | sha256sum | cut -c1-32)
-    fi
+    # einfacher Fallback, 32 Hexzeichen
+    export INITIAL_API_KEY="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo $(date +%s%N))"
   fi
-  echo -n "$API_KEY" > "$API_KEY_FILE"
-  chmod 600 "$API_KEY_FILE"
 fi
 
-# Shlink >= 3.3: ersten API-Key via INITIAL_API_KEY setzen
-export INITIAL_API_KEY="$API_KEY"
+echo "Shlink Add-on: INITIAL_API_KEY = ${INITIAL_API_KEY}"
+echo "Hinweis: INITIAL_API_KEY wird von Shlink nur beim allerersten Start verwendet, wenn noch keine API-Keys existieren."  # Doku-Hinweis
 
-# Deutlich im Add-on-Log ausgeben
-log "
-================ SHLINK API KEY ================
-$API_KEY
-================================================
-"
+# 3) SQLite persistent machen:
+#    Shlink hält die SQLite-Datei standardmäßig unter data/database.sqlite
+#    (im Image z. B. /etc/shlink/data/database.sqlite). Wir verlinken sie in /data/shlink/.
+PERSIST_DIR="/data/shlink"
+CONTAINER_DB_DIR="/etc/shlink/data"
+CONTAINER_DB_FILE="${CONTAINER_DB_DIR}/database.sqlite"
+mkdir -p "${PERSIST_DIR}"
 
-# --- Shlink starten: an originalen Entrypoint delegieren ---
-if command -v docker-entrypoint.sh >/dev/null 2>&1; then
-  exec docker-entrypoint.sh
-elif [ -x /usr/local/bin/docker-entrypoint.sh ]; then
-  exec /usr/local/bin/docker-entrypoint.sh
-elif [ -x /entrypoint.sh ]; then
-  exec /entrypoint.sh
+# Wenn im Container noch keine DB existiert, wird Shlink sie beim Start anlegen.
+# Wir sorgen dafür, dass das Verzeichnis nach /data zeigt.
+if [ -d "${CONTAINER_DB_DIR}" ] && [ ! -L "${CONTAINER_DB_DIR}" ]; then
+  # Inhalte (falls vorhanden) nach /data/shlink kopieren
+  cp -rT "${CONTAINER_DB_DIR}" "${PERSIST_DIR}" || true
+
+  # Verzeichnis im Container auf persistenten Pfad umbiegen
+  rm -rf "${CONTAINER_DB_DIR}"
+  ln -s "${PERSIST_DIR}" "${CONTAINER_DB_DIR}"
+fi
+
+echo "Shlink Add-on: SQLite persistiert unter ${PERSIST_DIR} (Achtung: SQLite hat bekannte Limitierungen)."
+
+# 4) Zum Schluss das originale Shlink Entrypoint starten
+#    Der Entrypoint im offiziellen Image heißt /docker-entrypoint.sh
+if [ -x "/docker-entrypoint.sh" ]; then
+  exec /docker-entrypoint.sh
 else
-  # Fallback RoadRunner/CLI
-  if command -v rr >/dev/null 2>&1; then
-    exec rr serve
-  fi
-  if command -v shlink >/dev/null 2>&1; then
-    exec shlink serve || shlink -V || sleep infinity
-  fi
-  log "Could not determine how to start Shlink. Going idle."
-  exec tail -f /dev/null
+  echo "Fehler: /docker-entrypoint.sh nicht gefunden!"
+  echo "Bitte ggf. Bild-Tag prüfen oder Entrypoint-Pfad anpassen."
+  exit 1
 fi
 
