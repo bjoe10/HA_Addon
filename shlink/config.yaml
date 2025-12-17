@@ -2,39 +2,44 @@
 name: Shlink (URL Shortener)
 version: 1.0.0
 slug: shlink
-description: Selbstgehosteter URL-Shortener (Server + REST-API) als HA-Add-on
+description: Selbstgehosteter URL-Shortener (Server + REST-API) als Home Assistant Add-on
+url: https://shlink.io/
 arch:
   - amd64
   - aarch64
 
-# Shlink lauscht standardmäßig auf Port 8080 im Container
+# Add-on Lifecycle
+startup: services
+boot: auto
+init: false  # s6-overlay v3: darf kein eigener init (PID 1) sein
+
+# Netzwerk
 ports:
   8080/tcp: 8080
+webui: http://[HOST]:[PORT:8080]/
 
-# GUI-Optionen, die wir in ENV-Variablen zu Shlink mappen
+# Persistenz
+map:
+  - data:rw
+
+# GUI-Optionen -> werden im run.sh in ENV für Shlink gemappt
 options:
   default_domain: "s.test"
   is_https_enabled: false
   geolite_license_key: ""
   base_path: ""
   timezone: "UTC"
-  trusted_proxies: ""          # Leer oder Komma-getrennte Liste/CIDR
-  logs_format: "console"       # oder "json"
-  initial_api_key: ""          # leer = automatisch generieren und ins Log schreiben
+  trusted_proxies: ""
+  logs_format: "console"
+  initial_api_key: ""  # leer = generieren und im Log ausgeben
 
 schema:
   default_domain: str
   is_https_enabled: bool
-  geolite_license_key: str
+  geolite_license_key: password
   base_path: str
   timezone: str
   trusted_proxies: str
   logs_format: str
-  initial_api_key: str
-
-startup: services
-boot: auto
-init: false                    # wichtig wegen s6-overlay v3
-map:
-  - data:rw                    # /data für persistente Dateien (SQLite, Logs)
+ 
 
