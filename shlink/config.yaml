@@ -11,17 +11,21 @@ arch:
   - i386
 startup: services
 boot: auto
-init: false
+init: false          # Einfacher Entrypoint ohne S6-Servicebaum (empfohlen bei S6 v3)
 panel_icon: mdi:link-variant
-# Shlink hat keine eigene Web-UI, die REST-API läuft auf 8080
+
+# Shlink hat keine eigene Web-UI; die REST-API läuft auf Port 8080
 webui: http://[HOST]:[PORT:8080]/
 ports:
   8080/tcp: 8080
 ports_description:
   8080/tcp: "Shlink REST API"
+
+# Persistente Daten (HA-spezifischer /data Mount)
 map:
   - data:rw
 
+# GUI-Optionen
 options:
   default_domain: "s.test"
   is_https_enabled: true
@@ -29,15 +33,9 @@ options:
   base_path: ""
   timezone: "Europe/Berlin"
   trusted_proxies: ""
-  logs_format: "console"  # console|json
+  logs_format: "console"   # console|json
   memory_limit: "512M"
-  db_driver: "sqlite"     # sqlite|mysql|maria|postgres|mssql
-  db_host: ""
-  db_port: ""
-  db_name: "shlink"
-  db_user: ""
-  db_password: ""
-  initial_api_key: ""
+  initial_api_key: ""      # optional: initialer API-Key, sonst generiert
 
 schema:
   default_domain: str
@@ -48,14 +46,6 @@ schema:
   trusted_proxies: str?
   logs_format: list(console|json)
   memory_limit: str?
-  db_driver: list(sqlite|mysql|maria|postgres|mssql)
-  db_host: str?
-  db_port: str?
-  db_name: str?
-  db_user: str?
-  db_password: password?
   initial_api_key: password?
+``
 
-# (Optional) Privileg für bestimmte Umgebungen – ggf. entfernen, falls nicht nötig
-privileged:
-  - SYS_ADMIN
