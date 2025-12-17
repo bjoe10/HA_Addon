@@ -2,8 +2,9 @@
 ARG SHLINK_TAG=stable
 FROM shlinkio/shlink:${SHLINK_TAG}
 
-# Startskript mit Ausführungsrechten direkt beim Kopieren hinterlegen
+# Startskript direkt mit Ausführungsrechten kopieren
 COPY --chmod=0755 run.sh /run.sh
 
-ENTRYPOINT ["/run.sh"]
+# Robuster Entrypoint: Shell startet das Skript (um Shebang/BOM/CRLF-Probleme zu vermeiden)
+ENTRYPOINT ["/bin/sh","/run.sh"]
 
