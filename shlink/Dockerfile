@@ -1,14 +1,14 @@
 
-# Home Assistant Add-on Base-Image verwenden (s6-overlay integriert)
-ARG BUILD_FROM
-FROM $BUILD_FROM
+# Nutzt direkt das Shlink-Upstream-Image
+ARG SHLINK_TAG=stable
+FROM shlinkio/shFROM shlinkio/shlink:${SHLINK_TAG}
 
-# Optional: Minimale Tools; php-cli wird für das leichte JSON-Parsing genutzt
-RUN apk add --no-cache php-cli
+# Als root: /data beschreibbar machen und Symlink setzen
+USER 0
 
-# Startskript kopieren, ausführbar machen und Windows-CRLF -> LF sicherstellen
+# Startskript kopieren & CRLF->LF absichern
 COPY --chmod=0755 run.sh /run.sh
 RUN sed -i 's/\r$//' /run.sh
 
-# Add-on startet sein Skript via CMD (kein# Add-on startet sein Skript via CMD (kein eigener ENTRYPOINT!)
+# Start über /bin/sh (robust gegen exec-format-Fehler)
 
