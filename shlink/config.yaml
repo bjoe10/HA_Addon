@@ -1,51 +1,40 @@
 
-name: Shlink URL Shortener
+name: Shlink (URL Shortener)
+version: 1.0.0
 slug: shlink
-version: "0.1.0"
-description: "Selbst gehosteter URL-Shortener (Shlink) als Home Assistant Add-on."
-url: https://shlink.io/
+description: Selbstgehosteter URL-Shortener (Server + REST-API) als HA-Add-on
 arch:
   - amd64
   - aarch64
-  - armv7
-  - i386
-startup: services
-boot: auto
-init: false          # Einfacher Entrypoint ohne S6-Servicebaum (empfohlen bei S6 v3)
-panel_icon: mdi:link-variant
 
-# Shlink hat keine eigene Web-UI; die REST-API läuft auf Port 8080
-webui: http://[HOST]:[PORT:8080]/
+# Shlink lauscht standardmäßig auf Port 8080 im Container
 ports:
   8080/tcp: 8080
-ports_description:
-  8080/tcp: "Shlink REST API"
 
-# Persistente Daten (HA-spezifischer /data Mount)
-map:
-  - data:rw
-
-# GUI-Optionen
+# GUI-Optionen, die wir in ENV-Variablen zu Shlink mappen
 options:
   default_domain: "s.test"
-  is_https_enabled: true
+  is_https_enabled: false
   geolite_license_key: ""
   base_path: ""
-  timezone: "Europe/Berlin"
-  trusted_proxies: ""
-  logs_format: "console"   # console|json
-  memory_limit: "512M"
-  initial_api_key: ""      # optional: initialer API-Key, sonst generiert
+  timezone: "UTC"
+  trusted_proxies: ""          # Leer oder Komma-getrennte Liste/CIDR
+  logs_format: "console"       # oder "json"
+  initial_api_key: ""          # leer = automatisch generieren und ins Log schreiben
 
 schema:
   default_domain: str
   is_https_enabled: bool
-  geolite_license_key: str?
-  base_path: str?
-  timezone: str?
-  trusted_proxies: str?
-  logs_format: list(console|json)
-  memory_limit: str?
-  initial_api_key: password?
-``
+  geolite_license_key: str
+  base_path: str
+  timezone: str
+  trusted_proxies: str
+  logs_format: str
+  initial_api_key: str
+
+startup: services
+boot: auto
+init: false                    # wichtig wegen s6-overlay v3
+map:
+  - data:rw                    # /data für persistente Dateien (SQLite, Logs)
 
