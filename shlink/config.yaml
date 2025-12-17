@@ -1,41 +1,61 @@
-name: "Shlink URL Shortener"
-description: "Shlink - Self-hosted URL shortener with analytics"
-version: "1.0.0"
-slug: "shlink"
-init: false
+
+name: Shlink URL Shortener
+slug: shlink
+version: "0.1.0"
+description: "Selbst gehosteter URL-Shortener (Shlink) als Home Assistant Add-on."
+url: https://shlink.io/
 arch:
-  - aarch64
   - amd64
-  - armhf
+  - aarch64
   - armv7
   - i386
+startup: services
+boot: auto
+init: false
+panel_icon: mdi:link-variant
+# Shlink hat keine eigene Web-UI, die REST-API läuft auf 8080
+webui: http://[HOST]:[PORT:8080]/
 ports:
   8080/tcp: 8080
 ports_description:
-  8080/tcp: "Shlink Web Interface & API"
+  8080/tcp: "Shlink REST API"
+map:
+  - data:rw
+
 options:
-  default_domain: "shlink.local"
-  is_https_enabled: false
+  default_domain: "s.test"
+  is_https_enabled: true
   geolite_license_key: ""
-  initial_api_key: ""
-  db_driver: "sqlite"
+  base_path: ""
+  timezone: "Europe/Berlin"
+  trusted_proxies: ""
+  logs_format: "console"  # console|json
+  memory_limit: "512M"
+  db_driver: "sqlite"     # sqlite|mysql|maria|postgres|mssql
+  db_host: ""
+  db_port: ""
   db_name: "shlink"
   db_user: ""
   db_password: ""
-  db_host: ""
-  db_port: null
-  redis_servers: ""
-  timezone: "Europe/Berlin"
+  initial_api_key: ""
+
 schema:
   default_domain: str
   is_https_enabled: bool
   geolite_license_key: str?
-  initial_api_key: str?
+  base_path: str?
+  timezone: str?
+  trusted_proxies: str?
+  logs_format: list(console|json)
+  memory_limit: str?
   db_driver: list(sqlite|mysql|maria|postgres|mssql)
-  db_name: str
+  db_host: str?
+  db_port: str?
+  db_name: str?
   db_user: str?
   db_password: password?
-  db_host: str?
-  db_port: port?
-  redis_servers: str?
-  timezone: str
+  initial_api_key: password?
+
+# (Optional) Privileg für bestimmte Umgebungen – ggf. entfernen, falls nicht nötig
+privileged:
+  - SYS_ADMIN
