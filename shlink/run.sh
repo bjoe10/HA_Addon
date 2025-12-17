@@ -37,22 +37,30 @@ fi
 echo "Shlink Add-on: INITIAL_API_KEY = ${INITIAL_API_KEY}"
 echo "Hinweis: INITIAL_API_KEY wird von Shlink nur beim allerersten Start verwendet, wenn noch keine API-Keys existieren."
 
-# 3) SQLite in /data persistieren (Hinweis: SQLite hat Limitierungen)
+# 3) SQLite-Persistenz unter /data einrichten (mit Fallback)
 PERSIST_DIR="/data/shlink"
 CONTAINER_DB_DIR="/etc/shlink/data"
 
-mkdir -p "${PERSIST_DIR}"
-# Rechte so setzen, dass Shlink (Laufzeitprozess) schreiben kann
-chmod 0775 "${PERSIST_DIR}" || true
+# UID des späteren Shlink-Laufzeit-Users (typisch 1001 im offiziellen Image)
+SHLINK_UID="${SHLINK_UID:-1001}"
+SHLINK_GID="${SHLINK_GID:-1001}"
 
-# Verzeichnis des Containers auf persistentes Verzeichnis umbiegen
-if [ -d "${CONTAINER_DB_DIR}" ] && [ ! -L "${CONTAINER_DB_DIR}" ]; then
-  cp -rT "${CONTAINER_DB_DIR}" "${PERSIST_DIR}" || true
-  rm -rf "${CONTAINER_DB_DIR}"
-  ln -s "${PERSIST_DIR}" "${CONTAINER_DB_DIR}"
+if mkdir -p "${PERSIST_DIR}" 2>/dev/null; then
+  # Rechte/Owner so setzen, dass der Nicht-Root-Laufzeit-User schreiben kann
+  chmod 0775 "${PERSIST_DIR}" || true
+  chown -R "${SHLINK_UID}:${SHLINK_GID}" "${PERSIST_DIR}" || true
+
+  # Containerpfad auf Persistenz umbiegen, falls noch kein Symlink
+  if [ -d "${CONTAINER_DB_DIR}" ] && [ ! -L "${CONTAINER_DB_DIR}" ]; then
+    cp -rT "${CONTAINER_DB_DIR}" "${PERSIST_DIR}" || true
+    rm -rf "${CONTAINER_DB_DIR}"
+    ln -s "${PERSIST_DIR}" "${CONTAINER_DB_DIR}"
+  fi
+
+  echo "Shlink Add-on: SQLite persistiert unter ${PERSIST_DIR}"
+else
+  echo "Shlink Add-on: WARNUNG: Keine Schreibrechte auf /data – SQLite bleibt intern (nicht persistent)."
 fi
-
-echo "Shlink Add-on: SQLite persistiert unter ${PERSIST_DIR}"
 
 # 4) Originalen Shlink-Entrypoint ausführen
 if [ -x "/docker-entrypoint.sh" ]; then
@@ -61,4 +69,5 @@ else
   echo "Fehler: /docker-entrypoint.sh nicht gefunden! Bitte Image-Tag prüfen."
   exit 1
 fi
+``
 
