@@ -1,79 +1,140 @@
-#!/usr/bin/with-contenv bashio
 
-bashio::log.info "Starting Shlink URL Shortener..."
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Read configuration
-DEFAULT_DOMAIN=$(bashio::config 'default_domain')
-IS_HTTPS_ENABLED=$(bashio::config 'is_https_enabled')
-GEOLITE_LICENSE_KEY=$(bashio::config 'geolite_license_key')
-INITIAL_API_KEY=$(bashio::config 'initial_api_key')
-DB_DRIVER=$(bashio::config 'db_driver')
-DB_NAME=$(bashio::config 'db_name')
-DB_USER=$(bashio::config 'db_user')
-DB_PASSWORD=$(bashio::config 'db_password')
-DB_HOST=$(bashio::config 'db_host')
-DB_PORT=$(bashio::config 'db_port')
-REDIS_SERVERS=$(bashio::config 'redis_servers')
-TIMEZONE=$(bashio::config 'timezone')
+log() { echo "[shlink-addon] $*"; }
 
-# Export mandatory environment variables
-export DEFAULT_DOMAIN="${DEFAULT_DOMAIN}"
-export IS_HTTPS_ENABLED="${IS_HTTPS_ENABLED}"
-export TZ="${TIMEZONE}"
+OPTIONS_FILE="/data/options.json"
+# Simple JSON reader using jq (fallback ohne jq)
+get_opt(){
+  local key="$1"; local default="${2-}"
+  if command -v jq >/dev/null 2>&1; then
+    local val
+    val=$(jq -r --arg k "$key" '.[$k] // empty' "$OPTIONS_FILE" 2>/dev/null || true)
+    if [ -z "${val}" ] || [ "${val}" = "null" ]; then echo -n "$default"; else echo -n "$val"; fi
+  else
+    local val
+    val=$(sed -n "s/.*\"$key\" *: *\"\(.*\)\".*/\1/p" "$OPTIONS_FILE" | head -n1)
+    if [ -z "${val}" ]; then echo -n "$default"; else echo -n "$val"; fi
+  fi
+}
 
-# Export GeoLite2 license key if provided
-if bashio::config.has_value 'geolite_license_key'; then
-    export GEOLITE_LICENSE_KEY="${GEOLITE_LICENSE_KEY}"
-    bashio::log.info "GeoLite2 license key configured"
+# --- Persistenz für Shlink-Dateien ---
+PERSIST_DIR="/data/etc-shlink"
+if [ ! -d "$PERSIST_DIR" ]; then
+  mkdir -p "$PERSIST_DIR"
+fi
+if [ -d "/etc/shlink" ] && [ ! -L "/etc/shlink" ]; then
+  if [ -z "$(ls -A /etc/shlink)" ]; then
+    rmdir /etc/shlink || true
+  else
+    log "Migrating /etc/shlink to $PERSIST_DIR for persistence..."
+    cp -a /etc/shlink/. "$PERSIST_DIR"/
+    rm -rf /etc/shlink
+  fi
+fi
+if [ ! -e "/etc/shlink" ]; then
+  ln -s "$PERSIST_DIR" /etc/shlink
 fi
 
-# Export initial API key if provided
-if bashio::config.has_value 'initial_api_key' && [ -n "${INITIAL_API_KEY}" ]; then
-    export INITIAL_API_KEY="${INITIAL_API_KEY}"
-    bashio::log.info "Initial API key configured"
-    bashio::log.warning "============================================="
-    bashio::log.warning "API Key: ${INITIAL_API_KEY}"
-    bashio::log.warning "============================================="
-fi
+# --- Optionen lesen ---
+DEFAULT_DOMAIN=$(get_opt default_domain "")
+IS_HTTPS_ENABLED=$(get_opt is_https_enabled "true")
+GEOLITE_LICENSE_KEY=$(get_opt geolite_license_key "")
+BASE_PATH=$(get_opt base_path "")
+TIMEZONE=$(get_opt timezone "UTC")
+TRUSTED_PROXIES=$(get_opt trusted_proxies "")
+LOGS_FORMAT=$(get_opt logs_format "console")
+MEMORY_LIMIT=$(get_opt memory_limit "512M")
 
-# Configure database if not using SQLite
-if [ "${DB_DRIVER}" != "sqlite" ]; then
-    export DB_DRIVER="${DB_DRIVER}"
-    export DB_NAME="${DB_NAME}"
-    
-    if bashio::config.has_value 'db_user'; then
-        export DB_USER="${DB_USER}"
-    fi
-    
-    if bashio::config.has_value 'db_password'; then
-        export DB_PASSWORD="${DB_PASSWORD}"
-    fi
-    
-    if bashio::config.has_value 'db_host'; then
-        export DB_HOST="${DB_HOST}"
-    fi
-    
-    if bashio::config.has_value 'db_port'; then
-        export DB_PORT="${DB_PORT}"
-    fi
-    
-    bashio::log.info "Using external database: ${DB_DRIVER}"
+DB_DRIVER=$(get_opt db_driver "sqlite")
+DB_HOST=$(get_opt db_host "")
+DB_PORT=$(get_opt db_port "")
+DB_NAME=$(get_opt db_name "shlink")
+DB_USER=$(get_opt db_user "")
+DB_PASSWORD=$(get_opt db_password "")
+
+PROVIDED_API_KEY=$(get_opt initial_api_key "")
+API_KEY_FILE="/data/api_key.txt"
+
+# --- Shlink-ENV Variablen exportieren ---
+export DEFAULT_DOMAIN="$DEFAULT_DOMAIN"
+export IS_HTTPS_ENABLED="$IS_HTTPS_ENABLED"
+[ -n "$GEOLITE_LICENSE_KEY" ] && export GEOLITE_LICENSE_KEY
+[ -n "$BASE_PATH" ] && export BASE_PATH
+[ -n "$TIMEZONE" ] && export TIMEZONE
+[ -n "$TRUSTED_PROXIES" ] && export TRUSTED_PROXIES
+[ -n "$LOGS_FORMAT" ] && export LOGS_FORMAT
+[ -n "$MEMORY_LIMIT" ] && export MEMORY_LIMIT
+
+case "$DB_DRIVER" in
+  sqlite|"")
+    # SQLite (im /etc/shlink via Symlink) – keine weiteren ENV nötig
+    ;;
+  mysql|maria|postgres|mssql)
+    export DB_DRIVER
+    [ -n "$DB_NAME" ] && export DB_NAME
+    [ -n "$DB_USER" ] && export DB_USER
+    [ -n "$DB_PASSWORD" ] && export DB_PASSWORD
+    [ -n "$DB_HOST" ] && export DB_HOST
+    [ -n "$DB_PORT" ] && export DB_PORT
+    ;;
+  *)
+    log "Unsupported DB driver: $DB_DRIVER. Falling back to SQLite."
+    ;;
+esac
+
+# --- API-Key: aus Optionen, Datei oder neu generieren ---
+FIRST_RUN=false
+API_KEY=""
+if [ -s "$API_KEY_FILE" ]; then
+  API_KEY=$(cat "$API_KEY_FILE")
+  log "Existing API key found in $API_KEY_FILE."
 else
-    bashio::log.info "Using SQLite database"
+  if [ -n "$PROVIDED_API_KEY" ]; then
+    API_KEY="$PROVIDED_API_KEY"
+    echo -n "$API_KEY" > "$API_KEY_FILE"
+    chmod 600 "$API_KEY_FILE"
+    log "Using user-provided initial API key from options. Saved to $API_KEY_FILE."
+  else
+    if command -v uuidgen >/dev/null 2>&1; then
+      API_KEY=$(uuidgen | tr 'A-Z' 'a-z')
+    elif [ -r /proc/sys/kernel/random/uuid ]; then
+      API_KEY=$(cat /proc/sys/kernel/random/uuid)
+    else
+      API_KEY=$(date +%s%N | sha256sum | cut -c1-32)
+    fi
+    echo -n "$API_KEY" > "$API_KEY_FILE"
+    chmod 600 "$API_KEY_FILE"
+    FIRST_RUN=true
+    log "Generated new initial API key. Saved to $API_KEY_FILE."
+  fi
 fi
 
-# Configure Redis if provided
-if bashio::config.has_value 'redis_servers' && [ -n "${REDIS_SERVERS}" ]; then
-    export REDIS_SERVERS="${REDIS_SERVERS}"
-    bashio::log.info "Redis servers configured: ${REDIS_SERVERS}"
+# Shlink ab v3.3 akzeptiert INITIAL_API_KEY als Startwert
+export INITIAL_API_KEY="$API_KEY"
+
+# Deutlich im Log ausgeben
+log "
+================ SHLINK API KEY ================
+$API_KEY
+================================================
+"
+
+# --- Shlink starten (an den ursprünglichen Entrypoint delegieren) ---
+if command -v docker-entrypoint.sh >/dev/null 2>&1; then
+  exec docker-entrypoint.sh
+elif [ -x /usr/local/bin/docker-entrypoint.sh ]; then
+  exec /usr/local/bin/docker-entrypoint.sh
+elif [ -x /entrypoint.sh ]; then
+  exec /entrypoint.sh
+else
+  if command -v rr >/dev/null 2>&1; then
+    exec rr serve
+  fi
+  if command -v shlink >/dev/null 2>&1; then
+    exec shlink serve || shlink -V || sleep infinity
+  fi
+  log "Could not determine how to start Shlink. Going idle."
+  exec tail -f /dev/null
 fi
-
-bashio::log.info "Default domain: ${DEFAULT_DOMAIN}"
-bashio::log.info "HTTPS enabled: ${IS_HTTPS_ENABLED}"
-bashio::log.info "Timezone: ${TIMEZONE}"
-
-# Start Shlink
-bashio::log.info "Starting Shlink server on port 8080..."
-
-# Execute the original entrypoint from Shlink image
-exec /usr/local/bin/docker-entrypoint.sh
