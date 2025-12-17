@@ -2,8 +2,8 @@
 ARG SHLINK_TAG=stable
 FROM shlinkio/shlink:${SHLINK_TAG}
 
-COPY run.sh /run.sh
-RUN chmod +x /run.sh
+# Startskript mit Ausführungsrechten direkt beim Kopieren hinterlegen
+COPY --chmod=0755 run.sh /run.sh
 
-ENTRYPOINT [
+ENTRYPOINT ["/run.sh"]
 
