@@ -18,5 +18,5 @@ RUN chmod +x /run.sh
 
 # Wichtig: Hier lag der Fehler – ENTRYPOINT, nicht ENTRY
 ENTRYPOINT ["/run.sh"]
-``
+
 
