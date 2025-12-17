@@ -1,14 +1,14 @@
 
-ARG SHLINK_TAG=stable
-FROM shlinkio/shlink:${SHLINK_TAG}
+# Home Assistant Add-on Base verwenden
+ARG BUILD_FROM
+FROM $BUILD_FROM
 
-# Als root starten: /data beschreibbar machen
-USER 0
+# (Optional) Zusätzliche Tools
+RUN apk add --no-cache php php-cli php-json
 
-# Skript mit Ausführungsrechten kopieren
+# Dein Startskript
 COPY --chmod=0755 run.sh /run.sh
 
-# Robust: Shell führt das Skript aus (vermeidet "exec format error")
-ENTRYPOINT ["/bin/sh","/run.sh"]
-``
+# s6-overlay erwartet CMD auf dein Skript
+CMD ["/run.sh"
 
