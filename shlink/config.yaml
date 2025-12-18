@@ -1,45 +1,29 @@
-
-name: Shlink (URL Shortener)
-version: 1.0.0
-slug: shlink
-description: Selbstgehosteter URL-Shortener (Server + REST-API) als Home Assistant Add-on
-url: https://shlink.io/
-arch:
-  - amd64
-  - aarch64
-
-# Add-on Lifecycle
-startup: services
-boot: auto
-init: false  # s6-overlay v3: darf kein eigener init (PID 1) sein
-
-# Netzwerk
-ports:
-  8080/tcp: 8080
-webui: http://[HOST]:[PORT:8080]/
-
-# Persistenz (Home Assistant stellt /data als Volume bereit)
-map:
-  - data:rw
-
-# GUI-Optionen -> werden im run.sh in ENV für Shlink gemappt
-options:
-  default_domain: "s.test"
-  is_https_enabled: false
-  geolite_license_key: ""
-  base_path: ""
-  timezone: "UTC"
-  trusted_proxies: ""
-  logs_format: "console"
-  initial_api_key: ""  # leer = generieren und im Log ausgeben
-
-schema:
-  default_domain: str
-  is_https_enabled: bool
-  geolite_license_key: password
-  base_path: str
-  timezone: str
-  trusted_proxies: str
-  logs_format: str
-  initial_api_key: str
+{
+  "name": "Shlink Server",
+  "slug": "shlink",
+  "version": "1.0.0",
+  "description": "Self-hosted URL shortener",
+  "arch": ["amd64", "aarch64"],
+  "startup": "services",
+  "boot": "auto",
+  "ingress": false,
+  "ports": {
+    "8080/tcp": 8080
+  },
+  "map": ["data:rw"],
+  "options": {
+    "DEFAULT_DOMAIN": "go.local",
+    "IS_HTTPS_ENABLED": true,
+    "INITIAL_API_KEY": "changeme",
+    "DB_DRIVER": "sqlite",
+    "DB_NAME": "/data/shlink.db"
+  },
+  "schema": {
+    "DEFAULT_DOMAIN": "str",
+    "IS_HTTPS_ENABLED": "bool",
+    "INITIAL_API_KEY": "str",
+    "DB_DRIVER": "str",
+    "DB_NAME": "str"
+  }
+}
 
