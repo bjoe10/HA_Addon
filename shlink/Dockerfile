@@ -1,14 +1,9 @@
+FROM shlink/shlink:stable
 
-# syntax=docker/dockerfile:1
-FROM shlinkio/shlink:stable
+RUN apk add --no-cache jq
 
-# Root, um /data und Symlink einzurichten
-USER 0
+COPY run.sh /run.sh
+RUN chmod +x /run.sh
 
-# Startskript kopieren, CRLF -> LF absichern
-COPY --chmod=0755 run.sh /run.sh
-RUN sed -i 's/\r$//' /run.sh
-
-# Robust starten (verhindert exec-format Fehler)
-ENTRYPOINT ["/
+CMD ["/run.sh"]
 
