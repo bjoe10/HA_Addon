@@ -1,0 +1,21 @@
+name: "Orthomosaic Viewer"
+description: "Terracotta Tile-Server zum Ansehen eigener GeoTIFF-Orthomosaics"
+version: "1.0.0"
+slug: "ortho_terracotta"
+init: false
+arch:
+  - aarch64
+  - amd64
+url: "https://github.com/DHI/terracotta"
+startup: application
+boot: auto
+ingress: true
+ingress_port: 5100
+panel_icon: mdi:image-frame
+panel_title: "Orthomosaics"
+map:
+  - share:rw
+options:
+  data_path: "/share/orthomosaics"
+schema:
+  data_path: str
