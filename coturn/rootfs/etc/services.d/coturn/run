@@ -1,0 +1,65 @@
+#!/usr/bin/with-contenv bashio
+
+EXTERNAL_IP=$(bashio::config 'external_ip')
+SECRET=$(bashio::config 'static_auth_secret')
+REALM=$(bashio::config 'realm')
+PORT=$(bashio::config 'listening_port')
+TLS_PORT=$(bashio::config 'tls_port')
+USE_TLS=$(bashio::config 'use_tls')
+CERT=$(bashio::config 'cert_path')
+KEY=$(bashio::config 'key_path')
+
+bashio::log.info "Starting Coturn TURN server..."
+bashio::log.info "External IP/Domain: ${EXTERNAL_IP}"
+bashio::log.info "Realm: ${REALM}"
+bashio::log.info "Listening port: ${PORT}"
+
+if [ -z "${SECRET}" ]; then
+    bashio::log.fatal "static_auth_secret must be set!"
+    exit 1
+fi
+
+if [ -z "${EXTERNAL_IP}" ]; then
+    bashio::log.fatal "external_ip must be set!"
+    exit 1
+fi
+
+if [ -z "${REALM}" ]; then
+    bashio::log.fatal "realm must be set!"
+    exit 1
+fi
+
+# Build config
+CONFIG=$(cat <<EOF
+listening-port=${PORT}
+listening-ip=0.0.0.0
+external-ip=${EXTERNAL_IP}
+realm=${REALM}
+server-name=${REALM}
+use-auth-secret
+static-auth-secret=${SECRET}
+no-multicast-peers
+no-loopback-peers
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+log-file=stdout
+EOF
+)
+
+# Add TLS if enabled
+if bashio::var.true "${USE_TLS}"; then
+    if [ -f "${CERT}" ] && [ -f "${KEY}" ]; then
+        bashio::log.info "TLS enabled, using cert: ${CERT}"
+        CONFIG="${CONFIG}
+tls-listening-port=${TLS_PORT}
+cert=${CERT}
+pkey=${KEY}"
+    else
+        bashio::log.warning "TLS enabled but cert/key not found at ${CERT} / ${KEY}, disabling TLS"
+    fi
+fi
+
+echo "${CONFIG}" > /tmp/turnserver.conf
+
+exec turnserver -c /tmp/turnserver.conf

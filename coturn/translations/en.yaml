@@ -1,0 +1,25 @@
+configuration:
+  external_ip:
+    name: External IP or Domain
+    description: Your public IP address or domain name (e.g. nc.yourdomain.com)
+  static_auth_secret:
+    name: Auth Secret
+    description: A long random string used to authenticate TURN clients. Generate with openssl rand -hex 32.
+  realm:
+    name: Realm
+    description: Your domain name (e.g. yourdomain.com)
+  listening_port:
+    name: TURN Port (UDP/TCP)
+    description: Port for unencrypted TURN/STUN (default 3478)
+  tls_port:
+    name: TURN TLS Port
+    description: Port for encrypted TURN/STUN (default 5349)
+  use_tls:
+    name: Enable TLS
+    description: Use TLS encryption for TURN connections (recommended)
+  cert_path:
+    name: Certificate Path
+    description: Path to your SSL certificate (default /ssl/fullchain.pem)
+  key_path:
+    name: Key Path
+    description: Path to your SSL private key (default /ssl/privkey.pem)

@@ -1,0 +1,45 @@
+name: Coturn TURN Server
+description: TURN/STUN server for Nextcloud Talk and other WebRTC applications
+version: "1.0.0"
+slug: coturn
+init: false
+arch:
+  - aarch64
+  - amd64
+  - armv7
+homeassistant_api: false
+auth_api: false
+hassio_api: false
+host_network: true
+privileged:
+  - NET_ADMIN
+options:
+  external_ip: ""
+  static_auth_secret: ""
+  realm: ""
+  listening_port: 3478
+  tls_port: 5349
+  use_tls: true
+  cert_path: "/ssl/fullchain.pem"
+  key_path: "/ssl/privkey.pem"
+schema:
+  external_ip: str
+  static_auth_secret: str
+  realm: str
+  listening_port: int
+  tls_port: int
+  use_tls: bool
+  cert_path: str
+  key_path: str
+map:
+  - ssl:ro
+ports:
+  3478/tcp: 3478
+  3478/udp: 3478
+  5349/tcp: 5349
+  5349/udp: 5349
+ports_description:
+  3478/tcp: TURN/STUN TCP
+  3478/udp: TURN/STUN UDP
+  5349/tcp: TURN/STUN TLS TCP
+  5349/udp: TURN/STUN TLS UDP
