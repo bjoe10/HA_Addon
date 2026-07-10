@@ -42,6 +42,9 @@ use-auth-secret
 static-auth-secret=${SECRET}
 min-port=${MIN_PORT}
 max-port=${MAX_PORT}
+max-allocate-lifetime=3600
+channel-lifetime=3600
+permission-lifetime=3600
 no-multicast-peers
 no-cli
 fingerprint
