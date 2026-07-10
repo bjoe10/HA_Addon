@@ -1,6 +1,6 @@
 name: Coturn TURN Server
 description: TURN/STUN server for Nextcloud Talk and other WebRTC applications
-version: "1.0.0"
+version: "1.0.1"
 slug: coturn
 init: false
 arch:
