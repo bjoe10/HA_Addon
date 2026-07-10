@@ -1,6 +1,6 @@
 name: Coturn TURN Server
 description: TURN/STUN server for Nextcloud Talk and other WebRTC applications
-version: "1.0.0"
+version: "1.1.0"
 slug: coturn
 init: false
 arch:
@@ -37,15 +37,3 @@ schema:
   max_port: int
 map:
   - ssl:ro
-ports:
-  3478/tcp: 3478
-  3478/udp: 3478
-  5349/tcp: 5349
-  5349/udp: 5349
-  49160-49200/udp: 49160-49200
-ports_description:
-  3478/tcp: TURN/STUN TCP
-  3478/udp: TURN/STUN UDP
-  5349/tcp: TURN/STUN TLS TCP
-  5349/udp: TURN/STUN TLS UDP
-  49160-49200/udp: Relay-Port-Bereich (im Router freigeben!)
