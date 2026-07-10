@@ -23,3 +23,9 @@ configuration:
   key_path:
     name: Key Path
     description: Path to your SSL private key (default /ssl/privkey.pem)
+  min_port:
+    name: Relay Min Port
+    description: Lower bound of the UDP relay port range. Must be forwarded in your router.
+  max_port:
+    name: Relay Max Port
+    description: Upper bound of the UDP relay port range. Must be forwarded in your router.

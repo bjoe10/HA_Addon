@@ -8,6 +8,8 @@ TLS_PORT=$(bashio::config 'tls_port')
 USE_TLS=$(bashio::config 'use_tls')
 CERT=$(bashio::config 'cert_path')
 KEY=$(bashio::config 'key_path')
+MIN_PORT=$(bashio::config 'min_port')
+MAX_PORT=$(bashio::config 'max_port')
 
 bashio::log.info "Starting Coturn TURN server..."
 bashio::log.info "External IP/Domain: ${EXTERNAL_IP}"
@@ -38,12 +40,17 @@ realm=${REALM}
 server-name=${REALM}
 use-auth-secret
 static-auth-secret=${SECRET}
+min-port=${MIN_PORT}
+max-port=${MAX_PORT}
 no-multicast-peers
-no-loopback-peers
+no-cli
+fingerprint
+stale-nonce=600
 denied-peer-ip=10.0.0.0-10.255.255.255
 denied-peer-ip=192.168.0.0-192.168.255.255
 denied-peer-ip=172.16.0.0-172.31.255.255
 log-file=stdout
+simple-log
 EOF
 )
 

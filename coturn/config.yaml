@@ -22,15 +22,19 @@ options:
   use_tls: true
   cert_path: "/ssl/fullchain.pem"
   key_path: "/ssl/privkey.pem"
+  min_port: 49160
+  max_port: 49200
 schema:
   external_ip: str
-  static_auth_secret: str
+  static_auth_secret: password
   realm: str
   listening_port: int
   tls_port: int
   use_tls: bool
   cert_path: str
   key_path: str
+  min_port: int
+  max_port: int
 map:
   - ssl:ro
 ports:
@@ -38,8 +42,10 @@ ports:
   3478/udp: 3478
   5349/tcp: 5349
   5349/udp: 5349
+  49160-49200/udp: 49160-49200
 ports_description:
   3478/tcp: TURN/STUN TCP
   3478/udp: TURN/STUN UDP
   5349/tcp: TURN/STUN TLS TCP
   5349/udp: TURN/STUN TLS UDP
+  49160-49200/udp: Relay-Port-Bereich (im Router freigeben!)
