@@ -211,7 +211,18 @@ manage_jobs() {
 # Graceful shutdown handler
 cleanup() {
     echo ""
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🛑 Received shutdown signal, exiting gracefully..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🛑 Received shutdown signal, resuming all jobs before exit..."
+
+    jobs=$(fetch_jobs)
+    if [ -n "$jobs" ] && [ "$jobs" != "{}" ]; then
+        all_jobs=$(echo "$jobs" | jq -r 'keys[]' 2>/dev/null)
+        for job in $all_jobs; do
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️  Resuming job: $job (shutdown cleanup)"
+            set_job "$job" "resume"
+        done
+    fi
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🛑 Exiting gracefully..."
     exit 0
 }
 
