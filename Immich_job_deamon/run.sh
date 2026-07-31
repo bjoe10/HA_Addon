@@ -1,5 +1,10 @@
 #!/bin/sh
 
+# TEMP DEBUG - remove after troubleshooting
+echo "=== DEBUG ENV DUMP ===" >&2
+env | sort | sed 's/^API_KEY=.*/API_KEY=<redacted, length='"$(printf '%s' "$API_KEY" | wc -c)"'>/' >&2
+echo "=== END DEBUG ===" >&2
+
 # Configuration for the API endpoint and headers
 # These values should be provided via environment variables
 IMMICH_URL="${IMMICH_URL:-http://127.0.0.1:2283}"
