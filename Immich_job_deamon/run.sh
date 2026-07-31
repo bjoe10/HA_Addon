@@ -1,12 +1,16 @@
 #!/bin/sh
 
-# TEMP DEBUG - remove after troubleshooting
-echo "=== DEBUG ENV DUMP ===" >&2
-env | sort | sed 's/^API_KEY=.*/API_KEY=<redacted, length='"$(printf '%s' "$API_KEY" | wc -c)"'>/' >&2
-echo "=== END DEBUG ===" >&2
+OPTIONS_FILE="/data/options.json"
 
-# Configuration for the API endpoint and headers
-# These values should be provided via environment variables
+# Read options from Supervisor's options.json (the reliable mechanism),
+# but still allow env vars to override for local/manual testing.
+if [ -f "$OPTIONS_FILE" ]; then
+    IMMICH_URL="${IMMICH_URL:-$(jq -r '.IMMICH_URL // empty' "$OPTIONS_FILE")}"
+    API_KEY="${API_KEY:-$(jq -r '.API_KEY // empty' "$OPTIONS_FILE")}"
+    MAX_CONCURRENT_JOBS="${MAX_CONCURRENT_JOBS:-$(jq -r '.MAX_CONCURRENT_JOBS // empty' "$OPTIONS_FILE")}"
+    POLL_INTERVAL="${POLL_INTERVAL:-$(jq -r '.POLL_INTERVAL // empty' "$OPTIONS_FILE")}"
+fi
+
 IMMICH_URL="${IMMICH_URL:-http://127.0.0.1:2283}"
 API_KEY="${API_KEY:-}"
 MAX_CONCURRENT_JOBS="${MAX_CONCURRENT_JOBS:-1}"
