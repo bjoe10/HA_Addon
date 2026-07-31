@@ -115,4 +115,122 @@ resume_all_heavy_jobs() {
 }
 
 # Main logic to manage jobs
-manage_jobs(
+manage_jobs() {
+    # Fetch all jobs from the API
+    jobs=$(fetch_jobs)
+
+    if [ -z "$jobs" ] || [ "$jobs" = "{}" ]; then
+        return
+    fi
+
+    # Only ever look at / touch the fixed heavy-job list, in priority order.
+    managed_job_list="$HEAVY_JOB_LIST"
+
+    # Check if any managed jobs are currently actively running (active > 0)
+    # If yes, don't interrupt them - let them finish
+    has_active_jobs=0
+    currently_active_jobs=""
+
+    for job in $managed_job_list; do
+        job_counts=$(echo "$jobs" | jq -r ".$job.jobCounts | \"\(.active // 0) \(.waiting // 0) \(.paused // 0) \(.delayed // 0)\"" 2>/dev/null)
+
+        if [ -z "$job_counts" ]; then
+            continue
+        fi
+
+        set -- $job_counts
+        active=$1
+
+        # If this job has active tasks, don't interrupt it
+        if [ "$active" -gt 0 ]; then
+            has_active_jobs=1
+            currently_active_jobs="$currently_active_jobs $job"
+        fi
+    done
+
+    # Collect jobs with activity and unpause the first N jobs based on MAX_CONCURRENT_JOBS
+    jobs_to_unpause=""
+    jobs_unpaused=0
+
+    # If there are active jobs, keep them running and don't start new ones
+    if [ "$has_active_jobs" -eq 1 ]; then
+        # Keep currently active jobs running
+        for job in $currently_active_jobs; do
+            if [ "$jobs_unpaused" -lt "$MAX_CONCURRENT_JOBS" ]; then
+                jobs_to_unpause="$jobs_to_unpause $job"
+                jobs_unpaused=$((jobs_unpaused + 1))
+            fi
+        done
+    else
+        # No active jobs - select new jobs by priority (within the heavy list only)
+        for job in $managed_job_list; do
+            job_counts=$(echo "$jobs" | jq -r ".$job.jobCounts | \"\(.active // 0) \(.waiting // 0) \(.paused // 0) \(.delayed // 0)\"" 2>/dev/null)
+
+            if [ -z "$job_counts" ]; then
+                continue
+            fi
+
+            set -- $job_counts
+            active=$1
+            waiting=$2
+            paused=$3
+            delayed=$4
+
+            total=$((active + waiting + paused + delayed))
+
+            if [ "$total" -gt 0 ]; then
+                if [ "$jobs_unpaused" -lt "$MAX_CONCURRENT_JOBS" ]; then
+                    jobs_to_unpause="$jobs_to_unpause $job"
+                    jobs_unpaused=$((jobs_unpaused + 1))
+                fi
+            fi
+        done
+    fi
+
+    new_job_states=""
+
+    # Unpause selected heavy jobs, pause all other heavy jobs.
+    # Non-heavy jobs (sidecar, metadataExtraction, thumbnailGeneration, ...)
+    # are never referenced here at all, so Immich runs them unmanaged.
+    for job in $managed_job_list; do
+        if echo " $jobs_to_unpause " | grep -q " $job "; then
+            new_state="resume"
+        else
+            new_state="pause"
+        fi
+
+        new_job_states="${new_job_states}${job}:${new_state},"
+
+        if ! echo "$PREV_JOB_STATES" | grep -q "${job}:${new_state}"; then
+            if [ "$new_state" = "resume" ]; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️  Resuming job: $job"
+            else
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⏸️  Pausing job: $job"
+            fi
+            set_job "$job" "$new_state"
+        fi
+    done
+
+    PREV_JOB_STATES="$new_job_states"
+}
+
+# Graceful shutdown handler - always leave the heavy jobs unpaused so a
+# stopped/restarted daemon never permanently blocks processing.
+cleanup() {
+    echo ""
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🛑 Received shutdown signal, resuming heavy jobs before exit..."
+    resume_all_heavy_jobs "shutdown cleanup"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🛑 Exiting gracefully..."
+    exit 0
+}
+
+# Trap SIGTERM and SIGINT for graceful shutdown
+trap cleanup TERM INT
+
+# Run the job manager loop
+echo "🚀 Job daemon started. Press Ctrl+C to stop."
+echo ""
+while true; do
+    manage_jobs
+    sleep "$POLL_INTERVAL"
+done
