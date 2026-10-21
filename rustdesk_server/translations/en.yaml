@@ -1,0 +1,23 @@
+configuration:
+  external_host:
+    name: Public RustDesk host
+    description: >-
+      Public DNS name or IPv4 address clients use to reach this server, without a scheme or port.
+      The add-on advertises ports 21116 and 21117.
+  api_url:
+    name: Public API URL
+    description: >-
+      Externally reachable origin for the API, admin page and web client, e.g.
+      https://rustdesk.example.com. Do not include a path.
+  encrypted_only:
+    name: Require encrypted RustDesk connections
+    description: Reject unencrypted RustDesk connections.
+  must_login:
+    name: Require account login for connections
+    description: Require authenticated users before starting a RustDesk connection.
+  allow_registration:
+    name: Allow user self-registration
+    description: Keep disabled unless you intentionally want users to register.
+  jwt_key:
+    name: JWT signing key
+    description: Required when login is mandatory; generate a long random value with openssl rand -hex 32.
