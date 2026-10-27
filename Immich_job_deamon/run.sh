@@ -51,16 +51,13 @@ echo "Max concurrent jobs: $MAX_CONCURRENT_JOBS"
 echo "Poll interval: ${POLL_INTERVAL}s"
 echo "Managed (heavy) jobs: $HEAVY_JOB_LIST"
 
-# Check server availability
+# Wait for the server instead of exiting, so the daemon survives Immich
+# starting later than this add-on (e.g. after a host reboot).
 echo "Checking Immich server availability..."
-if ! curl -s -f -o /dev/null --connect-timeout 10 "$IMMICH_URL/api/server/ping"; then
-    echo "ERROR: Cannot connect to Immich server at $IMMICH_URL" >&2
-    echo "Please check that:" >&2
-    echo "  - IMMICH_URL is correct" >&2
-    echo "  - Immich server is running" >&2
-    echo "  - Network connection is available" >&2
-    exit 1
-fi
+until curl -s -f -o /dev/null --connect-timeout 10 --max-time 15 "$IMMICH_URL/api/server/ping"; do
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Immich server at $IMMICH_URL not reachable yet, retrying in ${POLL_INTERVAL}s..." >&2
+    sleep "$POLL_INTERVAL"
+done
 echo "✓ Successfully connected to Immich server"
 
 # Verify API key by fetching jobs
@@ -80,12 +77,20 @@ fi
 echo "✓ API key verified successfully"
 echo ""
 
-# Function to fetch the current job statuses from the API
+# Set while Immich is unreachable, so the outage is logged only once
+IMMICH_DOWN=0
+
+# Function to fetch the current job statuses from the API.
+# Prints nothing if the server is down or answers with an error / non-JSON.
 fetch_jobs() {
-    curl -s -X GET "$URL" \
+    local response
+    response=$(curl -s -f --connect-timeout 10 --max-time 30 -X GET "$URL" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json" \
-    -H "x-api-key: $API_KEY" 2>/dev/null
+    -H "x-api-key: $API_KEY" 2>/dev/null) || return 1
+
+    echo "$response" | jq -e 'type == "object"' >/dev/null 2>&1 || return 1
+    echo "$response"
 }
 
 # Function to send a command to pause or resume a specific job via the API
@@ -94,14 +99,13 @@ set_job() {
     local command="$2"
     local payload='{"command":"'"$command"'","force":false}'
 
-    curl -s -X PUT "$URL/$job" \
-    -H "Content-Type: application/json" \
-    -H "Accept: application/json" \
-    -H "x-api-key: $API_KEY" \
-    -d "$payload" >/dev/null 2>&1
-
-    if [ $? -ne 0 ]; then
+    if ! curl -s -f --connect-timeout 10 --max-time 30 -X PUT "$URL/$job" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        -H "x-api-key: $API_KEY" \
+        -d "$payload" >/dev/null 2>&1; then
         echo "Error setting job $job to $command" >&2
+        return 1
     fi
 }
 
@@ -117,9 +121,23 @@ resume_all_heavy_jobs() {
 # Main logic to manage jobs
 manage_jobs() {
     # Fetch all jobs from the API
-    jobs=$(fetch_jobs)
+    if ! jobs=$(fetch_jobs); then
+        if [ "$IMMICH_DOWN" -eq 0 ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️  Immich not reachable, waiting for it to come back..." >&2
+            IMMICH_DOWN=1
+        fi
+        # Immich may come back with different pause states (e.g. after a
+        # restart), so forget what we sent and re-apply everything later.
+        PREV_JOB_STATES=""
+        return
+    fi
 
-    if [ -z "$jobs" ] || [ "$jobs" = "{}" ]; then
+    if [ "$IMMICH_DOWN" -eq 1 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✓ Immich reachable again, re-applying job states"
+        IMMICH_DOWN=0
+    fi
+
+    if [ "$jobs" = "{}" ]; then
         return
     fi
 
@@ -199,16 +217,33 @@ manage_jobs() {
             new_state="pause"
         fi
 
-        new_job_states="${new_job_states}${job}:${new_state},"
+        # Prefer the queue's real pause state as reported by Immich, so a
+        # restarted Immich that reset its queues gets corrected right away.
+        # Fall back to our own memory if the API doesn't report it.
+        is_paused=$(echo "$jobs" | jq -r ".$job.queueStatus.isPaused | if . == null then empty else tostring end" 2>/dev/null)
+        needs_update=0
+        if [ "$is_paused" = "true" ] || [ "$is_paused" = "false" ]; then
+            if [ "$new_state" = "pause" ] && [ "$is_paused" = "false" ]; then
+                needs_update=1
+            elif [ "$new_state" = "resume" ] && [ "$is_paused" = "true" ]; then
+                needs_update=1
+            fi
+        elif ! echo "$PREV_JOB_STATES" | grep -q "${job}:${new_state}"; then
+            needs_update=1
+        fi
 
-        if ! echo "$PREV_JOB_STATES" | grep -q "${job}:${new_state}"; then
+        if [ "$needs_update" -eq 1 ]; then
             if [ "$new_state" = "resume" ]; then
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] ▶️  Resuming job: $job"
             else
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⏸️  Pausing job: $job"
             fi
-            set_job "$job" "$new_state"
+            # Only remember the state if the command went through,
+            # otherwise it is retried on the next poll.
+            set_job "$job" "$new_state" || continue
         fi
+
+        new_job_states="${new_job_states}${job}:${new_state},"
     done
 
     PREV_JOB_STATES="$new_job_states"
