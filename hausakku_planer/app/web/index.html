@@ -303,7 +303,10 @@ async function settingsPage(){
   <h2>Standort und Akku</h2><div class="card">
    <div class="field"><label for="lat">Breitengrad</label><input id="lat" inputmode="decimal" value="${esc(s.location.latitude??'')}" placeholder="z. B. 52.52"><span></span><div class="fmsg mut" id="m-location.latitude">Für die Strahlungsprognose (Open-Meteo). Auf 2 Nachkommastellen gerundet, also ca. 1 km genau.</div></div>
    <div class="field"><label for="lon">Längengrad</label><input id="lon" inputmode="decimal" value="${esc(s.location.longitude??'')}" placeholder="z. B. 13.40"><span></span><div class="fmsg" id="m-location.longitude"></div></div>
-   <div class="field"><label for="cap">Akku-Kapazität (kWh)</label><input id="cap" inputmode="decimal" value="${esc(s.battery.capacity_kwh??'')}" placeholder="nutzbare Kapazität"><span></span><div class="fmsg" id="m-battery.capacity_kwh"></div></div></div>`;
+   <div class="field"><label for="cap">Akku-Kapazität (kWh)</label><input id="cap" inputmode="decimal" value="${esc(s.battery.capacity_kwh??'')}" placeholder="nutzbare Kapazität"><span></span><div class="fmsg" id="m-battery.capacity_kwh"></div></div>
+   <div class="field"><label for="chg">Ladeleistung Netzladegerät (kW, AC)</label><input id="chg" inputmode="decimal" value="${esc(s.battery.max_charge_kw??'')}" placeholder="z. B. 1,1"><span></span><div class="fmsg" id="m-battery.max_charge_kw"></div></div>
+   <div class="field"><label for="dis">Maximale WR-Leistung (kW, AC)</label><input id="dis" inputmode="decimal" value="${esc(s.battery.max_discharge_kw??'')}" placeholder="z. B. 2"><span></span><div class="fmsg" id="m-battery.max_discharge_kw"></div></div>
+   <div class="field"><label for="flo">Preisuntergrenze (ct/kWh)</label><input id="flo" inputmode="decimal" value="${s.tariff.price_floor_eur_kwh==null?'':esc(String(+(s.tariff.price_floor_eur_kwh*100).toFixed(2)))}" placeholder="optional"><span></span><div class="fmsg mut" id="m-tariff.price_floor_eur_kwh">Feste Preisbestandteile (Netzentgelt, Steuern, Abgaben), unter die der Bezugspreis nie fällt. Begrenzt die Preisprognose für kommende Tage.</div></div></div>`;
   groups.forEach(([need,title])=>{
     h+=`<h2>${title}</h2><div class="card">`;
     cfg.roles.filter(r=>r.need===need).forEach(r=>{
@@ -320,7 +323,8 @@ async function settingsPage(){
 
 function collect(){
   const data={entities:{},location:{latitude:document.getElementById('lat').value,longitude:document.getElementById('lon').value},
-              battery:{capacity_kwh:document.getElementById('cap').value}};
+              battery:{capacity_kwh:document.getElementById('cap').value,max_charge_kw:document.getElementById('chg').value,max_discharge_kw:document.getElementById('dis').value},
+              tariff:{price_floor_eur_kwh:(()=>{const v=document.getElementById('flo').value.trim().replace(',','.');return v===''?'':String(+v/100)})()}};
   main.querySelectorAll('[data-role]').forEach(el=>{
     data.entities[el.dataset.role]=el.tagName==='TEXTAREA'?el.value.split('\n'):el.value});
   return data;

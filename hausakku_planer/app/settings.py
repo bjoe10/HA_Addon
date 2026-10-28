@@ -41,7 +41,8 @@ DEFAULTS={
  'location':{'latitude':None,'longitude':None},
  'entities':{r:([] if r in LISTS else None) for r in ROLES},
  'prices':{'provider':'tibber'},
- 'battery':{'capacity_kwh':None},
+ 'battery':{'capacity_kwh':None,'max_charge_kw':None,'max_discharge_kw':None},
+ 'tariff':{'price_floor_eur_kwh':None},
  'planner':{},
 }
 
@@ -87,7 +88,12 @@ class Settings:
         if loc:config['openmeteo_latitude'],config['openmeteo_longitude']=loc
         elif config.get('pv_forecast_source')=='openmeteo_radiation':
             config['pv_forecast_source']='ha_solarforecast'
-        if self.data['battery'].get('capacity_kwh'):config['capacity_kwh']=float(self.data['battery']['capacity_kwh'])
+        battery=self.data['battery']
+        for key in ('capacity_kwh','max_charge_kw','max_discharge_kw'):
+            if battery.get(key):config[key]=float(battery[key])
+        floor=self.data['tariff'].get('price_floor_eur_kwh')
+        if floor is not None:   # fixed price parts that no market price falls below: bounds forecasts and leftover energy value
+            config['tail_price_floor_eur_kwh']=float(floor);config['tail_end_value_from_floor']=True
         return config
 
 def operating_mode():

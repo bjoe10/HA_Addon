@@ -125,8 +125,10 @@ def suggest(role,states,query='',limit=12):
         if not _matches(role,s):continue
         name=(s['entity_id']+' '+str((s.get('attributes') or {}).get('friendly_name',''))).lower()
         if q and q not in name:continue
-        score=sum(1 for w in words if w in name)
-        scored.append((-score,s['entity_id'],{'entity_id':s['entity_id'],'name':(s.get('attributes') or {}).get('friendly_name') or s['entity_id'],
+        # Earlier keywords weigh more; entities that are currently unavailable sink to the end.
+        score=sum(len(words)-i for i,w in enumerate(words) if w in name)
+        dead=s.get('state') in ('unavailable','unknown')
+        scored.append(((dead,-score),s['entity_id'],{'entity_id':s['entity_id'],'name':(s.get('attributes') or {}).get('friendly_name') or s['entity_id'],
                        'state':s.get('state'),'unit':(s.get('attributes') or {}).get('unit_of_measurement')}))
     scored.sort(key=lambda x:(x[0],x[1]))
     return [x[2] for x in scored[:limit]]
@@ -161,12 +163,23 @@ def validate_settings(data):
         except (TypeError,ValueError):errors['location.'+key]=f'Zahl zwischen {lo} und {hi} erwartet'
     if (clean['location'].get('latitude') is None)!=(clean['location'].get('longitude') is None):
         errors['location.latitude']='Breiten- und Längengrad gemeinsam angeben'
-    raw=(data.get('battery') or {}).get('capacity_kwh')
-    if raw in (None,''):clean['battery']['capacity_kwh']=None
-    else:
+    battery=data.get('battery') or {}
+    for key,lo,hi,msg in (('capacity_kwh',1,100,'Kapazität zwischen 1 und 100 kWh erwartet'),
+                          ('max_charge_kw',.1,50,'Leistung zwischen 0,1 und 50 kW erwartet'),
+                          ('max_discharge_kw',.1,50,'Leistung zwischen 0,1 und 50 kW erwartet')):
+        raw=battery.get(key)
+        if raw in (None,''):clean['battery'][key]=None;continue
         try:
-            v=float(raw)
-            if not 1<v<100:raise ValueError
-            clean['battery']['capacity_kwh']=v
-        except (TypeError,ValueError):errors['battery.capacity_kwh']='Kapazität zwischen 1 und 100 kWh erwartet'
+            v=float(str(raw).replace(',','.'))
+            if not lo<=v<=hi:raise ValueError
+            clean['battery'][key]=v
+        except (TypeError,ValueError):errors['battery.'+key]=msg
+    raw=(data.get('tariff') or {}).get('price_floor_eur_kwh')
+    clean['tariff']={'price_floor_eur_kwh':None}
+    if raw not in (None,''):
+        try:
+            v=float(str(raw).replace(',','.'))
+            if not 0<=v<=1:raise ValueError
+            clean['tariff']['price_floor_eur_kwh']=v
+        except (TypeError,ValueError):errors['tariff.price_floor_eur_kwh']='Preis zwischen 0 und 1 €/kWh erwartet'
     return clean,errors

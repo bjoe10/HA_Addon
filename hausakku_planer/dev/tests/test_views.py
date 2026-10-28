@@ -80,6 +80,29 @@ class ValidationTests(unittest.TestCase):
         clean,err=views.validate_settings({'entities':{'battery_soc':''},'location':{},'battery':{}})
         self.assertEqual(err,{});self.assertIsNone(clean['entities']['battery_soc'])
 
+class BatterySettingsTests(unittest.TestCase):
+    def test_power_and_floor_validated_and_mapped(self):
+        clean,err=views.validate_settings({'battery':{'capacity_kwh':'15,85','max_charge_kw':'1,13','max_discharge_kw':'2'},'tariff':{'price_floor_eur_kwh':'0.173'}})
+        self.assertEqual(err,{});self.assertEqual(clean['battery'],{'capacity_kwh':15.85,'max_charge_kw':1.13,'max_discharge_kw':2.})
+        cfg=settings.Settings(clean).planner_config()
+        self.assertEqual((cfg['max_charge_kw'],cfg['max_discharge_kw'],cfg['tail_price_floor_eur_kwh']),(1.13,2.,.173))
+        self.assertTrue(cfg['tail_end_value_from_floor'])
+
+    def test_unset_floor_keeps_neutral_defaults(self):
+        cfg=settings.Settings({}).planner_config()
+        self.assertIsNone(cfg['tail_price_floor_eur_kwh']);self.assertFalse(cfg['tail_end_value_from_floor'])
+        self.assertEqual(cfg['max_charge_kw'],1.0)
+
+    def test_bad_power_and_floor_rejected(self):
+        _,err=views.validate_settings({'battery':{'max_charge_kw':'900','max_discharge_kw':'x'},'tariff':{'price_floor_eur_kwh':'5'}})
+        for key in ('battery.max_charge_kw','battery.max_discharge_kw','tariff.price_floor_eur_kwh'):self.assertIn(key,err)
+
+    def test_soc_suggestion_prefers_soc_and_skips_dead_sensors_last(self):
+        states=[{'entity_id':'sensor.aaa_door_battery','state':'unavailable','attributes':{'unit_of_measurement':'%','friendly_name':'Door Battery'}},
+                {'entity_id':'sensor.bbb_window_battery','state':'100','attributes':{'unit_of_measurement':'%','friendly_name':'Window Battery'}},
+                {'entity_id':'sensor.zzz_pack_soc','state':'51','attributes':{'unit_of_measurement':'%','friendly_name':'Pack SOC'}}]
+        self.assertEqual([e['entity_id'] for e in views.suggest('battery_soc',states)],['sensor.zzz_pack_soc','sensor.bbb_window_battery','sensor.aaa_door_battery'])
+
 class FakeHA:
     def __init__(self,unit='kWh',state='5',days=28,exists=True):self.unit=unit;self.state=state;self.days=days;self.exists=exists
     async def call(self,name,**a):
