@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import yaml
 from jinja2 import Environment, StrictUndefined
 
-BLUEPRINT=Path(__file__).resolve().parents[3]/'blueprints/automation/hausakku_planer/steuerung.yaml'
+BLUEPRINT=Path(__file__).resolve().parents[2]/'app/blueprint/steuerung.yaml'
 TZ=ZoneInfo('Europe/Berlin')
 NOW=datetime(2026,10,28,12,0,tzinfo=TZ)
 
@@ -294,6 +294,27 @@ class ActionTests(unittest.TestCase):
                 with self.subTest(mode=name,start=(charger,inverter)):
                     s=sim(name,states={'switch.charger':charger,'switch.inverter':inverter}).run()
                     self.assertFalse(s.states['switch.charger']=='on' and s.states['switch.inverter']=='on')
+
+class SettingsFeedTheBlueprintTests(unittest.TestCase):
+    def test_every_required_input_is_answered_by_the_add_on(self):
+        import settings,views
+        bp=load();required=set()
+        def walk(inputs):
+            for name,spec in inputs.items():
+                if isinstance(spec,dict) and 'input' in spec and 'selector' not in spec:walk(spec['input'])
+                elif 'default' not in spec:required.add(name)
+        walk(bp['blueprint']['input'])
+        cfg=settings.Settings({'entities':{'charger_switch':'switch.c','inverter_switch':'switch.i','battery_soc':'sensor.s'}})
+        given=views.blueprint_inputs(cfg)
+        self.assertEqual(required-set(given),set())
+        self.assertTrue(set(given)<=set(input_defaults(bp)))              # no input the blueprint does not know
+    def test_optional_voltage_is_passed_only_when_set(self):
+        import settings,views
+        self.assertNotIn('battery_voltage',views.blueprint_inputs(settings.Settings({})))
+        self.assertEqual(views.blueprint_inputs(settings.Settings({'entities':{'battery_voltage':'sensor.v'}}))['battery_voltage'],'sensor.v')
+    def test_the_service_ships_the_blueprint_it_installs(self):
+        import service
+        self.assertEqual((Path(service.APP)/'blueprint'/'steuerung.yaml').read_text(),BLUEPRINT.read_text())
 
 class StructureTests(unittest.TestCase):
     def walk(self,x):

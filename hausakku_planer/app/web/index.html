@@ -356,12 +356,15 @@ async function settingsPage(){
         ${r.list||r.role==='ev_window_helper'||need==='control'&&false?'<span></span>':`<button class="btn sec" data-check="${r.role}">Prüfen</button>`}<div class="fmsg" id="m-entities.${r.role}"></div></div>`});
     h+='</div>';
   });
-  try{const bp=await api('blueprint');
-    h+=`<h2>Steuerung (Blueprint)</h2><div class="card"><div class="small">Das Add-on plant und schreibt den Plan, schaltet aber selbst nichts. Das übernimmt eine Automation aus dem Blueprint „Hausakku-Planer Steuerung“. Die Freigabe bleibt zunächst aus.</div>
+  try{const bp=await api('blueprint');let st=null;try{st=await api('setup')}catch(e){}
+    const known=st&&st.automation_known;const has=known&&st.steps.find(x=>x.id==='control').done;
+    h+=`<h2>Steuerung</h2><div class="card"><div class="small">Das Add-on plant und schreibt den Plan, schaltet aber selbst nichts. Das übernimmt eine Automation aus dem Blueprint „Hausakku-Planer Steuerung“ mit Freigabe-Schalter, Ablaufdatum, Schaltsperre und Schutzbedingungen.</div>
+     ${has?'<div class="ok" style="margin:10px 0">✓ Eine Steuerung ist eingerichtet.</div>':`<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0"><button class="btn" id="setupControl" ${cfg.publish?'':'disabled'}>Steuerung einrichten</button><span class="small" id="m-control">${cfg.publish?'Legt den Blueprint und die Automation an. Die Freigabe bleibt aus, es wird nichts geschaltet.':'Zuerst „In Home Assistant veröffentlichen“ einschalten und speichern.'}</span></div>`}
+     <details><summary class="small mut">Von Hand einrichten</summary>
      <ol class="small"><li><a href="${esc(bp.import_url)}" target="_blank" rel="noopener">Blueprint importieren</a> (oder die Datei <a href="${esc(bp.source_url)}" target="_blank" rel="noopener">aus GitHub</a> übernehmen).</li>
      <li>In Home Assistant: Einstellungen → Automationen → Neue Automation → Blueprint „Hausakku-Planer Steuerung“. Dort diese Werte wählen:</li></ol>
-     <table class="small">${bp.values.map(v=>`<tr><td>${esc(v.label)}</td><td>${v.value?`<code>${esc(v.value)}</code>`:'<span class="mut">nicht eingerichtet</span>'}</td></tr>`).join('')}</table>
-     <div class="small mut" style="margin-top:8px">Die Hilfsobjekte (Freigabe, Marker, Schaltsperre) legt das Add-on ab der Stufe „Plan veröffentlichen“ selbst an. Weitere Batterie-Schutzwerte im Blueprint sind optional.</div></div>`}catch(e){}
+     <table class="small">${bp.values.map(v=>`<tr><td>${esc(v.label)}</td><td>${v.value?`<code>${esc(v.value)}</code>`:'<span class="mut">nicht eingerichtet</span>'}</td></tr>`).join('')}</table></details>
+     <div class="small mut" style="margin-top:8px">Danach in der Automation die Batterie-Schutzwerte ergänzen (Spannung, Temperaturen, BMS), soweit du die Sensoren hast. Den Freigabe-Schalter schaltest du erst nach ein paar Tagen Beobachten ein.</div></div>`}catch(e){}
   h+=`<div style="display:flex;gap:12px;align-items:center;margin-top:16px"><button class="btn" id="save">Speichern</button><span id="saved" class="small"></span></div>`;
   return h;
 }
@@ -412,6 +415,14 @@ function bindSettings(){
       out.className='fmsg '+(n?'ok':'wn');out.textContent=(n?n+' Werte eingetragen (Schätzung, bitte prüfen). ':'')+(r.notes||[]).join(' ')}
     catch(e){out.className='fmsg err';out.textContent='Schätzung nicht verfügbar.'}
     b.disabled=false});
+  const sc=document.getElementById('setupControl');
+  if(sc)sc.addEventListener('click',async()=>{
+    if(!confirm('Das Add-on legt jetzt in Home Assistant den Blueprint „Hausakku-Planer Steuerung“ und eine Automation daraus an.\n\nDie Freigabe bleibt aus, es wird nichts geschaltet. Fortfahren?'))return;
+    const out=document.getElementById('m-control');sc.disabled=true;out.className='small mut';out.textContent='Richte ein …';
+    try{const r=await api('control/setup',{method:'POST'});
+      out.className='small '+(r.ok?'ok':'err');out.textContent=r.message||'Fehlgeschlagen.';
+      if(r.ok){await load();setTimeout(()=>{if(tab==='settings')render()},1500)}else sc.disabled=false}
+    catch(e){out.className='small err';out.textContent='Einrichten fehlgeschlagen.';sc.disabled=false}});
   document.getElementById('checkPrices').addEventListener('click',async()=>{
     const b=document.getElementById('checkPrices'),out=document.getElementById('m-priceCheck');b.disabled=true;out.className='fmsg mut';out.textContent='Prüfe …';
     try{const r=await api('prices/check');

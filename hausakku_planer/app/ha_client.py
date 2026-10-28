@@ -21,6 +21,12 @@ READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers',
 class WritesDisabled(RuntimeError):
     pass
 
+class ControlExists(RuntimeError):
+    pass
+
+CONTROL_BLUEPRINT='hausakku_planer/steuerung.yaml'      # path below Home Assistant's blueprints/automation
+CONTROL_AUTOMATION='hausakku_planer_steuerung'
+
 def ev_helper():
     return settings.current().entity('ev_window_helper',required=False)
 
@@ -191,6 +197,18 @@ class HA:
         else:
             await self.t.command(type='schedule/create',name=name.replace('_',' ').capitalize(),**week)
         return {'success':True}
+
+    async def install_control(self,blueprint_yaml,source_url,inputs):
+        """Save the control blueprint in Home Assistant and create the automation from it. One fixed blueprint path and one
+        fixed automation id; it never overwrites an existing automation. The release switch stays as it is (off)."""
+        _require_writes(self.mode)
+        if await self.t.rest('GET','/config/automation/config/'+CONTROL_AUTOMATION) is not None:raise ControlExists(CONTROL_AUTOMATION)
+        await self.t.command(type='blueprint/save',domain='automation',path=CONTROL_BLUEPRINT,yaml=blueprint_yaml,source_url=source_url,allow_override=True)
+        await self.t.rest('POST','/config/automation/config/'+CONTROL_AUTOMATION,{
+            'alias':'Hausakku-Planer Steuerung',
+            'description':'Führt den Plan des Hausakku-Planer-Add-ons aus. Schaltet nichts, solange die Freigabe aus ist.',
+            'use_blueprint':{'path':CONTROL_BLUEPRINT,'input':inputs}})
+        return {'automation':'automation.'+CONTROL_AUTOMATION}
 
     async def ensure_own_helpers(self):
         """Create the planner's own input helpers if missing (publish stage and above)."""

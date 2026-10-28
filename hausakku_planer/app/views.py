@@ -211,8 +211,18 @@ def setup_steps(missing,plan,mode,automation_found,released):
             ('release','Steuerung freigeben',bool(released),None)]
 
 # --- control blueprint -------------------------------------------------------------------
-BLUEPRINT_URL='https://github.com/bjoe10/HA_Addon/blob/main/blueprints/automation/hausakku_planer/steuerung.yaml'
+BLUEPRINT_URL='https://github.com/bjoe10/HA_Addon/blob/main/hausakku_planer/app/blueprint/steuerung.yaml'
 BLUEPRINT_IMPORT='https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url='+quote(BLUEPRINT_URL,safe='')
+
+def blueprint_inputs(cfg):
+    """The control blueprint's inputs (by name) that the settings answer: the required ones plus the battery voltage if set."""
+    h=cfg.helpers();e=lambda role:cfg.entity(role,required=False)
+    out={'charger_switch':e('charger_switch'),'inverter_switch':e('inverter_switch'),'soc_sensor':e('battery_soc'),
+         'charge_schedule':'schedule.'+h['charge'],'serve_schedule':'schedule.'+h['serve'],
+         'plan_valid_until':'input_datetime.'+h['expiry'],'target_soc':'input_number.'+h['target'],
+         'release_switch':'input_boolean.'+h['permission'],'owner_marker':'input_boolean.'+h['owner'],'cooldown_timer':'timer.'+h['timer']}
+    if e('battery_voltage'):out['battery_voltage']=e('battery_voltage')
+    return out
 
 def blueprint_values(cfg):
     """What to pick in the control blueprint's form, from the settings: (label of the blueprint field, value or None)."""

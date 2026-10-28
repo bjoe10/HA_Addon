@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+- „Steuerung einrichten“ in den Einstellungen: legt den Blueprint und die Automation „Hausakku-Planer Steuerung“ in Home Assistant an (nach Bestätigung; nur mit eingeschaltetem Veröffentlichen und zugeordneten Schaltern; nie, wenn schon eine Steuerung diese Helfer benutzt). Die Freigabe bleibt aus, es wird nichts geschaltet.
+- Der Blueprint liegt jetzt im Add-on selbst (`hausakku_planer/app/blueprint/steuerung.yaml`), eine Kopie für Add-on und Import.
+
 ## 0.8.0
 - Die Add-on-Option „Betriebsstufe“ entfällt. Veröffentlichen wird nur noch in der Oberfläche (Einstellungen) geschaltet. Neue Installationen starten mit „aus“.
 

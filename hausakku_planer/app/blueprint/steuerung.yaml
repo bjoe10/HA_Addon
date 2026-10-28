@@ -19,7 +19,7 @@ blueprint:
     Spannungs-, Temperatur- und BMS-Sensoren (optional, unten) kommt der
     Geräteschutz dazu. **Das ersetzt kein BMS und keine elektrische Absicherung.**
   domain: automation
-  source_url: https://github.com/bjoe10/HA_Addon/blob/main/blueprints/automation/hausakku_planer/steuerung.yaml
+  source_url: https://github.com/bjoe10/HA_Addon/blob/main/hausakku_planer/app/blueprint/steuerung.yaml
   homeassistant:
     min_version: 2024.10.0
   input:

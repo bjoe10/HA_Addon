@@ -173,6 +173,30 @@ async def blueprint(request):
     return web.json_response({'import_url':views.BLUEPRINT_IMPORT,'source_url':views.BLUEPRINT_URL,
                               'values':[{'label':l,'value':v} for l,v in views.blueprint_values(cfg)]})
 
+async def control_setup(request):
+    """Create the control automation from the blueprint (the UI asks for confirmation first). The release switch stays off."""
+    cfg=settings.current()
+    if settings.operating_mode()!='publish':
+        return web.json_response({'ok':False,'message':'Zuerst „In Home Assistant veröffentlichen“ einschalten und speichern.'},status=409)
+    inputs=views.blueprint_inputs(cfg)
+    missing=[settings.label(r) for r,k in (('charger_switch','charger_switch'),('inverter_switch','inverter_switch'),('battery_soc','soc_sensor')) if not inputs.get(k)]
+    if missing:return web.json_response({'ok':False,'message':'Es fehlen: '+', '.join(missing)+'.'},status=400)
+    try:
+        async with connection() as ha:
+            owner='input_boolean.'+cfg.helpers()['owner']
+            try:related=await ha.call('ha_related',entity_id=owner)
+            except Exception:related={}
+            if related.get('automation'):
+                return web.json_response({'ok':False,'message':'Es gibt schon eine Steuerung, die diese Helfer benutzt. Es wurde nichts angelegt.'},status=409)
+            await ha.ensure_own_helpers()
+            done=await ha.install_control((APP/'blueprint'/'steuerung.yaml').read_text(),views.BLUEPRINT_URL,inputs)
+    except ha_client.ControlExists:
+        return web.json_response({'ok':False,'message':'Die Automation „Hausakku-Planer Steuerung“ gibt es schon.'},status=409)
+    except Exception as exc:
+        log.warning('Steuerung einrichten fehlgeschlagen (%s)',type(exc).__name__)
+        return web.json_response({'ok':False,'message':'Einrichten fehlgeschlagen ('+type(exc).__name__+'). Es wurde nichts eingeschaltet.'},status=500)
+    return web.json_response({'ok':True,**done,'message':'Die Automation wurde angelegt. Die Freigabe ist aus, es wird nichts geschaltet.'})
+
 async def put_settings(request):
     data=await request.json()
     data.setdefault('adopt_legacy_helpers',settings.current().data.get('adopt_legacy_helpers',False))   # not editable in the UI
@@ -314,7 +338,7 @@ def make_app():
     app=web.Application(middlewares=[ingress_only]);app['scheduler']=Scheduler()
     app.router.add_get('/',index);app.router.add_get('/api/status',status)
     app.router.add_get('/api/runs',runs);app.router.add_post('/api/run',run_now);app.router.add_get('/api/plan',plan)
-    app.router.add_get('/api/blueprint',blueprint);app.router.add_get('/api/autofill',autofill);app.router.add_get('/api/setup',setup);app.router.add_get('/api/estimates',estimates)
+    app.router.add_get('/api/blueprint',blueprint);app.router.add_post('/api/control/setup',control_setup);app.router.add_get('/api/autofill',autofill);app.router.add_get('/api/setup',setup);app.router.add_get('/api/estimates',estimates)
     app.router.add_get('/api/settings',get_settings);app.router.add_put('/api/settings',put_settings)
     app.router.add_get('/api/entities',entities);app.router.add_get('/api/check',check);app.router.add_get('/api/prices/check',check_prices)
     async def start(app):app['task']=asyncio.create_task(app['scheduler'].loop())

@@ -1,5 +1,5 @@
 import unittest
-from ha_client import check_call, HA, WritesDisabled
+from ha_client import check_call, HA, WritesDisabled, ControlExists
 import asyncio, settings
 
 class ClientTests(unittest.TestCase):
@@ -88,6 +88,7 @@ class FakeTransport:
         self.schedules=[];self.helpers={'input_datetime':[],'input_text':[],'input_number':[],'input_boolean':[],'timer':[]}
     async def rest(self,method,path,json_body=None,params=None):
         self.rest_calls.append((method,path,json_body,params))
+        if path.startswith('/config/automation/config/') and method=='GET':return {'id':'x'} if getattr(self,'automation_exists',False) else None
         if path.startswith('/states/'):return self.states.get(path.split('/states/')[1])
         if path.startswith('/history/period/'):
             return [[{'entity_id':'sensor.a','state':'5','last_changed':'2026-10-26T10:00:00+00:00'},{'state':'6','last_changed':'2026-10-26T11:00:00+00:00'}]]
@@ -143,6 +144,21 @@ class NativeClientTests(unittest.TestCase):
         self.assertEqual([c['type'] for c in self.t.commands],['schedule/list','schedule/update'])
         self.assertEqual(self.t.commands[1]['schedule_id'],'hap_netzladen');self.assertIn('name',self.t.commands[1])
 
+    def test_install_control_saves_the_blueprint_then_creates_the_automation(self):
+        inputs={'charger_switch':'switch.c'}
+        r=run(self.ha.install_control('blueprint: yaml','https://example/bp.yaml',inputs))
+        self.assertEqual(r,{'automation':'automation.hausakku_planer_steuerung'})
+        save=[c for c in self.t.commands if c['type']=='blueprint/save'][0]
+        self.assertEqual((save['domain'],save['path'],save['yaml']),('automation','hausakku_planer/steuerung.yaml','blueprint: yaml'))
+        post=[c for c in self.t.rest_calls if c[0]=='POST'][0]
+        self.assertEqual(post[1],'/config/automation/config/hausakku_planer_steuerung')
+        self.assertEqual(post[2]['use_blueprint'],{'path':'hausakku_planer/steuerung.yaml','input':inputs})
+        self.assertNotIn('input_boolean.turn_on',str(self.t.rest_calls))      # the release switch is never touched
+    def test_install_control_never_overwrites_and_respects_observe(self):
+        self.t.automation_exists=True
+        with self.assertRaises(ControlExists):run(self.ha.install_control('y','u',{}))
+        self.assertFalse([c for c in self.t.commands if c['type']=='blueprint/save']);self.assertFalse([c for c in self.t.rest_calls if c[0]=='POST'])
+        with self.assertRaises(WritesDisabled):run(HA(self.t,mode='observe').install_control('y','u',{}))
     def test_ensure_own_helpers_creates_once(self):
         created=run(self.ha.ensure_own_helpers());self.assertEqual(len(created),6)
         self.assertIn('input_boolean.hap_planer_freigabe',created);self.assertIn('timer.hap_schaltsperre',created)

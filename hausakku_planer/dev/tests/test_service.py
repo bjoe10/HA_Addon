@@ -99,6 +99,20 @@ class MigratePublishTests(unittest.TestCase):
         os.environ['HAUSAKKU_MODE']='observe';settings.use(None);self.assertFalse(settings.migrate_publish())
         os.environ['HAUSAKKU_MODE']='publish';settings.use({'publish':False});self.assertFalse(settings.migrate_publish())
 
+class ControlSetupGuardTests(AioHTTPTestCase):
+    async def get_application(self):
+        settings.use({});return service.make_app()
+    async def tearDownAsync(self):settings.use(None)
+
+    async def test_refused_while_publishing_is_off(self):
+        settings.use({'publish':False})
+        r=await self.client.post('/api/control/setup')
+        self.assertEqual(r.status,409);self.assertIn('veröffentlichen',(await r.json())['message'])
+    async def test_refused_without_the_switches_and_soc(self):
+        settings.use({'publish':True})
+        r=await self.client.post('/api/control/setup')
+        self.assertEqual(r.status,400);self.assertIn('Schalter Netzladegerät',(await r.json())['message'])
+
 class AsyncRunTests(AioHTTPTestCase):
     async def get_application(self):
         settings.use({});return service.make_app()

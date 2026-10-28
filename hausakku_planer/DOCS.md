@@ -68,9 +68,9 @@ Der Blueprint **„Hausakku-Planer Steuerung“** führt den Plan aus. Er schalt
 
 ### Einrichten
 
-1. In **Einstellungen → Steuerung (Blueprint)** den Link „Blueprint importieren“ öffnen (oder die Datei `blueprints/automation/hausakku_planer/steuerung.yaml` aus dem Repository importieren).
-2. In Home Assistant **Einstellungen → Automationen → Neue Automation → Blueprint „Hausakku-Planer Steuerung“**. Die Einstellungsseite des Add-ons listet genau die Werte, die du wählen musst.
-3. Die optionalen Schutzwerte unter „Batterie-Schutz“ ausfüllen, soweit du die Sensoren hast. Je mehr, desto besser der Schutz.
+1. In **Einstellungen → Steuerung** auf **„Steuerung einrichten“** klicken (dafür muss „Veröffentlichen“ an und gespeichert sein, und die zwei Schalter und der Akku-Ladestand müssen eingetragen sein). Das Add-on legt den Blueprint und die Automation „Hausakku-Planer Steuerung“ an. **Die Freigabe bleibt aus**, es wird nichts geschaltet. Wer es lieber von Hand macht: unter „Von Hand einrichten“ steht der Import-Link und die Liste der Werte, die man im Blueprint wählt.
+2. In Home Assistant die Automation öffnen und die optionalen Schutzwerte ausfüllen (siehe nächster Schritt). Die Einstellungsseite des Add-ons zeigt dir, welche Entitäten das Add-on für Zeitpläne, Ablaufdatum und Helfer benutzt.
+3. Unter „Batterie-Schutz“ die Sensoren zuordnen, soweit du sie hast (Spannung, Temperaturen, BMS). Je mehr, desto besser der Schutz.
 4. Automation speichern. Erst **nach ein paar Tagen Beobachten** den Schalter `input_boolean.<Präfix>_planer_freigabe` einschalten, und die ersten Schaltungen selbst begleiten.
 5. Zum Stoppen: Freigabe aus. Die Steuerung gibt dann nur Geräte frei, die sie vorher selbst übernommen hatte.
 
