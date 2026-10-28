@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.6
+- Wochenbilanz-Fehlertext nennt Umfang des Preisarchivs und Kalibrierung.
+
 ## 0.5.5
 - Wochenbilanz nennt bei zu wenigen vollständigen Stunden die Gründe (Zählung fehlender Preise und Messwerte).
 

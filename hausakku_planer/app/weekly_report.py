@@ -135,7 +135,10 @@ async def run(args):
         row={'start':t,'ev':ev.get(t) if EVS else 0.}
         for key,entity in ENERGY.items():row[key]=data.get(entity,{}).get(t)
         hours.append(row);t+=3600
-    hours,start=trailing_complete(hours,prices,start)
+    try:hours,start=trailing_complete(hours,prices,start)
+    except WeeklyError as exc:
+        span=(datetime.fromtimestamp(min(prices),TZ).strftime('%d.%m. %H:%M')+' bis '+datetime.fromtimestamp(max(prices),TZ).strftime('%d.%m. %H:%M')) if prices else 'keine'
+        raise WeeklyError('%s; Preisstunden vorhanden: %d (%s), Kalibrierung gültig: %s'%(exc,len(prices),span,bool(calibration.get('valid'))))
     start_kwh=battery_at(battery,start.timestamp()-3600) or battery_at(battery,start.timestamp())
     end_kwh=battery_at(battery,end.timestamp()-3600)
     if start_kwh is None or end_kwh is None:raise ValueError('Battery energy at week boundaries unavailable')
