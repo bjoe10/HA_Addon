@@ -186,4 +186,50 @@ class BlueprintValuesTests(unittest.TestCase):
     def test_import_link_points_at_the_blueprint(self):
         self.assertIn('blueprint_import',views.BLUEPRINT_IMPORT);self.assertIn('steuerung.yaml',views.BLUEPRINT_IMPORT)
 
+def st(entity,state='1',**attrs):return {'entity_id':entity,'state':state,'attributes':attrs}
+
+class SetupHelpTests(unittest.TestCase):
+    PREFS={'energy_sources':[
+        {'type':'grid','flow_from':[{'stat_energy_from':'sensor.meter_in'}],'flow_to':[{'stat_energy_to':'sensor.meter_out'}]},
+        {'type':'solar','stat_energy_from':'sensor.pv_total'},
+        {'type':'battery','stat_energy_from':'sensor.bat_out','stat_energy_to':'sensor.bat_in'}]}
+    def test_energy_dashboard_answers_grid_pv_and_battery(self):
+        self.assertEqual(views.energy_dashboard_roles(self.PREFS),{'grid_import':'sensor.meter_in','grid_export':'sensor.meter_out',
+            'pv_energy':'sensor.pv_total','battery_out_energy':'sensor.bat_out','battery_in_energy':'sensor.bat_in'})
+        self.assertEqual(views.energy_dashboard_roles(None),{});self.assertEqual(views.energy_dashboard_roles({'energy_sources':[{'type':'grid'}]}),{})
+    def test_estimates_need_enough_data(self):
+        self.assertEqual(views.estimate_power([1.1]*3+[0]*50),None)
+        self.assertEqual(views.estimate_power([0,0,1.0,1.1,1.1,1.12,1.13,1.13,1.14,1.2]),1.14)
+        self.assertEqual(views.estimate_power([0.2]*10),None)           # idle noise is not an operating hour
+        pairs=[(k,s) for s in range(20,96,3) for k in (s/100*15.8,)]
+        self.assertAlmostEqual(views.estimate_capacity(pairs),15.8,delta=.1)
+        self.assertIsNone(views.estimate_capacity(pairs[:5]));self.assertIsNone(views.estimate_capacity([(5,10)]*40))
+    def states(self):
+        return [st('sensor.meter_in','5',unit_of_measurement='kWh'),st('sensor.meter_out','2',unit_of_measurement='kWh'),
+                st('sensor.pv_total','9',unit_of_measurement='kWh'),
+                st('sensor.bms_soc','50',unit_of_measurement='%',friendly_name='Akku SOC'),
+                st('switch.charger_plug','off',friendly_name='Ladegerät'),st('switch.inverter_plug','on',friendly_name='Wechselrichter'),
+                st('switch.lamp','off'),st('sensor.charger_plug_energy','3',unit_of_measurement='kWh',device_class='energy'),
+                st('sensor.inverter_plug_energy','7',unit_of_measurement='kWh'),st('weather.home','sunny')]
+    REGISTRY=[{'entity_id':'switch.charger_plug','device_id':'d1'},{'entity_id':'sensor.charger_plug_energy','device_id':'d1'},
+              {'entity_id':'switch.inverter_plug','device_id':'d2'},{'entity_id':'sensor.inverter_plug_energy','device_id':'d2'}]
+    def test_autofill_uses_dashboard_names_and_devices_but_never_replaces(self):
+        p=views.autofill(self.states(),self.REGISTRY,self.PREFS,{'grid_import':'sensor.mine'})
+        self.assertNotIn('grid_import',p)                                   # already set
+        self.assertEqual(p['grid_export']['entity'],'sensor.meter_out');self.assertEqual(p['pv_energy']['why'],'aus dem Energie-Dashboard')
+        self.assertEqual(p['battery_soc']['entity'],'sensor.bms_soc');self.assertEqual(p['weather']['entity'],'weather.home')
+        self.assertEqual(p['charger_switch']['entity'],'switch.charger_plug');self.assertEqual(p['inverter_switch']['entity'],'switch.inverter_plug')
+        self.assertEqual(p['charger_energy']['entity'],'sensor.charger_plug_energy');self.assertEqual(p['inverter_energy']['entity'],'sensor.inverter_plug_energy')
+        self.assertEqual(len({v['entity'] for v in p.values()}),len(p))     # no entity twice
+    def test_autofill_skips_unclear_cases_and_missing_entities(self):
+        states=[st('sensor.a','1',unit_of_measurement='kWh'),st('sensor.b','1',unit_of_measurement='kWh')]
+        self.assertEqual(views.autofill(states,[],None,{}),{})
+        p=views.autofill(states,[],{'energy_sources':[{'type':'solar','stat_energy_from':'sensor.gone'}]},{})
+        self.assertNotIn('pv_energy',p)                                     # not an existing entity
+    def test_setup_steps(self):
+        steps=lambda *a:[(i,d) for i,_,d,_ in views.setup_steps(*a)]
+        self.assertEqual(steps(['battery_soc'],None,'observe',None,None),[('entities',False),('plan',False),('publish',False),('control',False),('release',False)])
+        self.assertEqual(steps([],{'publication':True},'publish',True,True),[('entities',True),('plan',True),('publish',True),('control',True),('release',True)])
+        self.assertFalse(dict(steps([],{'publication':True},'observe',None,None))['publish'])   # published once, but the switch is off now
+
 if __name__=='__main__':unittest.main()

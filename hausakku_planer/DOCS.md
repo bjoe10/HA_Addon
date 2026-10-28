@@ -2,7 +2,7 @@
 
 Plant für einen Heimspeicher mit dynamischem Stromtarif, **wann er aus dem Netz laden, Energie aufheben oder das Haus versorgen soll**. Grundlage sind die Börsen- oder Tibber-Preise der nächsten ein bis zwei Tage, die PV-Prognose und dein gelernter Verbrauch. Daraus entsteht ein Plan, den eine Home-Assistant-Automation ausführt.
 
-> **Wichtig:** Die Berechnung ist eine Simulation. Es gibt keine Garantie für Ersparnisse, und die Steuerung ersetzt weder ein BMS noch elektrische Schutzeinrichtungen. Nutzung auf eigene Verantwortung. Fang mit der Stufe **Beobachten** an.
+> **Wichtig:** Die Berechnung ist eine Simulation. Es gibt keine Garantie für Ersparnisse, und die Steuerung ersetzt weder ein BMS noch elektrische Schutzeinrichtungen. Nutzung auf eigene Verantwortung. Lass „Veröffentlichen“ zunächst aus und beobachte den Plan.
 
 ## Was du brauchst
 
@@ -14,27 +14,32 @@ Plant für einen Heimspeicher mit dynamischem Stromtarif, **wann er aus dem Netz
 
 Die Zeitzone ist fest Europa/Berlin. Preiszonen außerhalb von Mitteleuropa sind ungetestet.
 
-## Einrichtung in sechs Schritten
+## Einrichtung
+
+Auf der Übersicht zeigt eine **Checkliste** den nächsten Schritt. Die Schritte im Einzelnen:
 
 1. **Add-on installieren und starten.** Unter Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories die Adresse `https://github.com/bjoe10/HA_Addon` hinzufügen, „Hausakku-Planer“ installieren, starten und „In Seitenleiste anzeigen“ aktivieren.
-2. **„Hausakku“ in der Seitenleiste öffnen → Einstellungen.** Die Entitäten zuordnen. Das Feld schlägt passende Entitäten vor, **Prüfen** zeigt, ob der Zähler existiert, die richtige Einheit hat und genug Statistik liefert.
-3. **Standort, Akku-Kapazität und Leistungen eintragen.** Der Standort (auf ca. 1 km gerundet) macht die PV-Schätzung genauer. Ladeleistung des Netzladegeräts und maximale Wechselrichter-Leistung bestimmen, wie viel pro Stunde möglich ist.
+2. **„Hausakku“ in der Seitenleiste öffnen → Einstellungen → „Vorschläge einsetzen“.** Das Add-on füllt leere Felder aus dem Energie-Dashboard (Netzbezug, Einspeisung, PV), aus den Sensoren am selben Gerät wie deine Schalter und nach Namen vor. Du prüfst die Vorschläge, ergänzt den Rest (die zwei Schalter und der Akku-Ladestand sind Pflicht) und kontrollierst die Felder mit **Prüfen**: Der Zähler muss existieren, die richtige Einheit haben und genug Statistik liefern.
+3. **Standort, Akku-Kapazität und Leistungen.** Mit **Schätzen** trägt das Add-on Kapazität, Ladeleistung und Wechselrichter-Leistung aus den letzten 28 Tagen ein (wenn die Zähler gespeichert sind). Bitte kurz gegen das Typenschild prüfen. Der Standort (auf ca. 1 km gerundet) macht die PV-Schätzung genauer.
 4. **Strompreis wählen** und mit **Preise prüfen** kontrollieren. Der Plan nutzt nur bekannte Preise, die für morgen liegen meist ab dem frühen Nachmittag vor.
-5. **Speichern und „Jetzt rechnen“** auf der Übersicht. Der erste Lauf braucht etwa eine Minute. Danach rechnet das Add-on selbst: 14:15 und 20:15 ein Hauptlauf, stündlich um :45 eine stille Nachplanung, montags 08:00 die Wochenbilanz.
+5. **Speichern und „Jetzt rechnen“.** Der erste Lauf braucht etwa eine Minute. Danach rechnet das Add-on selbst: 14:15 und 20:15 ein Hauptlauf, stündlich um :45 eine stille Nachplanung, montags 08:00 die Wochenbilanz.
 6. **Plan beobachten.** Unter „Plan“ siehst du Preise, Modus-Bänder, Akkustand und zu jedem Fenster eine Begründung in einem Satz. Mehrere Tage reichen, um zu sehen, ob die Entscheidungen zu deinem Haus passen.
+7. **Veröffentlichen** (Einstellungen), dann **Steuerung einrichten** (Blueprint, siehe unten).
 
-## Betriebsstufen (Add-on-Konfiguration)
+## Veröffentlichen
 
-| Stufe | Wirkung |
+Der Schalter **„In Home Assistant veröffentlichen“** (Einstellungen) bestimmt, ob das Add-on etwas in Home Assistant schreibt:
+
+| Schalter | Wirkung |
 |---|---|
-| **Beobachten** (`observe`, Standard) | Rechnet und zeigt den Plan. Schreibt **nichts** in Home Assistant. |
-| **Plan veröffentlichen** (`publish`) | Schreibt den Plan zusätzlich in eigene Helfer in Home Assistant (siehe unten) und legt diese an, falls sie fehlen. Schaltet nichts. |
+| **Aus** (Standard) | Das Add-on rechnet und zeigt den Plan. Es schreibt **nichts** in Home Assistant. |
+| **An** | Es legt eigene Helfer an (siehe unten) und schreibt den Plan hinein. Es schaltet nichts. |
 
-**Das Add-on schaltet in keiner Stufe selbst Geräte.** Das macht eine Automation aus dem Blueprint (nächster Abschnitt). Fällt das Add-on aus, läuft der zuletzt veröffentlichte Plan bis zu seinem Ablaufzeitpunkt weiter, danach greift der sichere Rückfall (nur Wechselrichter, kein Netzladen).
+**Das Add-on schaltet in keiner Stellung selbst Geräte.** Das macht eine Automation aus dem Blueprint (nächster Abschnitt). Fällt das Add-on aus, läuft der zuletzt veröffentlichte Plan bis zu seinem Ablaufzeitpunkt weiter, danach greift der sichere Rückfall (nur Wechselrichter, kein Netzladen).
 
 ### Eigene Helfer
 
-Mit der Stufe „Plan veröffentlichen“ legt das Add-on diese Helfer an, mit dem Präfix aus Einstellungen → Eigene Helfer (Standard `hap`):
+Mit eingeschaltetem „Veröffentlichen“ legt das Add-on diese Helfer an, mit dem Präfix aus Einstellungen → Eigene Helfer (Standard `hap`):
 
 | Helfer | Zweck |
 |---|---|
@@ -81,7 +86,7 @@ Stundenpreise werden auf Viertelstunden erweitert. Raster mit 30 Minuten werden 
 
 ## Bericht-Sensor und Zusammenfassungen
 
-Ab „Plan veröffentlichen“ liegt nach jedem Lauf ein Bericht in `sensor.<Präfix>_bericht` (Attribute `main`, `replan`, `weekly`). Ein Assistent oder eine andere Automation kann ihn lesen und zusammenfassen, ohne selbst etwas zu rechnen. Der Sensor wird mit dem nächsten Lauf neu geschrieben, wenn Home Assistant neu startet.
+Mit eingeschaltetem „Veröffentlichen“ liegt nach jedem Lauf ein Bericht in `sensor.<Präfix>_bericht` (Attribute `main`, `replan`, `weekly`). Ein Assistent oder eine andere Automation kann ihn lesen und zusammenfassen, ohne selbst etwas zu rechnen. Der Sensor wird mit dem nächsten Lauf neu geschrieben, wenn Home Assistant neu startet.
 
 ## Wochenbilanz
 

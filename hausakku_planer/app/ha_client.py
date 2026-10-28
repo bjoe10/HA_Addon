@@ -16,7 +16,7 @@ SUPERVISOR_URL='http://supervisor/core'
 def own():
     """Object ids of the helpers the add-on owns (from the helper prefix). Created on first publish if missing."""
     return {v for k,v in settings.current().helpers().items() if k in ('charge','serve','expiry','status','target')}
-READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services'}
+READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services','ha_entity_registry','ha_related'}
 
 class WritesDisabled(RuntimeError):
     pass
@@ -154,6 +154,12 @@ class HA:
     async def _ha_set_state(self,entity_id,state,attributes):
         await self.t.rest('POST','/states/'+entity_id,{'state':state,'attributes':attributes})
         return {'success':True}
+
+    async def _ha_entity_registry(self):
+        return {'entities':await self.t.command(type='config/entity_registry/list') or []}
+
+    async def _ha_related(self,entity_id):
+        return await self.t.command(type='search/related',item_type='entity',item_id=entity_id) or {}
 
     async def _ha_config_list_helpers(self,helper_type,limit=None):
         if helper_type!='schedule':raise ValueError('Only schedule helpers can be listed')

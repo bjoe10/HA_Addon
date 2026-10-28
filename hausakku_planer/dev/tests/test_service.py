@@ -69,6 +69,17 @@ class AdoptedHelpersTests(AioHTTPTestCase):
         r=await self.client.put('/api/settings',json={'helper_prefix':'hausakku','entities':{},'location':{},'battery':{},'prices':{'provider':'tibber'}})
         self.assertEqual(r.status,400)
 
+class OperatingModeTests(unittest.TestCase):
+    def tearDown(self):
+        settings.use(None);os.environ.pop('HAUSAKKU_MODE',None)
+    def test_ui_switch_decides_and_the_option_is_only_the_fallback(self):
+        settings.use({});os.environ['HAUSAKKU_MODE']='publish'
+        self.assertEqual(settings.operating_mode(),'publish')            # older install: the option still counts
+        settings.use({'publish':False});self.assertEqual(settings.operating_mode(),'observe')
+        os.environ['HAUSAKKU_MODE']='observe'
+        settings.use({'publish':True});self.assertEqual(settings.operating_mode(),'publish')
+        settings.use({});self.assertEqual(settings.operating_mode(),'observe')
+
 class AsyncRunTests(AioHTTPTestCase):
     async def get_application(self):
         settings.use({});return service.make_app()

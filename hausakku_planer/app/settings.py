@@ -39,6 +39,7 @@ LISTS={'ev_energy'}
 
 DEFAULTS={
  'helper_prefix':'hap',
+ 'publish':None,       # None: not chosen in the UI yet, the add-on option decides (older installs)
  'adopt_legacy_helpers':False,
  'location':{'latitude':None,'longitude':None},
  'entities':{r:([] if r in LISTS else None) for r in ROLES},
@@ -130,8 +131,11 @@ class Settings:
         return config
 
 def operating_mode():
-    mode=os.environ.get('HAUSAKKU_MODE','observe')
-    return mode if mode in MODES else 'observe'
+    """'publish' when the UI switch says so; the add-on option is only the fallback until the switch was saved once."""
+    flag=current().data.get('publish')
+    if flag is None:
+        return 'publish' if os.environ.get('HAUSAKKU_MODE','observe') in ('publish','control') else 'observe'
+    return 'publish' if flag else 'observe'
 
 def load(path=None):
     path=Path(path or os.environ.get('HAUSAKKU_SETTINGS') or paths.DATA/'settings.json')

@@ -40,6 +40,7 @@ h2{font-size:15px;margin:24px 0 8px;font-weight:650}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
 .stat .v{font-size:22px;font-weight:650}.stat .l{font-size:13px;color:var(--mut)}
 .banner{border:1px solid var(--warn);background:var(--hold-bg);color:var(--fg);border-radius:12px;padding:12px 16px;margin:12px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.steps{list-style:none;padding:0;margin:0 0 10px}.steps li{padding:3px 0;color:var(--mut)}.steps li.done{color:var(--serve)}.steps li.next{color:var(--fg);font-weight:600}
 .hint{border-left:3px solid var(--line);padding:2px 0 2px 10px;margin:6px 0;color:var(--mut);font-size:13px}
 button.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
 button.btn.sec{background:var(--soft);color:var(--fg);font-weight:500}
@@ -61,6 +62,7 @@ details pre{white-space:pre-wrap;background:var(--soft);padding:10px;border-radi
 .field:first-of-type{border-top:0}
 .field label{padding-top:7px;font-size:14px}
 input,textarea,select{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+input[type=checkbox]{width:20px;height:20px;padding:0;margin:7px 0 0;accent-color:var(--accent)}
 .fmsg{grid-column:2/4;font-size:13px}.ok{color:var(--serve)}.err{color:var(--bad)}.wn{color:var(--warn)}
 @media(max-width:620px){.field{grid-template-columns:1fr}.fmsg{grid-column:1}.hero .big{font-size:24px}}
 .empty{padding:28px 0;text-align:center;color:var(--mut)}
@@ -100,7 +102,7 @@ async function api(path,opt){
   return Object.assign(body,{_status:r.status});
 }
 
-let tab=(location.hash||'#overview').slice(1),status=null,planData=undefined,timer=null;
+let tab=(location.hash||'#overview').slice(1),status=null,planData=undefined,setupData=null,timer=null;
 const main=document.getElementById('main');
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
 window.addEventListener('hashchange',()=>go((location.hash||'#overview').slice(1),true));
@@ -114,6 +116,7 @@ function go(t,fromHash){
 
 async function load(){
   try{status=await api('status');planData=(await api('plan')).plan;}catch(e){status=status||null}
+  if(tab==='overview'&&status&&!status.running){try{setupData=await api('setup')}catch(e){setupData=null}}
   document.getElementById('stage').textContent=status&&status.running?'Rechnet …':'';
 }
 
@@ -142,6 +145,8 @@ function render(){
 
 function bind(){
   main.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
+  const stepgo=main.querySelector('#stepgo');
+  if(stepgo)stepgo.addEventListener('click',()=>{if(stepgo.dataset.step==='run'){const r=main.querySelector('#runnow');if(r)r.click();else go('overview')}else go(stepgo.dataset.step)});
   const run=main.querySelector('#runnow');
   if(run)run.addEventListener('click',async()=>{run.disabled=true;run.textContent='Rechnet …';
     try{await api('run',{method:'POST'})}catch(e){}
@@ -149,9 +154,19 @@ function bind(){
 }
 
 /* ---------- Übersicht ---------- */
+function checklist(){
+  if(!setupData||setupData.complete)return '';
+  const open=setupData.steps.find(s=>!s.done);
+  return `<div class="card"><div style="font-weight:600;margin-bottom:6px">Einrichtung</div>
+    <ol class="steps">${setupData.steps.map(s=>`<li class="${s.done?'done':(open&&s.id===open.id?'next':'')}">${s.done?'✓':'○'} ${esc(s.label)}</li>`).join('')}</ol>
+    ${open&&open.go?`<button class="btn" id="stepgo" data-step="${esc(open.go)}">${open.go==='run'?'Jetzt rechnen':'Weiter'}</button>`:''}
+    ${open&&open.id==='release'?'<div class="small mut">Den Freigabe-Schalter schaltest du selbst in Home Assistant ein, wenn du bereit bist. Vorher passiert nichts.</div>':''}
+    ${setupData.automation_known?'':'<div class="small mut" style="margin-top:6px">Ob die Steuerung schon eingerichtet ist, konnte nicht geprüft werden.</div>'}</div>`;
+}
+
 function overview(){
   const p=planData,m=MODES[status.mode]||MODES.observe;
-  let h='';
+  let h=checklist();
   if(!p){
     h+=`<div class="card"><div class="empty">Noch kein Plan berechnet.<br>${status.missing.length?'Zuerst die Einrichtung abschließen.':'Der erste Lauf startet automatisch oder mit „Jetzt rechnen“.'}</div></div>`;
   }else{
@@ -182,7 +197,7 @@ function overview(){
     <span class="mut small" style="margin-left:6px">${esc(m[1])}</span></div>
     <button class="btn" id="runnow" ${status.running?'disabled':''}>${status.running?'Rechnet …':'Jetzt rechnen'}</button></div>
     <div class="mut small" style="margin-top:10px">${status.last_run?`Letzter Lauf: ${full(status.last_run.time)} · ${status.last_run.ok?'<span class="ok">erfolgreich</span>':'<span class="err">fehlgeschlagen</span>'}${status.last_run.message?' · '+esc(status.last_run.message):''}`:'Noch kein Lauf.'}
-    · Die Betriebsstufe stellst du in der Add-on-Konfiguration ein.</div></div>`;
+    · Veröffentlichen schaltest du unter Einstellungen ein oder aus.</div></div>`;
   return h;
 }
 
@@ -303,8 +318,8 @@ let cfg=null;
 async function settingsPage(){
   cfg=await api('settings');
   const s=cfg.settings,groups=[['plan','Pflicht für den Plan'],['optional','Optional'],['control','Nur für die Steuerung']];
-  const m=MODES[cfg.mode]||MODES.observe;
-  let h=`<h2>Betriebsstufe</h2><div class="card"><span class="chip ${cfg.mode==='observe'?'off':'serve'}">${esc(m[0])}</span> <span class="mut small">${esc(m[1])}<br>Ändern in der Add-on-Konfiguration (Einstellungen → Add-ons → Hausakku-Planer → Konfiguration).</span></div>
+  let h=`<h2>Veröffentlichen</h2><div class="card">
+   <div class="field"><label for="pub">In Home Assistant veröffentlichen</label><input id="pub" type="checkbox" ${cfg.publish?'checked':''}><span></span><div class="fmsg mut">Aus: Das Add-on rechnet und zeigt den Plan nur an, es schreibt nichts in Home Assistant. An: Es legt eigene Helfer an und schreibt den Plan hinein. Geschaltet wird dadurch nichts, das macht erst die Steuerung (unten). Zum Ausprobieren erst aus lassen.</div></div></div>
   <h2>Eigene Helfer</h2><div class="card">
    <div class="field"><label for="hp">Präfix</label><input id="hp" value="${esc(s.helper_prefix)}" autocapitalize="off"><span></span><div class="fmsg mut" id="m-helper_prefix">Ab der Stufe „Plan veröffentlichen“ schreibt das Add-on nur in Helfer mit diesem Präfix: <code>${esc(Object.values(cfg.helpers).slice(0,5).join(', '))}</code>.</div></div>
   </div>
@@ -314,6 +329,7 @@ async function settingsPage(){
    <div class="field"><label for="cap">Akku-Kapazität (kWh)</label><input id="cap" inputmode="decimal" value="${esc(s.battery.capacity_kwh??'')}" placeholder="nutzbare Kapazität"><span></span><div class="fmsg" id="m-battery.capacity_kwh"></div></div>
    <div class="field"><label for="chg">Ladeleistung Netzladegerät (kW, AC)</label><input id="chg" inputmode="decimal" value="${esc(s.battery.max_charge_kw??'')}" placeholder="z. B. 1,1"><span></span><div class="fmsg" id="m-battery.max_charge_kw"></div></div>
    <div class="field"><label for="dis">Maximale WR-Leistung (kW, AC)</label><input id="dis" inputmode="decimal" value="${esc(s.battery.max_discharge_kw??'')}" placeholder="z. B. 2"><span></span><div class="fmsg" id="m-battery.max_discharge_kw"></div></div>
+   <div class="field"><label>Aus Messwerten schätzen</label><div class="fmsg mut" id="m-estimates" style="grid-column:auto">Schätzt Kapazität und Leistungen aus den letzten 28 Tagen. Dafür müssen die Zähler schon gespeichert sein. Füllt nur leere Felder.</div><button class="btn sec" id="estimate">Schätzen</button></div>
    <div class="field"><label for="nv">Nennspannung Akku (V)</label><input id="nv" inputmode="decimal" value="${esc(s.battery.nominal_voltage??'')}" placeholder="z. B. 51,2"><span></span><div class="fmsg mut" id="m-battery.nominal_voltage">Optional. Nur für die Wirkungsgrad-Messung: Spannung, mit der dein kWh-Sensor aus Ah umgerechnet wird. Leer lassen, wenn der Sensor SOC × Kapazität liefert.</div></div>
    <div class="field"><label for="flo">Preisuntergrenze (ct/kWh)</label><input id="flo" inputmode="decimal" value="${s.tariff.price_floor_eur_kwh==null?'':esc(String(+(s.tariff.price_floor_eur_kwh*100).toFixed(2)))}" placeholder="optional"><span></span><div class="fmsg mut" id="m-tariff.price_floor_eur_kwh">Feste Preisbestandteile (Netzentgelt, Steuern, Abgaben), unter die der Bezugspreis nie fällt. Begrenzt die Preisprognose für kommende Tage.</div></div></div>`;
   const pr=s.prices||{};
@@ -328,6 +344,8 @@ async function settingsPage(){
    <div class="field" data-prov="entity spot"><label for="pm">Aufschlag netto (ct/kWh)</label><input id="pm" inputmode="decimal" value="${esc(pr.markup_ct??0)}"><span></span><div class="fmsg mut" id="m-prices.markup_ct">Netzentgelt, Abgaben, Marge. 0, wenn der Sensor schon den Endpreis liefert.</div></div>
    <div class="field" data-prov="entity spot"><label for="pt">MwSt. (%)</label><input id="pt" inputmode="decimal" value="${esc(pr.vat_percent??0)}"><span></span><div class="fmsg mut" id="m-prices.vat_percent">0, wenn der Preis schon brutto ist.</div></div>
    <div class="field"><label>Prüfen</label><div class="fmsg" id="m-priceCheck" style="grid-column:auto">Speichere zuerst, dann prüfe die Quelle.</div><button class="btn sec" id="checkPrices">Preise prüfen</button></div></div>`;
+  h+=`<h2>Entitäten</h2><div class="card"><div class="small">Das Add-on kann die Felder unten aus dem Energie-Dashboard, den Geräten und den Namen vorbelegen. Es füllt nur leere Felder, du prüfst und speicherst.</div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><button class="btn sec" id="autofill">Vorschläge einsetzen</button><span class="small" id="m-autofill"></span></div></div>`;
   groups.forEach(([need,title])=>{
     h+=`<h2>${title}</h2><div class="card">`;
     cfg.roles.filter(r=>r.need===need).forEach(r=>{
@@ -349,7 +367,7 @@ async function settingsPage(){
 }
 
 function collect(){
-  const data={helper_prefix:document.getElementById('hp').value,entities:{},location:{latitude:document.getElementById('lat').value,longitude:document.getElementById('lon').value},
+  const data={publish:document.getElementById('pub').checked,helper_prefix:document.getElementById('hp').value,entities:{},location:{latitude:document.getElementById('lat').value,longitude:document.getElementById('lon').value},
               battery:{capacity_kwh:document.getElementById('cap').value,max_charge_kw:document.getElementById('chg').value,max_discharge_kw:document.getElementById('dis').value,nominal_voltage:document.getElementById('nv').value},
               prices:{provider:document.getElementById('pv').value,tibber_home:document.getElementById('ph').value,entity:document.getElementById('pe').value,
                       attribute:document.getElementById('pa').value,bidding_zone:document.getElementById('pz').value,markup_ct:document.getElementById('pm').value,vat_percent:document.getElementById('pt').value},
@@ -379,6 +397,21 @@ function bindSettings(){
   const showProv=()=>{const p=document.getElementById('pv').value;
     main.querySelectorAll('[data-prov]').forEach(el=>{el.style.display=el.dataset.prov.split(' ').includes(p)?'':'none'})};
   document.getElementById('pv').addEventListener('change',showProv);showProv();
+  document.getElementById('autofill').addEventListener('click',async()=>{
+    const b=document.getElementById('autofill'),out=document.getElementById('m-autofill');b.disabled=true;out.className='small mut';out.textContent='Suche …';
+    try{const r=await api('autofill');let n=0;
+      Object.entries(r.proposals||{}).forEach(([role,p])=>{const inp=main.querySelector(`[data-role="${role}"]`);
+        if(inp&&!inp.value.trim()){inp.value=p.entity;n++;msg('entities.'+role,'Vorschlag ('+esc(p.why)+'). Bitte prüfen.','wn')}});
+      out.className='small '+(n?'ok':'mut');out.textContent=r.warning||(n?n+' Felder vorbelegt. Bitte prüfen und speichern.':'Keine eindeutigen Vorschläge gefunden.')}
+    catch(e){out.className='small err';out.textContent='Vorschläge nicht verfügbar.'}
+    b.disabled=false});
+  document.getElementById('estimate').addEventListener('click',async()=>{
+    const b=document.getElementById('estimate'),out=document.getElementById('m-estimates');b.disabled=true;out.className='fmsg mut';out.textContent='Rechne …';
+    try{const r=await api('estimates'),e=r.estimates||{},put=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&!el.value.trim()){el.value=String(v).replace('.',',');return 1}return 0};
+      const n=put('cap',e.capacity_kwh)+put('chg',e.charge_kw)+put('dis',e.discharge_kw);
+      out.className='fmsg '+(n?'ok':'wn');out.textContent=(n?n+' Werte eingetragen (Schätzung, bitte prüfen). ':'')+(r.notes||[]).join(' ')}
+    catch(e){out.className='fmsg err';out.textContent='Schätzung nicht verfügbar.'}
+    b.disabled=false});
   document.getElementById('checkPrices').addEventListener('click',async()=>{
     const b=document.getElementById('checkPrices'),out=document.getElementById('m-priceCheck');b.disabled=true;out.className='fmsg mut';out.textContent='Prüfe …';
     try{const r=await api('prices/check');

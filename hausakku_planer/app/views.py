@@ -136,6 +136,80 @@ def suggest(role,states,query='',limit=12):
     scored.sort(key=lambda x:(x[0],x[1]))
     return [x[2] for x in scored[:limit]]
 
+# --- setup help: suggestions and estimates --------------------------------------------------
+def energy_dashboard_roles(prefs):
+    """Roles the Home Assistant Energy dashboard already answers: {role: statistic id}."""
+    out={}
+    for source in (prefs or {}).get('energy_sources') or []:
+        kind=source.get('type')
+        if kind=='grid':
+            for flow,key,role in (('flow_from','stat_energy_from','grid_import'),('flow_to','stat_energy_to','grid_export')):
+                flows=source.get(flow) or []
+                if flows and flows[0].get(key):out.setdefault(role,flows[0][key])
+        elif kind=='solar' and source.get('stat_energy_from'):out.setdefault('pv_energy',source['stat_energy_from'])
+        elif kind=='battery':
+            if source.get('stat_energy_from'):out.setdefault('battery_out_energy',source['stat_energy_from'])
+            if source.get('stat_energy_to'):out.setdefault('battery_in_energy',source['stat_energy_to'])
+    return out
+
+def best(role,states):
+    """The one available entity that clearly fits `role` (a better keyword score than any other), else None."""
+    words=KEYWORDS.get(role,());ranked=[]
+    for s in states:
+        if not _matches(role,s) or s.get('state') in ('unavailable','unknown'):continue
+        name=(s['entity_id']+' '+str((s.get('attributes') or {}).get('friendly_name',''))).lower()
+        ranked.append((sum(len(words)-i for i,w in enumerate(words) if w in name),s['entity_id']))
+    ranked.sort(key=lambda x:(-x[0],x[1]))
+    if role=='weather' and len(ranked)==1:return ranked[0][1]
+    if not ranked or ranked[0][0]<=0 or (len(ranked)>1 and ranked[1][0]==ranked[0][0]):return None
+    return ranked[0][1]
+
+def device_energy_sensors(registry,states,switch_entity):
+    """Energy counters on the same device as a switch (e.g. a smart plug's own kWh counter)."""
+    device=next((r.get('device_id') for r in registry if r.get('entity_id')==switch_entity),None)
+    if not device:return []
+    same={r['entity_id'] for r in registry if r.get('device_id')==device}
+    return [s['entity_id'] for s in states if s['entity_id'] in same and _matches('charger_energy',s)]
+
+def autofill(states,registry,prefs,entities):
+    """Proposals for the roles that are still empty: {role: {'entity', 'why'}}. Existing values are never replaced."""
+    ids={s['entity_id'] for s in states};proposals={};used={e for e in entities.values() if isinstance(e,str)}
+    def propose(role,entity,why):
+        if entities.get(role) or role in proposals or not entity or entity in used or entity not in ids:return
+        proposals[role]={'entity':entity,'why':why};used.add(entity)
+    for role,entity in energy_dashboard_roles(prefs).items():propose(role,entity,'aus dem Energie-Dashboard')
+    for role in ('battery_soc','charger_switch','inverter_switch','battery_kwh','battery_voltage','pv_forecast_today','pv_forecast_today_remaining',
+                 'pv_forecast_tomorrow','weather'):
+        propose(role,best(role,[s for s in states if s['entity_id'] not in used]),'passender Name')
+    for switch_role,energy_role in (('charger_switch','charger_energy'),('inverter_switch','inverter_energy')):
+        switch=entities.get(switch_role) or (proposals.get(switch_role) or {}).get('entity')
+        found=[e for e in device_energy_sensors(registry,states,switch) if e not in used] if switch else []
+        if len(found)==1:propose(energy_role,found[0],'Zähler am selben Gerät wie der Schalter')
+    for role in ('grid_import','grid_export','pv_energy','inverter_energy','charger_energy'):
+        propose(role,best(role,[s for s in states if s['entity_id'] not in used]),'passender Name')
+    return proposals
+
+def estimate_power(hourly,minimum=.3,percentile=.9):
+    """Typical top power in kW from hourly kWh values of the hours the device was really working, or None."""
+    values=sorted(v for v in hourly if v>=minimum)
+    if len(values)<5:return None
+    return round(values[int(percentile*(len(values)-1))],2)
+
+def estimate_capacity(pairs):
+    """Capacity in kWh from (stored kWh, SOC %) pairs: the median of kWh / SOC in the well-measured range, or None."""
+    values=sorted(k/(s/100) for k,s in pairs if 20<=s<=95 and k>0)
+    if len(values)<24:return None
+    return round(values[len(values)//2],1)
+
+def setup_steps(missing,plan,mode,automation_found,released):
+    """The setup checklist: (id, label, done, where to go). `automation_found`/`released` may be None when Home Assistant did not answer."""
+    published=mode=='publish' and bool(plan and plan.get('publication'))
+    return [('entities','Entitäten zuordnen',not missing,'settings'),
+            ('plan','Ersten Plan berechnen',plan is not None,'run'),
+            ('publish','Plan in Home Assistant veröffentlichen',published,'settings'),
+            ('control','Steuerung einrichten (Blueprint)',bool(automation_found),'settings'),
+            ('release','Steuerung freigeben',bool(released),None)]
+
 # --- control blueprint -------------------------------------------------------------------
 BLUEPRINT_URL='https://github.com/bjoe10/HA_Addon/blob/main/blueprints/automation/hausakku_planer/steuerung.yaml'
 BLUEPRINT_IMPORT='https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url='+quote(BLUEPRINT_URL,safe='')
@@ -189,6 +263,7 @@ def validate_settings(data):
             pattern=NAME_RE if role=='ev_window_helper' else ENTITY_RE
             if v and not pattern.match(v):errors['entities.'+role]='Ungültiger Name'
             clean['entities'][role]=v
+    if 'publish' in data:clean['publish']=None if data['publish'] is None else bool(data['publish'])
     if 'adopt_legacy_helpers' in data:clean['adopt_legacy_helpers']=bool(data['adopt_legacy_helpers'])
     if 'helper_prefix' in data:
         prefix=str(data['helper_prefix'] or '').strip().lower()

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+- Einfachere Einrichtung: „Vorschläge einsetzen“ füllt leere Felder aus dem Energie-Dashboard, aus Sensoren am selben Gerät wie die Schalter und nach Namen vor (nichts wird überschrieben oder gespeichert).
+- „Schätzen“ ermittelt Akku-Kapazität, Ladeleistung und Wechselrichter-Leistung aus den letzten 28 Tagen Statistik.
+- Veröffentlichen ist ein Schalter in den Einstellungen statt einer Add-on-Option (kein Neustart nötig). Die alte Option gilt nur noch, solange der Schalter nie gespeichert wurde.
+- Checkliste auf der Übersicht mit dem nächsten Schritt: Entitäten, erster Plan, Veröffentlichen, Steuerung (erkennt die Blueprint-Automation), Freigabe.
+
 ## 0.6.1
 - Das Umschalten auf die Helfer eines anderen Planers ist nicht mehr in der Oberfläche einstellbar; ein bestehender Wert bleibt beim Speichern erhalten.
 

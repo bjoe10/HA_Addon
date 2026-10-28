@@ -165,7 +165,8 @@ async def get_settings(request):
     roles=[{'role':r,'label':label,'need':need,'list':r in settings.LISTS} for r,(label,need) in settings.ROLES.items()]
     return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices','helper_prefix','adopt_legacy_helpers')},'roles':roles,
                               'helpers':cfg.helpers(),
-                              'missing':cfg.missing('plan'),'missing_control':cfg.missing('control'),'mode':settings.operating_mode()})
+                              'missing':cfg.missing('plan'),'missing_control':cfg.missing('control'),'mode':settings.operating_mode(),
+                              'publish':settings.operating_mode()=='publish'})
 
 async def blueprint(request):
     cfg=settings.current()
@@ -175,6 +176,7 @@ async def blueprint(request):
 async def put_settings(request):
     data=await request.json()
     data.setdefault('adopt_legacy_helpers',settings.current().data.get('adopt_legacy_helpers',False))   # not editable in the UI
+    data.setdefault('publish',settings.current().data.get('publish'))
     clean,errors=views.validate_settings(data)
     if errors:return web.json_response({'ok':False,'errors':errors},status=400)
     clean['planner']=settings.current().data.get('planner',{})   # developer overrides are not edited here
@@ -189,6 +191,64 @@ async def entities(request):
     except Exception as exc:
         return web.json_response({'entities':[],'warning':'Home Assistant nicht erreichbar ('+type(exc).__name__+')'})
     return web.json_response({'entities':views.suggest(role,states,request.query.get('q',''))})
+
+async def setup(request):
+    """The setup checklist. The two Home Assistant questions (is a control automation using the marker, is it released) may stay open."""
+    cfg=settings.current();plan=load_plan();found=released=None
+    try:
+        names=cfg.helpers()
+        async with connection() as ha:
+            related=await ha.call('ha_related',entity_id='input_boolean.'+names['owner'])
+            found=bool(related.get('automation'))
+            try:released=(await ha.call('ha_get_state',entity_id='input_boolean.'+names['permission'])).get('state')=='on'
+            except Exception:released=False
+    except Exception:pass
+    steps=views.setup_steps(cfg.missing('plan'),plan,settings.operating_mode(),found,released)
+    return web.json_response({'steps':[{'id':i,'label':l,'done':d,'go':g} for i,l,d,g in steps],'complete':all(d for _,_,d,_ in steps),
+                              'automation_known':found is not None})
+
+async def autofill(request):
+    """Proposals for empty entity roles from the Energy dashboard, device siblings and names. Nothing is saved."""
+    try:
+        async with connection() as ha:
+            states=(await ha.call('ha_list_states'))['states']
+            try:registry=(await ha.call('ha_entity_registry'))['entities']
+            except Exception:registry=[]
+            try:prefs=(await ha.call('ha_manage_energy_prefs',mode='get')).get('config') or {}
+            except Exception:prefs=None
+    except Exception as exc:
+        return web.json_response({'proposals':{},'warning':'Home Assistant nicht erreichbar ('+type(exc).__name__+')'})
+    return web.json_response({'proposals':views.autofill(states,registry,prefs,settings.current().data['entities'])})
+
+async def estimates(request):
+    """Battery capacity and charger/inverter power estimated from the recorded statistics. Nothing is saved."""
+    cfg=settings.current();now=datetime.now(TZ);start=(now-timedelta(days=28)).isoformat()
+    out={};notes=[]
+    try:
+        async with connection() as ha:
+            async def hourly(entity,kind):
+                r=await ha.call('ha_get_history',source='statistics',entity_ids=entity,start_time=start,end_time=now.isoformat(),
+                                period='hour',statistic_types=[kind],limit=1000)
+                rows={float(x['start'])/1000:x.get(kind) for e in r['entities'] for x in e.get('statistics',[]) if x.get(kind) is not None}
+                return rows,(r['entities'][0].get('unit_of_measurement') if r['entities'] else None)
+            for role,key,pct in (('charger_energy','charge_kw',.9),('inverter_energy','discharge_kw',.98)):
+                entity=cfg.entity(role,required=False)
+                if not entity:notes.append('Für '+settings.label(role)+' ist noch nichts eingetragen.');continue
+                values,unit=await hourly(entity,'change')
+                factor=.001 if unit=='Wh' else 1.     # kWh per hour is kW
+                est=views.estimate_power([v*factor for v in values.values()],percentile=pct)
+                if est is None:notes.append('Zu wenige Betriebsstunden für '+settings.label(role)+'.')
+                else:out[key]=est
+            kwh,soc=cfg.entity('battery_kwh',required=False),cfg.entity('battery_soc',required=False)
+            if kwh and soc:
+                (a,_),(b,_)=await hourly(kwh,'mean'),await hourly(soc,'mean')
+                est=views.estimate_capacity([(a[t],b[t]) for t in a if t in b])
+                if est is None:notes.append('Zu wenige Messwerte für die Kapazität.')
+                else:out['capacity_kwh']=est
+            else:notes.append('Für die Kapazität werden Akku-Inhalt (kWh) und Ladestand gebraucht.')
+    except Exception as exc:
+        return web.json_response({'estimates':{},'notes':['Abruf fehlgeschlagen ('+type(exc).__name__+').']})
+    return web.json_response({'estimates':out,'notes':notes})
 
 async def check_entity(ha,role,entity,now=None):
     """Does the entity exist, what unit does it have, and (for counters) is there enough statistics history?"""
@@ -252,7 +312,7 @@ def make_app():
     app=web.Application(middlewares=[ingress_only]);app['scheduler']=Scheduler()
     app.router.add_get('/',index);app.router.add_get('/api/status',status)
     app.router.add_get('/api/runs',runs);app.router.add_post('/api/run',run_now);app.router.add_get('/api/plan',plan)
-    app.router.add_get('/api/blueprint',blueprint)
+    app.router.add_get('/api/blueprint',blueprint);app.router.add_get('/api/autofill',autofill);app.router.add_get('/api/setup',setup);app.router.add_get('/api/estimates',estimates)
     app.router.add_get('/api/settings',get_settings);app.router.add_put('/api/settings',put_settings)
     app.router.add_get('/api/entities',entities);app.router.add_get('/api/check',check);app.router.add_get('/api/prices/check',check_prices)
     async def start(app):app['task']=asyncio.create_task(app['scheduler'].loop())
