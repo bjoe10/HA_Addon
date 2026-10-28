@@ -71,10 +71,6 @@ Der Blueprint **„Hausakku-Planer Steuerung“** führt den Plan aus. Er schalt
 
 **Bekannte Grenzen:** Spannungs-, Temperatur- und BMS-Schutz greifen innerhalb einer Minute (Minutenlauf), nicht in derselben Sekunde. Das BMS muss seine Schutzfunktionen selbst übernehmen. Hybridwechselrichter mit Betriebsmodus statt Schaltern werden nicht unterstützt.
 
-## Umstieg von einem bestehenden Planer
-
-Wer schon Helfer mit dem Namen `hausakku_*` (alter Einzel-Planer) und eine passende Steuerung hat, kann sie weiterverwenden: Den alten Planer abschalten, in Einstellungen → Eigene Helfer das Präfix `hausakku` setzen und „Helfer übernehmen“ anhaken. Das Präfix `hausakku` ist sonst gesperrt, damit das Add-on fremde Helfer nie versehentlich überschreibt.
-
 ## Preisquellen
 
 - **Tibber:** Dienst `tibber.get_prices` der HA-Integration. Bei mehreren Zuhause eines wählen.
