@@ -98,7 +98,7 @@ class FakeTransport:
         if t=='recorder/statistics_during_period':return {'sensor.a':[{'start':3600000.,'end':7200000.,'change':1.5}]}
         if t=='recorder/get_statistics_metadata':return [{'statistic_id':'sensor.a','statistics_unit_of_measurement':'Wh'}]
         if t=='schedule/list':return list(self.schedules)
-        if t=='schedule/create':self.schedules.append({'id':p['name'],**p});return {}
+        if t=='schedule/create':self.schedules.append({'id':p['name'].lower().replace(' ','_'),**p});return {}   # HA derives the id from the name
         if t=='schedule/update':return {}
         if t=='energy/get_prefs':return {'device_consumption':[]}
         if t.endswith('/list'):return list(self.helpers[t.split('/')[0]])

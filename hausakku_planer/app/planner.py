@@ -122,8 +122,9 @@ def compute_plan(snapshot,config,learning_artifact=None,dataset=None,price_histo
     target=max([min(f['terminal_kwh'],data['grid_charge_limit_kwh'])/data['nominal_capacity_kwh']*100
                 for f in result['intervals'] if f['charger_ac_kwh']>1e-10] or [0])
     target=min(math.floor(data['grid_charge_limit_kwh']/data['nominal_capacity_kwh']*100+1e-9),math.ceil(target-1e-9))
-    installed=bool(config.get('controller_installed',False))
-    enabled=installed and snapshot['states'].get('input_boolean.'+settings.current().helpers()['permission'],{}).get('state')=='on'
+    permission=snapshot['states'].get('input_boolean.'+settings.current().helpers()['permission'])
+    installed=bool(config.get('controller_installed',False)) or permission is not None   # the release switch exists: a controller is installed
+    enabled=installed and (permission or {}).get('state')=='on'
     return {'created_at':datetime.now(TZ).isoformat(),'mode':'live' if enabled else 'shadow','control_installed':installed,'control_enabled':enabled,
       'valid_until':valid_until.isoformat(),'snapshot_collected_at':snapshot['collected_at'],
       'plan':result,'charge_schedule':charge,'serve_schedule':serve,
@@ -215,7 +216,7 @@ def report(plan):
                     m=audit['metrics'][kind];parts.append(f"{label}: MAE {m['mae_kwh']:.2f} aus {m['count']} Zielen")
             lines.append('Gemessene Prognoseabweichung: '+('; '.join(parts) or 'Stunden-PV-Auswertung verfügbar')+'.')
     lines.append('HA-Schedules zurückgelesen und geprüft.' if plan.get('publication',{}).get('verified') else 'Nur lokal berechnet, nicht in HA veröffentlicht.')
-    lines.append(('HA-Steuerung installiert; Freigabe '+('an.' if plan.get('control_enabled') else 'aus.')) if plan.get('control_installed') else 'Schaltautomation nicht installiert: Der Plan wird nicht automatisch ausgeführt, das Add-on schaltet selbst keine Geräte.')
+    lines.append(('HA-Steuerung installiert; Freigabe '+('an.' if plan.get('control_enabled') else 'aus.')) if plan.get('control_installed') else 'Keine Steuerung gefunden (Freigabe-Schalter fehlt): Der Plan wird nicht automatisch ausgeführt, das Add-on schaltet selbst keine Geräte.')
     return '\n'.join(lines)
 
 def _windows(intervals,mode):

@@ -1,5 +1,5 @@
 name: Hausakku-Planer
-version: "0.5.0"
+version: "0.5.1"
 slug: hausakku_planer
 description: Plant Laden, Halten und Versorgen eines Heimspeichers nach dynamischen Strompreisen.
 url: https://github.com/bjoe10/HA_Addon

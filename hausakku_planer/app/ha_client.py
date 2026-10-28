@@ -180,9 +180,9 @@ class HA:
         week={k:v for k,v in config.items() if k in WEEK}
         existing=await self.t.command(type='schedule/list') or []
         if any(i['id']==name for i in existing):
-            await self.t.command(type='schedule/update',schedule_id=name,name=name,**week)
+            await self.t.command(type='schedule/update',schedule_id=name,**week)    # keep the name the user sees
         else:
-            await self.t.command(type='schedule/create',name=name,**week)
+            await self.t.command(type='schedule/create',name=name.replace('_',' ').capitalize(),**week)
         return {'success':True}
 
     async def ensure_own_helpers(self):

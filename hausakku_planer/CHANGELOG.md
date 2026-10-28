@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1
+- Bericht-Sensor enthält den vollständigen Bericht (vorher fehlte der Anfang).
+- Beim Aktualisieren eines Zeitplan-Helfers bleibt sein Anzeigename erhalten; neue Helfer bekommen einen lesbaren Namen.
+- Eine vorhandene Steuerung wird am Freigabe-Schalter erkannt; der Bericht behauptet nicht mehr „Schaltautomation nicht installiert“.
+
 ## 0.5.0
 - Bericht-Sensor `sensor.<Präfix>_bericht`: nach jedem Lauf (Hauptlauf, Nachplanung, Wochenbilanz) liegt der Bericht samt Faktenblock als Attribut in Home Assistant, damit ein Assistent ihn lesen und zusammenfassen kann, ohne die Add-on-Schnittstelle zu brauchen.
 - Wochenbilanz läuft montags 08:00 im Add-on.

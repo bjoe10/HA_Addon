@@ -56,17 +56,18 @@ async def run_planner(kind,mode,trigger='zeit',command=None):
     t0=time.monotonic()
     proc=await asyncio.create_subprocess_exec(*cmd,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,cwd=str(APP),env=os.environ.copy())
     out,err=await proc.communicate()
+    full=out.decode(errors='replace')
     entry={'time':started.isoformat(),'kind':kind,'trigger':trigger,'mode':mode,'ok':proc.returncode==0,
-           'seconds':round(time.monotonic()-t0,1),'stdout':out.decode(errors='replace')[-3000:],'stderr':err.decode(errors='replace')[-1500:]}
+           'seconds':round(time.monotonic()-t0,1),'stdout':full[-3000:],'stderr':err.decode(errors='replace')[-1500:]}
     log_run(entry)
-    if mode!='observe' and not command:await publish_report(entry)
+    if mode!='observe' and not command:await publish_report({**entry,'stdout':full})
     return entry
 
 def bridge_attributes(entry,previous):
     """Attributes of the report sensor: the latest output per run kind, merged into what is already there."""
     attrs=dict(previous)
     report=(entry.get('stdout') or '').strip()
-    attrs[entry['kind']]={'time':entry['time'],'ok':entry['ok'],'report':report[-12000:],'error':(entry.get('stderr') or '').strip()[-1500:]}
+    attrs[entry['kind']]={'time':entry['time'],'ok':entry['ok'],'report':report[:12000],'error':(entry.get('stderr') or '').strip()[-1500:]}
     return attrs
 
 async def publish_report(entry):
