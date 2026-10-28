@@ -80,6 +80,25 @@ class OperatingModeTests(unittest.TestCase):
         settings.use({'publish':True});self.assertEqual(settings.operating_mode(),'publish')
         settings.use({});self.assertEqual(settings.operating_mode(),'observe')
 
+class MigratePublishTests(unittest.TestCase):
+    def setUp(self):
+        self.old=paths.DATA;paths.DATA=__import__('pathlib').Path(tempfile.mkdtemp());self.env=os.environ.get('HAUSAKKU_SETTINGS')
+        os.environ['HAUSAKKU_SETTINGS']=str(paths.DATA/'settings.json')
+    def tearDown(self):
+        paths.DATA=self.old;settings.use(None);os.environ.pop('HAUSAKKU_MODE',None)
+        if self.env is None:os.environ.pop('HAUSAKKU_SETTINGS',None)
+        else:os.environ['HAUSAKKU_SETTINGS']=self.env
+    def test_option_becomes_the_saved_setting_once(self):
+        os.environ['HAUSAKKU_MODE']='publish';settings.use(None)
+        self.assertTrue(settings.migrate_publish())
+        self.assertIs(json.loads((paths.DATA/'settings.json').read_text())['publish'],True)
+        os.environ.pop('HAUSAKKU_MODE');settings.use(None)
+        self.assertEqual(settings.operating_mode(),'publish')            # no option needed any more
+        self.assertFalse(settings.migrate_publish())
+    def test_observe_option_or_explicit_choice_is_left_alone(self):
+        os.environ['HAUSAKKU_MODE']='observe';settings.use(None);self.assertFalse(settings.migrate_publish())
+        os.environ['HAUSAKKU_MODE']='publish';settings.use({'publish':False});self.assertFalse(settings.migrate_publish())
+
 class AsyncRunTests(AioHTTPTestCase):
     async def get_application(self):
         settings.use({});return service.make_app()

@@ -152,6 +152,12 @@ def use(settings):
     global _current
     _current=settings if isinstance(settings,Settings) or settings is None else Settings(settings)
 
+def migrate_publish(path=None):
+    """Older installs chose publishing in the add-on option. Keep that choice as the UI setting, once, so the option can go."""
+    if current().data.get('publish') is None and os.environ.get('HAUSAKKU_MODE','observe') in ('publish','control'):
+        save({**current().data,'publish':True},path);return True
+    return False
+
 def save(data,path=None):
     path=Path(path or paths.DATA/'settings.json');path.parent.mkdir(parents=True,exist_ok=True)
     merged=Settings(data).data

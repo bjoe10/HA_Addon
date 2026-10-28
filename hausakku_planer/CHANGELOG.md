@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.2
+- Beim Start wird eine in der Add-on-Option gewählte Veröffentlichung einmalig als Einstellung übernommen. Die Einstellungsseite meldet, ob der Schalter gespeichert ist.
+
 ## 0.7.1
 - „Schätzen“ ermittelt nur Kapazität und Ladeleistung; die Wechselrichter-Leistung ist nicht aus der Messung ableitbar (Ausgang folgt dem Hausverbrauch).
 - „Vorschläge einsetzen“ sagt, wenn das Energie-Dashboard oder die Geräteliste nicht lesbar war.

@@ -166,7 +166,7 @@ async def get_settings(request):
     return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices','helper_prefix','adopt_legacy_helpers')},'roles':roles,
                               'helpers':cfg.helpers(),
                               'missing':cfg.missing('plan'),'missing_control':cfg.missing('control'),'mode':settings.operating_mode(),
-                              'publish':settings.operating_mode()=='publish'})
+                              'publish':settings.operating_mode()=='publish','publish_saved':cfg.data.get('publish') is not None})
 
 async def blueprint(request):
     cfg=settings.current()
@@ -325,6 +325,7 @@ def make_app():
 def main():
     logging.basicConfig(level=os.environ.get('HAUSAKKU_LOG_LEVEL','info').upper())
     paths.ensure()
+    settings.migrate_publish()
     web.run_app(make_app(),host='0.0.0.0',port=8099)
 
 if __name__=='__main__':main()
