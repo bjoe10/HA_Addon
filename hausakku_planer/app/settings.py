@@ -81,7 +81,7 @@ class Settings:
 
     def planner_config(self):
         """Neutral defaults, overridden by the user's planner values, plus location and capacity."""
-        config=json.loads((HERE/'config.default.json').read_text())
+        config=json.loads((HERE/'planner_defaults.json').read_text())
         config.update(self.data['planner'])
         loc=self.location()
         if loc:config['openmeteo_latitude'],config['openmeteo_longitude']=loc
