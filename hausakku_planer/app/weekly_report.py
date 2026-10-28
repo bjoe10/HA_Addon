@@ -141,6 +141,10 @@ def main():
     args=p.parse_args()
     try:asyncio.run(run(args));return 0
     except Exception as exc:
-        print('[CRON_FAILURE] Wochenbilanz fehlgeschlagen ('+type(exc).__name__+'). Der Akku-Betrieb ist davon nicht betroffen.',file=sys.stderr)
+        where=''
+        tb=exc.__traceback__
+        while tb.tb_next:tb=tb.tb_next
+        where=', '+Path(tb.tb_frame.f_code.co_filename).name+':'+str(tb.tb_lineno)   # location only: messages may carry private values
+        print('[CRON_FAILURE] Wochenbilanz fehlgeschlagen ('+type(exc).__name__+where+'). Der Akku-Betrieb ist davon nicht betroffen.',file=sys.stderr)
         return 1
 if __name__=='__main__':sys.exit(main())

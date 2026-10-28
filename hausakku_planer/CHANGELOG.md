@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.3
+- Wochenbilanz meldet bei einem Fehler die Fundstelle (Datei:Zeile).
+
 ## 0.5.2
 - Fix: Zeitplan-Update schickt den vorhandenen Namen mit (Home Assistant verlangt ihn); 0.5.1 brach damit die Veröffentlichung ab.
 
