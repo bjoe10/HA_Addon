@@ -1,0 +1,7 @@
+configuration:
+  operating_mode:
+    name: Operating mode
+    description: "observe = compute and display only (writes nothing to HA). publish = write the plan to own helpers and schedules. control = additionally the control automation (not available yet)."
+  log_level:
+    name: Log level
+    description: Verbosity of the add-on log.

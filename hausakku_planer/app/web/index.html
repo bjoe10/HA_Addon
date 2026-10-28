@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hausakku-Planer</title>
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#f6f7f9;--card:#fff;--fg:#1a1d23;--mut:#667085;--line:#e4e7ec;--soft:#f2f4f7;
+  --accent:#2563eb;--charge:#2563eb;--serve:#0f9d6b;--hold:#d4860b;--warn:#b54708;--bad:#c0392b;
+  --charge-bg:#e3ecff;--serve-bg:#dcf5ea;--hold-bg:#fdf0d5;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#101216;--card:#181b21;--fg:#eceff4;--mut:#98a2b3;--line:#2a2f38;--soft:#20242c;
+  --accent:#6ea0ff;--charge:#6ea0ff;--serve:#3ecf9a;--hold:#f0a63a;--warn:#f0a63a;--bad:#ff7b6b;
+  --charge-bg:#1c2a4a;--serve-bg:#15352b;--hold-bg:#3a2d12;}}
+:root[data-theme=dark]{
+  --bg:#101216;--card:#181b21;--fg:#eceff4;--mut:#98a2b3;--line:#2a2f38;--soft:#20242c;
+  --accent:#6ea0ff;--charge:#6ea0ff;--serve:#3ecf9a;--hold:#f0a63a;--warn:#f0a63a;--bad:#ff7b6b;
+  --charge-bg:#1c2a4a;--serve-bg:#15352b;--hold-bg:#3a2d12;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:0 16px 48px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar{max-width:980px;margin:0 auto;padding:10px 16px 0;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.bar h1{font-size:17px;margin:0;font-weight:650}
+nav{display:flex;gap:2px;overflow-x:auto;max-width:980px;margin:0 auto;padding:0 8px}
+nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--mut);font:inherit;padding:10px 12px;cursor:pointer;white-space:nowrap}
+nav button[aria-selected=true]{color:var(--fg);border-bottom-color:var(--accent);font-weight:600}
+nav button:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h2{font-size:15px;margin:24px 0 8px;font-weight:650}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+.hero{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.hero .big{font-size:28px;font-weight:700;line-height:1.1}
+.mut{color:var(--mut)}.small{font-size:13px}
+.chip{display:inline-block;padding:2px 10px;border-radius:99px;font-size:13px;font-weight:600}
+.chip.charge{background:var(--charge-bg);color:var(--charge)}.chip.serve{background:var(--serve-bg);color:var(--serve)}.chip.hold{background:var(--hold-bg);color:var(--hold)}
+.chip.off{background:var(--soft);color:var(--mut)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.stat .v{font-size:22px;font-weight:650}.stat .l{font-size:13px;color:var(--mut)}
+.banner{border:1px solid var(--warn);background:var(--hold-bg);color:var(--fg);border-radius:12px;padding:12px 16px;margin:12px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.hint{border-left:3px solid var(--line);padding:2px 0 2px 10px;margin:6px 0;color:var(--mut);font-size:13px}
+button.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+button.btn.sec{background:var(--soft);color:var(--fg);font-weight:500}
+button.btn:disabled{opacity:.55;cursor:default}
+.bat{position:relative;height:14px;background:var(--soft);border-radius:7px;margin:10px 0 4px;overflow:hidden}
+.bat i{position:absolute;left:0;top:0;bottom:0;background:var(--serve);border-radius:7px 0 0 7px}
+.bat b{position:absolute;top:0;bottom:0;width:2px;background:var(--fg);opacity:.55}
+svg{display:block;width:100%;height:auto;touch-action:pan-y}
+svg text{fill:var(--mut);font-size:11px;font-family:inherit}
+.win{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:10px 0;border-top:1px solid var(--line)}
+.win:first-child{border-top:0}
+.readout{min-height:22px;font-size:13px;color:var(--mut);margin-top:4px;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--mut);margin-top:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:8px 6px;border-top:1px solid var(--line);font-size:14px;vertical-align:top}
+th{color:var(--mut);font-weight:500;font-size:13px;border-top:0}
+details pre{white-space:pre-wrap;background:var(--soft);padding:10px;border-radius:8px;font-size:12px;overflow-x:auto;max-height:260px}
+.field{display:grid;grid-template-columns:minmax(150px,1fr) 2fr auto;gap:8px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}
+.field:first-of-type{border-top:0}
+.field label{padding-top:7px;font-size:14px}
+input,textarea{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.fmsg{grid-column:2/4;font-size:13px}.ok{color:var(--serve)}.err{color:var(--bad)}.wn{color:var(--warn)}
+@media(max-width:620px){.field{grid-template-columns:1fr}.fmsg{grid-column:1}.hero .big{font-size:24px}}
+.empty{padding:28px 0;text-align:center;color:var(--mut)}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar"><h1>Hausakku-Planer</h1><span class="mut small" id="stage"></span></div>
+  <nav role="tablist" aria-label="Bereiche">
+    <button role="tab" data-tab="overview">Übersicht</button>
+    <button role="tab" data-tab="plan">Plan</button>
+    <button role="tab" data-tab="log">Protokoll</button>
+    <button role="tab" data-tab="settings">Einstellungen</button>
+  </nav>
+</header>
+<main id="main" aria-live="polite"></main>
+
+<script>
+'use strict';
+const TZ='Europe/Berlin';
+const fmtTime=new Intl.DateTimeFormat('de-DE',{timeZone:TZ,hour:'2-digit',minute:'2-digit'});
+const fmtDay=new Intl.DateTimeFormat('de-DE',{timeZone:TZ,weekday:'short',day:'numeric',month:'numeric'});
+const fmtFull=new Intl.DateTimeFormat('de-DE',{timeZone:TZ,weekday:'short',day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'});
+const hm=s=>fmtTime.format(new Date(s)), full=s=>fmtFull.format(new Date(s));
+const num=(v,d=1)=>v==null?'–':Number(v).toFixed(d).replace('.',',');
+const ct=v=>num(v*100,1)+' ct';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LABEL={charge:'Laden',serve:'Versorgen',hold:'Halten'};
+const MODES={observe:['Beobachten','Der Planer rechnet und zeigt den Plan. Es wird nichts in Home Assistant geschrieben.'],
+             publish:['Veröffentlichen','Der Plan wird in eigene Helfer und Zeitpläne geschrieben. Schalter werden nicht angefasst.'],
+             control:['Steuern','Zusätzlich darf die freigegebene Steuer-Automation die Schalter nach dem Plan bedienen.']};
+
+async function api(path,opt){
+  const r=await fetch('api/'+path,opt);
+  const body=await r.json().catch(()=>({}));
+  if(!r.ok&&!body.errors)throw new Error('HTTP '+r.status);
+  return Object.assign(body,{_status:r.status});
+}
+
+let tab=(location.hash||'#overview').slice(1),status=null,planData=undefined,timer=null;
+const main=document.getElementById('main');
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
+window.addEventListener('hashchange',()=>go((location.hash||'#overview').slice(1),true));
+
+function go(t,fromHash){
+  if(!['overview','plan','log','settings'].includes(t))t='overview';
+  tab=t;if(!fromHash)history.replaceState(null,'','#'+t);
+  document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  render();
+}
+
+async function load(){
+  try{status=await api('status');planData=(await api('plan')).plan;}catch(e){status=status||null}
+  document.getElementById('stage').textContent=status&&status.running?'Rechnet …':'';
+}
+
+function banner(){
+  if(!status||!status.missing||!status.missing.length)return '';
+  return `<div class="banner"><span><b>Einrichtung unvollständig.</b> Es fehlen ${status.missing.length} Angaben, bevor ein Plan berechnet werden kann.</span>
+  <button class="btn" data-go="settings">Jetzt einrichten</button></div>`;
+}
+
+function render(){
+  let html='';
+  if(!status){main.innerHTML='<div class="empty">Dienst nicht erreichbar.</div>';return}
+  html+=banner();
+  if(tab==='overview')html+=overview();
+  else if(tab==='plan')html+=planPage();
+  else if(tab==='log'){main.innerHTML=html+'<div class="empty">Lade …</div>';logPage().then(h=>{main.innerHTML=banner()+h;bind()});return}
+  else if(tab==='settings'){main.innerHTML=html+'<div class="empty">Lade …</div>';settingsPage().then(h=>{main.innerHTML=banner()+h;bind();bindSettings()});return}
+  main.innerHTML=html;bind();
+  if(tab==='plan'&&planData)drawCharts();
+}
+
+function bind(){
+  main.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
+  const run=main.querySelector('#runnow');
+  if(run)run.addEventListener('click',async()=>{run.disabled=true;run.textContent='Rechnet …';
+    try{await api('run',{method:'POST'})}catch(e){}
+    await load();render();});
+}
+
+/* ---------- Übersicht ---------- */
+function overview(){
+  const p=planData,m=MODES[status.mode]||MODES.observe;
+  let h='';
+  if(!p){
+    h+=`<div class="card"><div class="empty">Noch kein Plan berechnet.<br>${status.missing.length?'Zuerst die Einrichtung abschließen.':'Der erste Lauf startet automatisch oder mit „Jetzt rechnen“.'}</div></div>`;
+  }else{
+    const now=p.now,next=p.next;
+    h+=`<div class="card hero"><div><div class="mut small">Jetzt</div>
+      <div class="big">${now?esc(now.label):(p.expired?'Plan abgelaufen':'–')}</div></div>
+      <div style="flex:1;min-width:220px">
+      ${now?`<span class="chip ${now.mode}">${esc(now.label)}</span> <span class="mut small">bis ${hm(now.end)}</span><div style="margin-top:6px">${esc(now.text)}</div>`:''}
+      ${next?`<div class="mut small" style="margin-top:6px">Danach ab ${hm(next.start)} (${fmtDay.format(new Date(next.start))}): <b>${esc(next.label)}</b></div>`:''}
+      </div></div>`;
+    if(p.reason)h+=`<div class="card"><div class="mut small">Warum dieser Plan</div><div>${esc(p.reason)}</div></div>`;
+    const pct=p.capacity_kwh?Math.min(100,p.initial_kwh/p.capacity_kwh*100):0;
+    h+=`<div class="grid">
+      <div class="card stat"><div class="l">Akkustand bei der Planung</div><div class="v">${num(p.soc_percent,0)} %</div>
+        <div class="bat" role="img" aria-label="Akku ${num(pct,0)} Prozent"><i style="width:${pct}%"></i>
+        <b style="left:${p.reserve_kwh/p.capacity_kwh*100}%" title="Reserve"></b><b style="left:${p.grid_charge_limit_kwh/p.capacity_kwh*100}%" title="Netzladegrenze"></b></div>
+        <div class="l">${num(p.initial_kwh)} von ${num(p.capacity_kwh)} kWh · Striche: Reserve, Netzladegrenze</div></div>
+      <div class="card stat"><div class="l">Plan gültig bis</div><div class="v">${p.valid_until?full(p.valid_until):'–'}</div>
+        <div class="l">${p.expired?'abgelaufen – neuer Lauf nötig':'berechnet '+full(p.created_at)}</div></div>
+      <div class="card stat"><div class="l">Ziel-Ladestand Netzladen</div><div class="v">${p.target_soc?p.target_soc+' %':'kein Netzladen'}</div>
+        <div class="l">höchste geplante Netzlade-Marke</div></div>
+      <div class="card stat"><div class="l">Simulierte Ersparnis</div><div class="v">${p.savings.cash_eur==null?'–':(p.savings.cash_eur>=0?'+':'')+num(p.savings.cash_eur,2)+' €'}</div>
+        <div class="l">${esc(p.savings.note)}</div></div></div>`;
+    if(p.hints.length)h+=`<h2>Hinweise zur Datenqualität</h2>`+p.hints.map(x=>`<div class="hint">${esc(x.text)}</div>`).join('');
+  }
+  h+=`<h2>Betrieb</h2><div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+    <div><span class="chip ${status.mode==='observe'?'off':'serve'}">${esc(m[0])}</span>
+    <span class="mut small" style="margin-left:6px">${esc(m[1])}</span></div>
+    <button class="btn" id="runnow" ${status.running?'disabled':''}>${status.running?'Rechnet …':'Jetzt rechnen'}</button></div>
+    <div class="mut small" style="margin-top:10px">${status.last_run?`Letzter Lauf: ${full(status.last_run.time)} · ${status.last_run.ok?'<span class="ok">erfolgreich</span>':'<span class="err">fehlgeschlagen</span>'}${status.last_run.message?' · '+esc(status.last_run.message):''}`:'Noch kein Lauf.'}
+    · Die Betriebsstufe stellst du in der Add-on-Konfiguration ein.</div></div>`;
+  return h;
+}
+
+/* ---------- Plan ---------- */
+function planPage(){
+  const p=planData;
+  if(!p)return '<div class="card"><div class="empty">Noch kein Plan berechnet.</div></div>';
+  let h=`<h2>Preis (ct/kWh) und Modus</h2><div class="card"><svg id="c1" viewBox="0 0 720 220" role="img" aria-label="Strompreis mit Betriebsmodus über die Zeit"></svg>
+    <div class="legend"><span><i style="background:var(--charge)"></i>Laden</span><span><i style="background:var(--hold)"></i>Halten</span><span><i style="background:var(--serve)"></i>Versorgen</span>
+    <span><i style="background:repeating-linear-gradient(45deg,var(--line),var(--line) 3px,transparent 3px,transparent 6px)"></i>geschätzt (Preise noch nicht bekannt)</span></div></div>
+    <h2>Akkustand</h2><div class="card"><svg id="c2" viewBox="0 0 720 150" role="img" aria-label="Erwarteter Akkustand"></svg>
+    <div class="legend"><span><i style="background:var(--serve)"></i>erwarteter Akkustand</span><span>gestrichelt: Reserve und Netzladegrenze</span></div></div>
+    <h2>PV und Verbrauch (kWh pro Stunde)</h2><div class="card"><svg id="c3" viewBox="0 0 720 150" role="img" aria-label="PV-Erzeugung und Hausverbrauch"></svg>
+    <div class="legend"><span><i style="background:var(--hold)"></i>PV</span><span><i style="background:var(--accent)"></i>Verbrauch</span></div>
+    <div class="readout" id="readout">Fahre mit der Maus über das Diagramm oder tippe darauf.</div></div>
+    <h2>Fenster und Begründung</h2><div class="card">`;
+  h+=p.windows.map(w=>`<div class="win"><div><span class="chip ${w.mode}">${esc(w.label)}</span></div>
+    <div><b>${fmtDay.format(new Date(w.start))} ${hm(w.start)}–${hm(w.end)}</b><div class="mut small">${esc(w.text)}</div>
+    <div class="mut small">Akku danach: ${num(w.end_soc_kwh)} kWh</div></div></div>`).join('');
+  h+='</div>';
+  return h;
+}
+
+function drawCharts(){
+  const p=planData,W=720,L=38,R=10;
+  const iv=p.intervals.map(i=>({...i,t0:+new Date(i.start),t1:+new Date(i.end)}));
+  const tail=p.tail.map(r=>({...r,t0:+new Date(r.start),t1:+new Date(r.end)}));
+  const knownEnd=iv.length?iv[iv.length-1].t1:0;
+  const tailRows=tail.filter(r=>r.t1>knownEnd);
+  const tMin=iv.length?iv[0].t0:Date.now(),tMax=tailRows.length?tailRows[tailRows.length-1].t1:knownEnd;
+  const x=t=>L+(t-tMin)/(tMax-tMin)*(W-L-R);
+  const el=id=>document.getElementById(id);
+  const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const modeColor=m=>css('--'+m);
+
+  const dayTicks=(h,top,bottom)=>{let s='';
+    const fmt=new Intl.DateTimeFormat('de-DE',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hour12:false});
+    for(let t=Math.ceil(tMin/3600e3)*3600e3;t<=tMax;t+=3600e3){
+      if(fmt.format(new Date(t)).replace(/^24/,'00')==='00:00'){s+=`<line x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${bottom}" stroke="${css('--line')}"/><text x="${x(t)+3}" y="${bottom+13}">${fmtDay.format(new Date(t))}</text>`}
+    }
+    return s};
+  const hatch=(top,bottom)=>tailRows.length?`<defs><pattern id="h" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="${css('--line')}" stroke-width="2"/></pattern></defs>
+    <rect x="${x(knownEnd)}" y="${top}" width="${W-R-x(knownEnd)}" height="${bottom-top}" fill="url(#h)" opacity=".7"/>`:'';
+
+  /* chart 1: price + mode band */
+  {const T=26,B=190,rows=[...iv,...tailRows];
+   const pmax=Math.max(...rows.map(r=>r.price),.01)*1.1,pmin=Math.min(0,...rows.map(r=>r.price));
+   const y=v=>B-(v-pmin)/(pmax-pmin)*(B-T);
+   let s=hatch(T,B);
+   for(let k=0;k<=4;k++){const v=pmin+(pmax-pmin)*k/4;s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="${css('--line')}"/><text x="${L-4}" y="${y(v)+4}" text-anchor="end">${num(v*100,0)}</text>`}
+   p.windows.forEach(w=>{s+=`<rect x="${x(+new Date(w.start))}" y="6" width="${Math.max(1,x(+new Date(w.end))-x(+new Date(w.start)))}" height="12" fill="${modeColor(w.mode)}"><title>${w.label} ${hm(w.start)}–${hm(w.end)}</title></rect>`});
+   const path=(arr)=>arr.map((r,i)=>`${i?'L':'M'}${x(r.t0)},${y(r.price)} L${x(r.t1)},${y(r.price)}`).join(' ');
+   s+=`<path d="${path(iv)}" fill="none" stroke="${css('--fg')}" stroke-width="1.6"/>`;
+   if(tailRows.length)s+=`<path d="${path(tailRows)}" fill="none" stroke="${css('--mut')}" stroke-width="1.4" stroke-dasharray="4 3"/>`;
+   s+=dayTicks(0,T,B)+`<line id="x1" y1="${T}" y2="${B}" stroke="${css('--fg')}" opacity="0" />`;
+   el('c1').innerHTML=s;}
+
+  /* chart 2: SOC */
+  {const T=10,B=124,cap=p.capacity_kwh,y=v=>B-v/cap*(B-T);
+   let s=hatch(T,B);
+   [0,25,50,75,100].forEach(k=>{const v=cap*k/100;s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="${css('--line')}"/><text x="${L-4}" y="${y(v)+4}" text-anchor="end">${k}%</text>`});
+   s+=`<line x1="${L}" x2="${W-R}" y1="${y(p.reserve_kwh)}" y2="${y(p.reserve_kwh)}" stroke="${css('--mut')}" stroke-dasharray="4 3"/>`;
+   s+=`<line x1="${L}" x2="${W-R}" y1="${y(p.grid_charge_limit_kwh)}" y2="${y(p.grid_charge_limit_kwh)}" stroke="${css('--mut')}" stroke-dasharray="4 3"/>`;
+   const pts=iv.map(i=>`${x(i.t1)},${y(i.soc_kwh)}`);
+   if(iv.length){s+=`<path d="M${x(iv[0].t0)},${y(p.initial_kwh)} L${pts.join(' L')}" fill="none" stroke="${css('--serve')}" stroke-width="2"/>`;
+     s+=`<path d="M${x(iv[0].t0)},${B} L${x(iv[0].t0)},${y(p.initial_kwh)} L${pts.join(' L')} L${x(knownEnd)},${B} Z" fill="${css('--serve')}" opacity=".15"/>`}
+   s+=dayTicks(0,T,B);el('c2').innerHTML=s;}
+
+  /* chart 3: PV + load per hour */
+  {const T=10,B=124,hours=new Map();
+   const add=(r,k)=>{const h=Math.floor(r.t0/3600e3)*3600e3;const e=hours.get(h)||{pv:0,load:0};e.pv+=r.pv_kwh;e.load+=r.load_kwh;hours.set(h,e)};
+   iv.forEach(add);tailRows.forEach(add);
+   const vals=[...hours.values()],vmax=Math.max(...vals.map(v=>Math.max(v.pv,v.load)),.1)*1.1,y=v=>B-v/vmax*(B-T);
+   let s=hatch(T,B);
+   for(let k=0;k<=3;k++){const v=vmax*k/3;s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="${css('--line')}"/><text x="${L-4}" y="${y(v)+4}" text-anchor="end">${num(v,1)}</text>`}
+   const bw=Math.max(1,(W-L-R)/((tMax-tMin)/3600e3)-1);
+   hours.forEach((v,h)=>{s+=`<rect x="${x(h)}" y="${y(v.pv)}" width="${bw}" height="${B-y(v.pv)}" fill="${css('--hold')}" opacity=".85"/>`});
+   s+=`<path d="${[...hours.entries()].sort((a,b)=>a[0]-b[0]).map(([h,v],i)=>`${i?'L':'M'}${x(h)},${y(v.load)} L${x(h+3600e3)},${y(v.load)}`).join(' ')}" fill="none" stroke="${css('--accent')}" stroke-width="1.8"/>`;
+   s+=dayTicks(0,T,B);el('c3').innerHTML=s;}
+
+  /* shared hover/tap readout */
+  const readout=el('readout');
+  const show=ev=>{
+    const svg=ev.currentTarget,rect=svg.getBoundingClientRect();
+    const px=((ev.touches?ev.touches[0].clientX:ev.clientX)-rect.left)/rect.width*W;
+    const t=tMin+(px-L)/(W-L-R)*(tMax-tMin);
+    if(t<tMin||t>tMax)return;
+    const known=iv.find(i=>t>=i.t0&&t<i.t1),tl=tailRows.find(r=>t>=r.t0&&t<r.t1);
+    const price=(known||tl||{}).price;
+    let txt=`${full(t)} · Preis ${price==null?'–':ct(price)}`;
+    if(known)txt+=` · ${LABEL[known.mode]} · Akku ${num(known.soc_kwh)} kWh (${num(known.soc_kwh/p.capacity_kwh*100,0)} %)`;
+    else if(tl)txt+=' · geschätzt, kein Modus geplant';
+    const hr=Math.floor(t/3600e3)*3600e3;let pv=0,ld=0;[...iv,...tailRows].filter(r=>Math.floor(r.t0/3600e3)*3600e3===hr).forEach(r=>{pv+=r.pv_kwh;ld+=r.load_kwh});
+    txt+=` · PV ${num(pv)} kWh · Verbrauch ${num(ld)} kWh`;
+    readout.textContent=txt;
+    ['c1','c2','c3'].forEach(id=>{const s=el(id);let ln=s.querySelector('.cur');if(!ln){ln=document.createElementNS('http://www.w3.org/2000/svg','line');ln.setAttribute('class','cur');ln.setAttribute('stroke',css('--fg'));ln.setAttribute('opacity','.5');s.appendChild(ln)}
+      ln.setAttribute('x1',x(t));ln.setAttribute('x2',x(t));ln.setAttribute('y1',0);ln.setAttribute('y2',id==='c1'?190:124)});
+  };
+  ['c1','c2','c3'].forEach(id=>{const s=el(id);s.addEventListener('mousemove',show);s.addEventListener('touchstart',show,{passive:true});s.addEventListener('touchmove',show,{passive:true})});
+}
+
+/* ---------- Protokoll ---------- */
+async function logPage(){
+  const runs=await api('runs?limit=60');
+  const list=Array.isArray(runs)?runs:[];
+  if(!list.length)return '<div class="card"><div class="empty">Noch keine Läufe aufgezeichnet.</div></div>';
+  const KIND={main:'Hauptlauf',replan:'Nachplanung'};
+  return `<h2>Läufe</h2><div class="card"><table><thead><tr><th>Zeit</th><th>Art</th><th>Ergebnis</th><th>Dauer</th></tr></thead><tbody>`+
+    list.map(r=>`<tr><td>${full(r.time)}</td><td>${KIND[r.kind]||esc(r.kind)}<div class="mut small">${esc(r.trigger||'')}</div></td>
+      <td>${r.skipped?'<span class="wn">übersprungen</span>':r.ok?'<span class="ok">erfolgreich</span>':'<span class="err">fehlgeschlagen</span>'}
+      ${r.message?`<div class="small">${esc(r.message)}</div>`:''}
+      ${(r.stdout||r.stderr)?`<details><summary class="small mut">Ausgabe</summary><pre>${esc((r.stdout||'')+(r.stderr?'\n'+r.stderr:''))}</pre></details>`:''}</td>
+      <td>${r.seconds!=null?num(r.seconds,0)+' s':'–'}</td></tr>`).join('')+'</tbody></table></div>';
+}
+
+/* ---------- Einstellungen ---------- */
+let cfg=null;
+async function settingsPage(){
+  cfg=await api('settings');
+  const s=cfg.settings,groups=[['plan','Pflicht für den Plan'],['optional','Optional'],['control','Nur für die Steuerung']];
+  const m=MODES[cfg.mode]||MODES.observe;
+  let h=`<h2>Betriebsstufe</h2><div class="card"><span class="chip ${cfg.mode==='observe'?'off':'serve'}">${esc(m[0])}</span> <span class="mut small">${esc(m[1])}<br>Ändern in der Add-on-Konfiguration (Einstellungen → Add-ons → Hausakku-Planer → Konfiguration).</span></div>
+  <h2>Standort und Akku</h2><div class="card">
+   <div class="field"><label for="lat">Breitengrad</label><input id="lat" inputmode="decimal" value="${esc(s.location.latitude??'')}" placeholder="z. B. 52.52"><span></span><div class="fmsg mut" id="m-location.latitude">Für die Strahlungsprognose (Open-Meteo). Auf 2 Nachkommastellen gerundet, also ca. 1 km genau.</div></div>
+   <div class="field"><label for="lon">Längengrad</label><input id="lon" inputmode="decimal" value="${esc(s.location.longitude??'')}" placeholder="z. B. 13.40"><span></span><div class="fmsg" id="m-location.longitude"></div></div>
+   <div class="field"><label for="cap">Akku-Kapazität (kWh)</label><input id="cap" inputmode="decimal" value="${esc(s.battery.capacity_kwh??'')}" placeholder="nutzbare Kapazität"><span></span><div class="fmsg" id="m-battery.capacity_kwh"></div></div></div>`;
+  groups.forEach(([need,title])=>{
+    h+=`<h2>${title}</h2><div class="card">`;
+    cfg.roles.filter(r=>r.need===need).forEach(r=>{
+      const val=s.entities[r.role];
+      const input=r.list?`<textarea rows="2" data-role="${r.role}" placeholder="eine Entität pro Zeile">${esc((val||[]).join('\n'))}</textarea>`
+        :`<input data-role="${r.role}" list="dl-${r.role}" autocomplete="off" spellcheck="false" value="${esc(val||'')}" placeholder="${r.role==='ev_window_helper'?'Name des Zeitplan-Helfers':'sensor.…'}">`;
+      h+=`<div class="field"><label>${esc(r.label)}</label><div>${input}${r.list||r.role==='ev_window_helper'?'':`<datalist id="dl-${r.role}"></datalist>`}</div>
+        ${r.list||r.role==='ev_window_helper'||need==='control'&&false?'<span></span>':`<button class="btn sec" data-check="${r.role}">Prüfen</button>`}<div class="fmsg" id="m-entities.${r.role}"></div></div>`});
+    h+='</div>';
+  });
+  h+=`<div style="display:flex;gap:12px;align-items:center;margin-top:16px"><button class="btn" id="save">Speichern</button><span id="saved" class="small"></span></div>`;
+  return h;
+}
+
+function collect(){
+  const data={entities:{},location:{latitude:document.getElementById('lat').value,longitude:document.getElementById('lon').value},
+              battery:{capacity_kwh:document.getElementById('cap').value}};
+  main.querySelectorAll('[data-role]').forEach(el=>{
+    data.entities[el.dataset.role]=el.tagName==='TEXTAREA'?el.value.split('\n'):el.value});
+  return data;
+}
+
+function bindSettings(){
+  const msg=(key,html,cls)=>{const e=document.getElementById('m-'+key);if(e){e.className='fmsg '+(cls||'');e.innerHTML=html}};
+  main.querySelectorAll('input[data-role][list]').forEach(inp=>{
+    let t;const fill=async()=>{
+      try{const r=await api('entities?role='+inp.dataset.role+'&q='+encodeURIComponent(inp.value));
+        document.getElementById('dl-'+inp.dataset.role).innerHTML=(r.entities||[]).map(e=>`<option value="${esc(e.entity_id)}">${esc(e.name)} · ${esc(e.state)} ${esc(e.unit||'')}</option>`).join('')}catch(e){}};
+    inp.addEventListener('focus',fill);inp.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(fill,250)});
+  });
+  main.querySelectorAll('[data-check]').forEach(b=>b.addEventListener('click',async()=>{
+    const role=b.dataset.check,inp=main.querySelector(`[data-role="${role}"]`);
+    if(!inp.value.trim()){msg('entities.'+role,'Zuerst eine Entität eintragen.','wn');return}
+    b.disabled=true;msg('entities.'+role,'Prüfe …','mut');
+    try{const r=await api('check?role='+role+'&entity='+encodeURIComponent(inp.value.trim()));
+      msg('entities.'+role,(r.ok?'✓ ':'⚠ ')+esc((r.messages||[]).join(' '))+(r.state!=null?` <span class="mut">Aktuell: ${esc(r.state)} ${esc(r.unit||'')}</span>`:''),r.ok?'ok':'wn')}
+    catch(e){msg('entities.'+role,'Prüfung fehlgeschlagen.','err')}
+    b.disabled=false}));
+  document.getElementById('save').addEventListener('click',async()=>{
+    const btn=document.getElementById('save'),out=document.getElementById('saved');btn.disabled=true;out.textContent='';
+    main.querySelectorAll('.fmsg.err').forEach(e=>{e.textContent='';e.className='fmsg'});
+    try{const r=await api('settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});
+      if(r._status===400){Object.entries(r.errors).forEach(([k,v])=>msg(k,esc(v),'err'));out.className='small err';out.textContent='Bitte die markierten Felder korrigieren.'}
+      else{out.className='small ok';out.textContent='Gespeichert.';await load();document.querySelectorAll('.banner').forEach(b=>b.remove());
+        main.insertAdjacentHTML('afterbegin',banner());bind()}}
+    catch(e){out.className='small err';out.textContent='Speichern fehlgeschlagen.'}
+    btn.disabled=false});
+}
+
+/* ---------- start ---------- */
+(async()=>{await load();go(tab,true);
+  timer=setInterval(async()=>{if(document.hidden||tab==='settings')return;await load();if(tab!=='log')render()},60000);})();
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "location": {"latitude": 52.52, "longitude": 13.40},
+  "entities": {
+    "grid_import": "sensor.last_meter_consumption_home",
+    "grid_export": "sensor.last_meter_production_home",
+    "pv_energy": "sensor.raw_pv_sum",
+    "inverter_energy": "sensor.wechselrichter_energy",
+    "charger_energy": "sensor.charger_plug_energy",
+    "battery_soc": "sensor.ant_bms_16_soc",
+    "battery_kwh": "sensor.hausbatterie_kwh",
+    "battery_voltage": "sensor.ant_bms_16_total_voltage",
+    "battery_in_energy": "sensor.battery_in_sum",
+    "battery_out_energy": "sensor.battery_out_sum",
+    "charger_switch": "switch.charger_plug",
+    "inverter_switch": "switch.inverter_plug",
+    "pv_forecast_today": "sensor.energy_production_today",
+    "pv_forecast_today_remaining": "sensor.energy_production_today_remaining",
+    "pv_forecast_tomorrow": "sensor.energy_production_tomorrow",
+    "weather": "weather.home_forecast",
+    "ev_energy": ["sensor.cee_energy", "sensor.second_ev_energy"],
+    "ev_soc": "sensor.car_state_of_charge",
+    "ev_target_soc": "sensor.car_target_state_of_charge",
+    "ev_plug": "binary_sensor.car_plug",
+    "ev_window_helper": "car_charge_window"
+  },
+  "prices": {"provider": "tibber"}
+}

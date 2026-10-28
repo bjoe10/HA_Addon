@@ -1,0 +1,10 @@
+# Changelog
+
+## 0.2.0
+- Native Home-Assistant-Anbindung (REST/WebSocket), kein MCP mehr.
+- Entitäten über Einstellungen zugeordnet statt fest verdrahtet.
+- Scheduler und Laufprotokoll.
+- Weboberfläche (Ingress): Übersicht, Plan mit Diagrammen, Protokoll, Einstellungen mit Prüfung der Entitäten.
+
+## 0.1.0
+- Gerüst, noch ohne Funktion.

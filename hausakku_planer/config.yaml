@@ -1,0 +1,24 @@
+name: Hausakku-Planer
+version: "0.2.0"
+slug: hausakku_planer
+description: Plant Laden, Halten und Versorgen eines Heimspeichers nach dynamischen Strompreisen.
+url: https://github.com/bjoe10/HA_Addon
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+homeassistant_api: true
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:home-battery
+panel_title: Hausakku
+map:
+  - addon_config:rw
+options:
+  operating_mode: observe
+  log_level: info
+schema:
+  operating_mode: list(observe|publish|control)
+  log_level: list(debug|info|warning|error)
