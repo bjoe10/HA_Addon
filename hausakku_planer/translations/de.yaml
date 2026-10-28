@@ -1,7 +1,4 @@
 configuration:
-  operating_mode:
-    name: Betriebsstufe
-    description: "Veraltet: Das Veröffentlichen stellst du jetzt in der Oberfläche unter Einstellungen ein. Diese Option gilt nur noch, solange dort nie gespeichert wurde."
   log_level:
     name: Log-Stufe
     description: Detailgrad der Protokollierung im Add-on-Log.

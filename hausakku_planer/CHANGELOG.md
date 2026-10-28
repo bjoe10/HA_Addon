@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.0
+- Die Add-on-Option „Betriebsstufe“ entfällt. Veröffentlichen wird nur noch in der Oberfläche (Einstellungen) geschaltet. Neue Installationen starten mit „aus“.
+
 ## 0.7.2
 - Beim Start wird eine in der Add-on-Option gewählte Veröffentlichung einmalig als Einstellung übernommen. Die Einstellungsseite meldet, ob der Schalter gespeichert ist.
 

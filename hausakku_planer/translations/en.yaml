@@ -1,7 +1,4 @@
 configuration:
-  operating_mode:
-    name: Operating mode
-    description: "Deprecated: publishing is now switched in the UI under Settings. This option only applies until the setting has been saved there once."
   log_level:
     name: Log level
     description: Verbosity of the add-on log.
