@@ -215,7 +215,7 @@ def report(plan):
                     m=audit['metrics'][kind];parts.append(f"{label}: MAE {m['mae_kwh']:.2f} aus {m['count']} Zielen")
             lines.append('Gemessene Prognoseabweichung: '+('; '.join(parts) or 'Stunden-PV-Auswertung verfügbar')+'.')
     lines.append('HA-Schedules zurückgelesen und geprüft.' if plan.get('publication',{}).get('verified') else 'Nur lokal berechnet, nicht in HA veröffentlicht.')
-    lines.append(('HA-Steuerung installiert; Freigabe '+('an.' if plan.get('control_enabled') else 'aus.')) if plan.get('control_installed') else 'PV bei WR-aus bestätigt; 15 kWh / 2 kW laut Nutzer. Sichere Schaltautomation noch nicht angebunden.')
+    lines.append(('HA-Steuerung installiert; Freigabe '+('an.' if plan.get('control_enabled') else 'aus.')) if plan.get('control_installed') else 'Schaltautomation nicht installiert: Der Plan wird nicht automatisch ausgeführt, das Add-on schaltet selbst keine Geräte.')
     return '\n'.join(lines)
 
 def _windows(intervals,mode):
@@ -241,7 +241,7 @@ def _actual_day(dataset,day):
 
 
 def flex_tips(plan,hours=3):
-    """Deterministic hints for shiftable loads (washing, dishwasher, Tesla) from KNOWN prices only."""
+    """Deterministic hints for shiftable loads (washing, dishwasher, vehicle) from KNOWN prices only."""
     iv=plan['plan']['intervals'];out=[]
     fmt=lambda a,b:f"{('Mo','Di','Mi','Do','Fr','Sa','So')[datetime.fromisoformat(a).weekday()]} {datetime.fromisoformat(a).strftime('%H:%M')}–{datetime.fromisoformat(b).strftime('%H:%M')}"
     hourly={}
@@ -266,11 +266,11 @@ def flex_tips(plan,hours=3):
         if spans and spans[-1][1]==f['start']:spans[-1][1]=f['end']
         else:spans.append([f['start'],f['end']])
     long=[x for x in spans if datetime.fromisoformat(x[1])-datetime.fromisoformat(x[0])>=timedelta(hours=1)]
-    if long:out.append(f"Stunden nahe Tiefstpreis {floor*100:.1f} ct (Tesla über CEE): "+'; '.join(fmt(a,b) for a,b in long[:3]))
+    if long:out.append(f"Stunden nahe Tiefstpreis {floor*100:.1f} ct (Fahrzeug laden): "+'; '.join(fmt(a,b) for a,b in long[:3]))
     spill=[f for f in iv if f['spill_dc_kwh']>1e-3]
-    if spill:out.append(f"PV-Überschuss erwartet ({sum(f['spill_dc_kwh'] for f in spill):.1f} kWh, Akku voll): guter Zeitpunkt für Tesla/Wäsche "+fmt(spill[0]['start'],spill[-1]['end']))
+    if spill:out.append(f"PV-Überschuss erwartet ({sum(f['spill_dc_kwh'] for f in spill):.1f} kWh, Akku voll): guter Zeitpunkt für Fahrzeug/Wäsche "+fmt(spill[0]['start'],spill[-1]['end']))
     serve=_windows(iv,'serve')
-    if serve:out.append('Große Verbraucher (Tesla, Trockner) nicht in Versorgen-Fenstern starten, sonst leert der WR den Akku dafür: '+', '.join(serve))
+    if serve:out.append('Große Verbraucher (Fahrzeug, Trockner) nicht in Versorgen-Fenstern starten, sonst leert der WR den Akku dafür: '+', '.join(serve))
     return out
 
 
@@ -308,13 +308,13 @@ def llm_facts(plan,previous=None,dataset=None):
     lines.append(f"PV-Prognose bekannte Tage ({'Open-Meteo kalibriert' if source.get('source')=='openmeteo_radiation' else 'HA-Prognose × Faktor'}): "+'; '.join(f"{d[8:10]}.{d[5:7]}. {v:.1f} kWh" for d,v in sorted(pv.items()))+'.')
     yesterday=datetime.fromisoformat(plan['created_at']).date()-timedelta(days=1)
     actual=_actual_day(dataset,yesterday)
-    if actual:lines.append(f"Gestern gemessen: PV {actual[0]:.1f} kWh, Hausverbrauch {actual[1]:.1f} kWh (ohne Tesla/CEE und City El).")
+    if actual:lines.append(f"Gestern gemessen: PV {actual[0]:.1f} kWh, Hausverbrauch {actual[1]:.1f} kWh (ohne Fahrzeugladen).")
     devices=plan.get('device_consumption')
     if devices:
         for key,label in (('yesterday','Verbraucher gestern'),('today','Verbraucher heute bis '+datetime.fromisoformat(devices['today_until']).strftime('%H:%M'))):
             top=sorted(((v,n) for n,v in devices[key].items() if v>=.1),reverse=True)[:7]
             if top:lines.append(label+' (Energie-Dashboard, Geräte können sich überschneiden): '+', '.join(
-                f"{'CEE/Tesla (nicht im Hausverbrauch)' if n=='CEE' else 'City El (nicht im Hausverbrauch)' if n=='City El' else n} {v:.1f} kWh" for v,n in top)+'.')
+                f"{n} {v:.1f} kWh" for v,n in top)+'.')
     comp=result['comparison']
     lines.append(f"Simuliert, nicht gemessen: Kasse im bekannten Zeitraum {comp['total_savings_eur']:+.2f} €, geschätzter Wert der mitgenommenen Energie {comp['estimated_carryover_benefit_eur']:+.2f} €, zusammen {comp['objective_savings_eur']:+.2f} € ggü. durchgehendem WR.")
     if previous:
@@ -332,17 +332,20 @@ def llm_facts(plan,previous=None,dataset=None):
     elif price.get('calibration') and not price['calibration'].get('valid'):hints.append('Tibber-Formel passt nicht mehr ('+price['calibration']['reason']+')')
     if plan.get('forecast_learning_error'):hints.append('Lernlauf fehlgeschlagen ('+plan['forecast_learning_error']+')')
     if inputs.get('ha_pv_forecast_missing_days'):hints.append('HA-PV-Prognose fehlte, Open-Meteo verwendet')
-    if plan.get('ev_publication') and not plan['ev_publication'].get('verified'):hints.append('Tesla-Ladefenster konnte nicht in HA geschrieben werden ('+plan['ev_publication'].get('error','?')+'); Akku-Plan nicht betroffen')
+    if plan.get('ev_publication') and not plan['ev_publication'].get('verified'):hints.append('Fahrzeug-Ladefenster konnte nicht in HA geschrieben werden ('+plan['ev_publication'].get('error','?')+'); Akku-Plan nicht betroffen')
     ev=plan.get('ev') or {}
-    ev_helper_name=settings.current().entity('ev_window_helper',required=False) or 'ev_ladefenster'
+    ev_helper_name=settings.current().entity('ev_window_helper',required=False)
+    if not ev_helper_name:ev_where='Kein Zeitplan-Helfer eingerichtet, daher nicht in HA eingetragen.'
+    elif (plan.get('ev_publication') or {}).get('verified'):ev_where=f'In HA als schedule.{ev_helper_name} eingetragen.'
+    else:ev_where=f'Nicht in HA eingetragen (nur im Plan berechnet).'
     hm=lambda t:datetime.fromisoformat(t).strftime('%H:%M');day=lambda t:('Mo','Di','Mi','Do','Fr','Sa','So')[datetime.fromisoformat(t).weekday()]
     if ev.get('status')=='ok':
-        lines.append(f"Tesla: SoC {ev['soc']:.0f} % → Ziel {ev['target_soc']:.0f} % = {ev['need_kwh']:.1f} kWh am Netz ({ev['kwh_per_percent']:.2f} kWh je %, {ev['per_percent_source']}), bei {ev['power_kw']:.1f} kW ({ev['power_source']}) etwa {ev['duration_h']:.1f} h"+('' if ev.get('plugged') else '; Stecker aktuell NICHT gesteckt')+'.')
-        lines.append(f"Tesla-Ladefenster (günstigster Block, nicht in Versorgen-Fenstern des Akkus): {day(ev['start'])} {hm(ev['start'])}–{hm(ev['end'])}, Ø {ev['mean_price_eur_kwh']*100:.1f} ct, ca. {ev['cost_eur']:.2f} €. Gleich günstig zwischen {day(ev['flex_start'])} {hm(ev['flex_start'])} und {day(ev['flex_end'])} {hm(ev['flex_end'])}. In HA als schedule.{ev_helper_name} eingetragen; Start in der Fahrzeug-App (Zeitgesteuertes Laden).")
+        lines.append(f"Fahrzeug: SoC {ev['soc']:.0f} % → Ziel {ev['target_soc']:.0f} % = {ev['need_kwh']:.1f} kWh am Netz ({ev['kwh_per_percent']:.2f} kWh je %, {ev['per_percent_source']}), bei {ev['power_kw']:.1f} kW ({ev['power_source']}) etwa {ev['duration_h']:.1f} h"+('' if ev.get('plugged') else '; Stecker aktuell NICHT gesteckt')+'.')
+        lines.append(f"Fahrzeug-Ladefenster (günstigster Block, nicht in Versorgen-Fenstern des Akkus): {day(ev['start'])} {hm(ev['start'])}–{hm(ev['end'])}, Ø {ev['mean_price_eur_kwh']*100:.1f} ct, ca. {ev['cost_eur']:.2f} €. Gleich günstig zwischen {day(ev['flex_start'])} {hm(ev['flex_start'])} und {day(ev['flex_end'])} {hm(ev['flex_end'])}. {ev_where} Start in der Fahrzeug-App (Zeitgesteuertes Laden).")
     elif ev.get('status')=='full':
-        lines.append(f"Tesla: SoC {ev['soc']:.0f} % ist am Ziel ({ev['target_soc']:.0f} %), kein Laden nötig; Ladefenster in HA leer.")
+        lines.append(f"Fahrzeug: SoC {ev['soc']:.0f} % ist am Ziel ({ev['target_soc']:.0f} %), kein Laden nötig.")
     elif ev:
-        lines.append('Tesla-Ladefenster nicht berechnet: '+{'unknown_soc':ev.get('reason','SoC unbekannt'),'no_block':'kein ausreichend langer Block ohne Versorgen-Fenster im bekannten Preiszeitraum','no_power':'Ladeleistung unbekannt'}.get(ev['status'],ev['status'])+'; Ladefenster in HA bleibt unverändert.')
+        lines.append('Fahrzeug-Ladefenster nicht berechnet: '+{'unknown_soc':ev.get('reason','SoC unbekannt'),'no_block':'kein ausreichend langer Block ohne Versorgen-Fenster im bekannten Preiszeitraum','no_power':'Ladeleistung unbekannt'}.get(ev['status'],ev['status'])+'.')
     for tip in flex_tips(plan):lines.append('Tipp-Daten: '+tip+'.')
     lines.append('Rückfälle/Hinweise: '+('; '.join(hints) if hints else 'keine')+'.')
     return '\n'.join(lines)
@@ -494,13 +497,13 @@ async def run(args):
             plan['publication']=await publish(plan['charge_schedule'],plan['serve_schedule'],end,plan['target_soc'],status)
             STAGE[0]='Nacharbeit nach Veröffentlichung'
     ev=plan.get('ev') or {}
-    if args.publish and ev.get('status') in ('ok','full'):
+    if args.publish and ev.get('status') in ('ok','full') and settings.current().entity('ev_window_helper',required=False):
         # Display helper only; failure must never touch the battery plan.
         written=BASE/'state/ev_window_written.json'
         try:
             last=json.loads(written.read_text()) if written.exists() else None
             if last!=ev['week']:
-                STAGE[0]='Tesla-Ladefenster'
+                STAGE[0]='Fahrzeug-Ladefenster'
                 plan['ev_publication']=await publish_ev_window(ev['week'])
                 written.write_text(json.dumps(ev['week'],indent=2))
             else:plan['ev_publication']={'verified':True,'unchanged':True}

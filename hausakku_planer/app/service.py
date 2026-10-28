@@ -56,14 +56,30 @@ async def run_planner(kind,mode,trigger='zeit',command=None):
     log_run(entry);return entry
 
 class Scheduler:
-    def __init__(self):self.lock=asyncio.Lock();self.running=None
+    def __init__(self):self.lock=asyncio.Lock();self.running=None;self._tasks=set()
 
-    async def trigger(self,kind,trigger='zeit'):
-        if self.lock.locked():return {'ok':False,'message':'Ein Lauf ist bereits aktiv.'}
+    def _claim(self,kind):
+        """Mark a run as active right away, so status and a second request see it before the task starts."""
+        if self.running or self.lock.locked():return False
+        self.running={'kind':kind,'since':datetime.now(TZ).isoformat()}
+        return True
+
+    async def _execute(self,kind,trigger):
         async with self.lock:
-            self.running={'kind':kind,'since':datetime.now(TZ).isoformat()}
             try:return await run_planner(kind,settings.operating_mode(),trigger)
             finally:self.running=None
+
+    async def trigger(self,kind,trigger='zeit'):
+        """Run and wait for the result (used by the scheduler loop)."""
+        if not self._claim(kind):return {'ok':False,'message':'Ein Lauf ist bereits aktiv.'}
+        return await self._execute(kind,trigger)
+
+    def start(self,kind,trigger='manuell'):
+        """Run in the background and return at once; False if a run is already active."""
+        if not self._claim(kind):return False
+        task=asyncio.create_task(self._execute(kind,trigger))
+        self._tasks.add(task);task.add_done_callback(self._tasks.discard)
+        return True
 
     async def loop(self):
         last=datetime.now(TZ)
@@ -105,8 +121,10 @@ async def status(request):
 async def runs(request):return web.json_response(read_runs(int(request.query.get('limit','50'))))
 
 async def run_now(request):
-    result=await request.app['scheduler'].trigger('main','manuell')
-    return web.json_response({k:v for k,v in result.items() if k not in ('stdout','stderr')})
+    """Start a run in the background. The UI polls /api/status; a run can take minutes on the first start."""
+    if not request.app['scheduler'].start('main','manuell'):
+        return web.json_response({'ok':False,'message':'Ein Lauf ist bereits aktiv.'},status=409)
+    return web.json_response({'ok':True,'started':True},status=202)
 
 async def plan(request):
     p=load_plan()

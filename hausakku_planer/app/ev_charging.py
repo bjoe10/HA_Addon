@@ -1,4 +1,4 @@
-"""Tesla charging window on the CEE socket (stdlib only). Recommendation only: HA cannot
+"""Vehicle charging window (stdlib only). Recommendation only: HA cannot
 control the car (no Fleet API) and this module never switches the socket. The result is
 written to the user's display helper schedule.car_charge_window; charging is started by hand.
 
@@ -94,7 +94,7 @@ def week_payload(blocks):
 def evaluate(intervals,tesla,config):
     """Plan result for the report and the helper. tesla comes from the collector snapshot."""
     if not tesla or tesla.get('soc') is None or tesla.get('target_soc') is None:
-        return {'status':'unknown_soc','reason':(tesla or {}).get('warning') or 'Tesla-SoC nicht verfügbar'}
+        return {'status':'unknown_soc','reason':(tesla or {}).get('warning') or 'Fahrzeug-Ladestand nicht verfügbar'}
     soc,target=float(tesla['soc']),float(tesla['target_soc'])
     per_percent=tesla.get('kwh_per_percent');per_source='gemessen'
     if per_percent is None:per_percent=float(config.get('ev_kwh_per_soc_percent',.74));per_source='Config-Wert'

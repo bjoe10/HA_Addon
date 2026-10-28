@@ -117,6 +117,11 @@ async function load(){
   document.getElementById('stage').textContent=status&&status.running?'Rechnet …':'';
 }
 
+/* A run takes seconds to minutes; the server answers at once, so poll the status until it is done. */
+async function waitForRun(){
+  for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));await load();if(!status||!status.running)return}
+}
+
 function banner(){
   if(!status||!status.missing||!status.missing.length)return '';
   return `<div class="banner"><span><b>Einrichtung unvollständig.</b> Es fehlen ${status.missing.length} Angaben, bevor ein Plan berechnet werden kann.</span>
@@ -140,7 +145,7 @@ function bind(){
   const run=main.querySelector('#runnow');
   if(run)run.addEventListener('click',async()=>{run.disabled=true;run.textContent='Rechnet …';
     try{await api('run',{method:'POST'})}catch(e){}
-    await load();render();});
+    await waitForRun();render();});
 }
 
 /* ---------- Übersicht ---------- */
