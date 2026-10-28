@@ -5,16 +5,19 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 from aiohttp import web
 import paths, prices, settings, views
+import ha_client
 from ha_client import connection
 
 TZ=ZoneInfo('Europe/Berlin')
 APP=Path(__file__).resolve().parent
 MAIN_TIMES=((14,15),(20,15))   # daily full run
 REPLAN_MINUTE=45               # quiet hourly replan
+WEEKLY_TIME=(0,8,0)            # weekday (0 = Monday), hour, minute: weekly balance
 log=logging.getLogger('hausakku')
 
 def planner_args(kind,mode):
     """Command line of the planner for a run kind: 'main' or 'replan', by operating mode."""
+    if kind=='weekly':return []
     if mode=='observe':return []                        # compute only, nothing is written to HA
     return ['--publish'] if kind=='main' else ['--replan']
 
@@ -23,10 +26,11 @@ def due_runs(now,last_check):
     due=[]
     t=(last_check+timedelta(minutes=1)).replace(second=0,microsecond=0)
     while t<=now:
+        if (t.weekday(),t.hour,t.minute)==WEEKLY_TIME:due.append('weekly')
         if (t.hour,t.minute) in MAIN_TIMES:due.append('main')
         elif t.minute==REPLAN_MINUTE:due.append('replan')
         t+=timedelta(minutes=1)
-    return ['main'] if 'main' in due else ['replan'] if due else []
+    return (['main'] if 'main' in due else ['replan'] if 'replan' in due else [])+(['weekly'] if 'weekly' in due else [])
 
 def log_run(entry):
     paths.ensure()
@@ -47,13 +51,36 @@ async def run_planner(kind,mode,trigger='zeit',command=None):
         entry={'time':started.isoformat(),'kind':kind,'trigger':trigger,'mode':mode,'ok':False,'skipped':True,
                'message':'Einrichtung unvollständig: '+', '.join(settings.label(r) for r in missing)}
         log_run(entry);return entry
-    cmd=command or [sys.executable,str(APP/'planner.py'),*planner_args(kind,mode)]
+    script='weekly_report.py' if kind=='weekly' else 'planner.py'
+    cmd=command or [sys.executable,str(APP/script),*planner_args(kind,mode)]
     t0=time.monotonic()
     proc=await asyncio.create_subprocess_exec(*cmd,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,cwd=str(APP),env=os.environ.copy())
     out,err=await proc.communicate()
     entry={'time':started.isoformat(),'kind':kind,'trigger':trigger,'mode':mode,'ok':proc.returncode==0,
            'seconds':round(time.monotonic()-t0,1),'stdout':out.decode(errors='replace')[-3000:],'stderr':err.decode(errors='replace')[-1500:]}
-    log_run(entry);return entry
+    log_run(entry)
+    if mode!='observe' and not command:await publish_report(entry)
+    return entry
+
+def bridge_attributes(entry,previous):
+    """Attributes of the report sensor: the latest output per run kind, merged into what is already there."""
+    attrs=dict(previous)
+    report=(entry.get('stdout') or '').strip()
+    attrs[entry['kind']]={'time':entry['time'],'ok':entry['ok'],'report':report[-12000:],'error':(entry.get('stderr') or '').strip()[-1500:]}
+    return attrs
+
+async def publish_report(entry):
+    """Hand the run's output to Home Assistant as one sensor, so a summariser can read it without the add-on API."""
+    if entry.get('skipped'):return
+    f=paths.STATE/'bridge.json'
+    previous=json.loads(f.read_text()) if f.exists() else {}
+    attrs=bridge_attributes(entry,previous)
+    f.write_text(json.dumps(attrs,ensure_ascii=False))
+    try:
+        async with connection() as ha:
+            await ha.call('ha_set_state',entity_id=ha_client.report_sensor(),state=entry['time'],attributes=attrs)
+    except Exception as exc:
+        log.warning('Bericht-Sensor nicht geschrieben (%s)',type(exc).__name__)
 
 class Scheduler:
     def __init__(self):self.lock=asyncio.Lock();self.running=None;self._tasks=set()
@@ -133,7 +160,7 @@ async def plan(request):
 async def get_settings(request):
     cfg=settings.current()
     roles=[{'role':r,'label':label,'need':need,'list':r in settings.LISTS} for r,(label,need) in settings.ROLES.items()]
-    return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices','helper_prefix')},'roles':roles,
+    return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices','helper_prefix','adopt_legacy_helpers')},'roles':roles,
                               'helpers':cfg.helpers(),
                               'missing':cfg.missing('plan'),'missing_control':cfg.missing('control'),'mode':settings.operating_mode()})
 

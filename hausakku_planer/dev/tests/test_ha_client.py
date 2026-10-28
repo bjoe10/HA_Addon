@@ -58,6 +58,24 @@ class ClientTests(unittest.TestCase):
             self.assertIsNotNone(settings.check_prefix(bad),bad)
         self.assertIsNone(settings.check_prefix('hap'))
         with self.assertRaises(ValueError):settings.Settings({'helper_prefix':'hausakku'}).helpers()
+    def test_adopting_legacy_helpers_is_opt_in(self):
+        self.assertIsNotNone(settings.check_prefix('hausakku'))
+        self.assertIsNone(settings.check_prefix('hausakku',adopt_legacy=True))
+        self.assertIsNotNone(settings.check_prefix('hausakku2',adopt_legacy=True))
+        names=settings.Settings({'helper_prefix':'hausakku','adopt_legacy_helpers':True}).helpers()
+        self.assertEqual(names['charge'],'hausakku_netzladen');self.assertEqual(names['target'],'hausakku_ziel_soc')
+        self.assertEqual(names['permission'],'hausakku_planer_freigabe')
+    def test_report_sensor_is_the_only_state_write(self):
+        old=settings.current()
+        try:
+            settings.use({'helper_prefix':'hap'})
+            check_call('ha_set_state',{'entity_id':'sensor.hap_bericht'},mode='publish')
+            with self.assertRaises(WritesDisabled):check_call('ha_set_state',{'entity_id':'sensor.hap_bericht'},mode='observe')
+            for entity in ('sensor.other','sensor.hausakku_regelmodus','switch.zigbee_blau'):
+                with self.assertRaises(ValueError):check_call('ha_set_state',{'entity_id':entity},mode='publish')
+            with self.assertRaises(ValueError):   # the report name is not an input helper
+                check_call('ha_call_service',{'domain':'input_text','service':'set_value','entity_id':'input_text.hap_bericht'},mode='publish')
+        finally:settings.use(old)
     def test_only_own_helper_values_written(self):
         with self.assertRaises(ValueError): check_call('ha_call_service',{'domain':'input_datetime','service':'set_datetime','entity_id':'input_datetime.other'})
         check_call('ha_call_service',{'domain':'input_datetime','service':'set_datetime','entity_id':'input_datetime.hap_plan_gueltig_bis'})

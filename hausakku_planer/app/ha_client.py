@@ -15,7 +15,7 @@ import settings
 SUPERVISOR_URL='http://supervisor/core'
 def own():
     """Object ids of the helpers the add-on owns (from the helper prefix). Created on first publish if missing."""
-    return set(settings.current().helpers().values())
+    return {v for k,v in settings.current().helpers().items() if k!='report'}
 READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services'}
 
 class WritesDisabled(RuntimeError):
@@ -23,6 +23,10 @@ class WritesDisabled(RuntimeError):
 
 def ev_helper():
     return settings.current().entity('ev_window_helper',required=False)
+
+def report_sensor():
+    """The one sensor the add-on publishes its reports to (for summarisers such as an assistant)."""
+    return 'sensor.'+settings.current().helpers()['report']
 
 def _require_writes(mode=None):
     if (mode or settings.operating_mode())=='observe':
@@ -42,6 +46,9 @@ def check_call(name,args,mode=None):
         if pair in {('input_datetime','set_datetime'),('input_text','set_value'),('input_number','set_value')} and entity.split('.')[-1] in own():
             _require_writes(mode);return
         raise ValueError('Hardware/service writes prohibited by planner client')
+    if name=='ha_set_state':
+        if args.get('entity_id')==report_sensor():
+            _require_writes(mode);return
     if name=='ha_config_set_helper':
         helper=args.get('helper_id','').split('.')[-1]
         if (helper in own() or (ev_helper() and helper==ev_helper())) and args.get('action')=='update':
@@ -143,6 +150,10 @@ class HA:
         if minimal_response:params['minimal_response']='1'
         groups=await self.t.rest('GET','/history/period/'+_iso(start_time),params=params) or []
         return {'entities':[{'entity_id':g[0].get('entity_id'),'has_more':False,'states':g} for g in groups if g]}
+
+    async def _ha_set_state(self,entity_id,state,attributes):
+        await self.t.rest('POST','/states/'+entity_id,{'state':state,'attributes':attributes})
+        return {'success':True}
 
     async def _ha_config_list_helpers(self,helper_type,limit=None):
         if helper_type!='schedule':raise ValueError('Only schedule helpers can be listed')

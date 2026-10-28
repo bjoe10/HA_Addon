@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+- Bericht-Sensor `sensor.<Präfix>_bericht`: nach jedem Lauf (Hauptlauf, Nachplanung, Wochenbilanz) liegt der Bericht samt Faktenblock als Attribut in Home Assistant, damit ein Assistent ihn lesen und zusammenfassen kann, ohne die Add-on-Schnittstelle zu brauchen.
+- Wochenbilanz läuft montags 08:00 im Add-on.
+- „Helfer übernehmen“: für den Umstieg von einem bestehenden Planer mit den Namen `hausakku_*` (Präfix `hausakku` ist nur damit erlaubt).
+
 ## 0.4.0
 - Eigene Helfer mit einstellbarem Präfix (Standard `hap`, also `schedule.hap_netzladen`, `input_number.hap_ziel_soc` usw.). Die Stufe „Plan veröffentlichen“ schreibt nur dorthin.
 - Präfixe, die mit `hausakku` beginnen, sind gesperrt, damit Helfer eines anderen Planers mit diesen Namen nie überschrieben werden.

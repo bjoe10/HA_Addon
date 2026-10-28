@@ -114,4 +114,17 @@ class ReportTextTests(unittest.TestCase):
         for word in ('laut Nutzer','Tesla','CEE','City El','15 kWh / 2 kW'):self.assertNotIn(word,text)
         self.assertIn('schaltet selbst keine Geräte',text)
 
+class BridgeTests(unittest.TestCase):
+    def test_report_attributes_keep_latest_per_kind(self):
+        a=service.bridge_attributes({'kind':'main','time':'t1','ok':True,'stdout':' bericht \n','stderr':''},{})
+        b=service.bridge_attributes({'kind':'replan','time':'t2','ok':True,'stdout':'','stderr':''},a)
+        self.assertEqual(b['main']['report'],'bericht');self.assertEqual(b['replan']['report'],'')
+        c=service.bridge_attributes({'kind':'main','time':'t3','ok':False,'stdout':'','stderr':'boom'},b)
+        self.assertEqual(c['main']['error'],'boom');self.assertIn('replan',c)
+    def test_weekly_run_is_due_monday_8(self):
+        from datetime import datetime
+        tz=service.TZ
+        self.assertEqual(service.due_runs(datetime(2026,11,2,8,0,30,tzinfo=tz),datetime(2026,11,2,7,59,40,tzinfo=tz)),['weekly'])
+        self.assertEqual(service.due_runs(datetime(2026,11,3,8,0,30,tzinfo=tz),datetime(2026,11,3,7,59,40,tzinfo=tz)),[])
+
 if __name__=='__main__':unittest.main()

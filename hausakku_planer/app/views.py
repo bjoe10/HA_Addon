@@ -173,9 +173,10 @@ def validate_settings(data):
             pattern=NAME_RE if role=='ev_window_helper' else ENTITY_RE
             if v and not pattern.match(v):errors['entities.'+role]='Ungültiger Name'
             clean['entities'][role]=v
+    if 'adopt_legacy_helpers' in data:clean['adopt_legacy_helpers']=bool(data['adopt_legacy_helpers'])
     if 'helper_prefix' in data:
         prefix=str(data['helper_prefix'] or '').strip().lower()
-        error=settings.check_prefix(prefix)
+        error=settings.check_prefix(prefix,clean.get('adopt_legacy_helpers',False))
         if error:errors['helper_prefix']=error
         else:clean['helper_prefix']=prefix
     loc=data.get('location') or {}

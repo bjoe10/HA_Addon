@@ -39,6 +39,7 @@ LISTS={'ev_energy'}
 
 DEFAULTS={
  'helper_prefix':'hap',
+ 'adopt_legacy_helpers':False,
  'location':{'latitude':None,'longitude':None},
  'entities':{r:([] if r in LISTS else None) for r in ROLES},
  'prices':{'provider':'tibber','tibber_home':None,'entity':None,'attribute':None,'bidding_zone':'DE-LU','markup_ct':0.0,'vat_percent':0.0},
@@ -60,8 +61,10 @@ PREFIX_RE=re.compile(r'^[a-z][a-z0-9]{1,15}$')
 # Names the original single-household planner uses; the add-on must never write them.
 RESERVED_PREFIX='hausakku'
 
-def check_prefix(prefix):
-    """Error text for an unusable helper prefix, else None."""
+def check_prefix(prefix,adopt_legacy=False):
+    """Error text for an unusable helper prefix, else None. `adopt_legacy` allows exactly "hausakku":
+    the add-on then takes over the helpers of an existing single-household controller."""
+    if adopt_legacy and prefix==RESERVED_PREFIX:return None
     if not isinstance(prefix,str) or not PREFIX_RE.match(prefix):
         return 'Präfix: 2 bis 16 Zeichen, nur Kleinbuchstaben und Ziffern, mit Buchstabe beginnend'
     if prefix.startswith(RESERVED_PREFIX):
@@ -100,10 +103,10 @@ class Settings:
     def helpers(self):
         """Object ids of the add-on's own helpers, derived from the prefix."""
         prefix=self.data['helper_prefix']
-        error=check_prefix(prefix)
+        error=check_prefix(prefix,bool(self.data.get('adopt_legacy_helpers')))
         if error:raise ValueError(error)
         return {'charge':prefix+'_netzladen','serve':prefix+'_entladen','expiry':prefix+'_plan_gueltig_bis',
-                'status':prefix+'_plan_status','target':prefix+'_ziel_soc','permission':prefix+'_planer_freigabe'}
+                'status':prefix+'_plan_status','report':prefix+'_bericht','target':prefix+'_ziel_soc','permission':prefix+'_planer_freigabe'}
 
     def location(self):
         loc=self.data['location']
