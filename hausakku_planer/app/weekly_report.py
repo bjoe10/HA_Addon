@@ -58,6 +58,20 @@ async def fetch(start,end):
     return energy,vehicles,battery,devices
 
 
+MIN_HOURS=24
+
+def trailing_complete(hours,prices,start):
+    """The latest unbroken block of hours with a known price and complete measurements. A new installation has no
+    price archive for the whole week yet, so the balance then covers the shorter period it can stand behind."""
+    ok=lambda h:h['start'] in prices and all(h.get(k) is not None and math.isfinite(h[k]) for k in h if k!='start' and k!='ev') and h.get('ev') is not None
+    block=[]
+    for h in sorted(hours,key=lambda r:r['start'],reverse=True):
+        if not ok(h):break
+        block.append(h)
+    block.reverse()
+    if len(block)<MIN_HOURS:raise ValueError('Fewer than %d complete hours with prices'%MIN_HOURS)
+    return block,(datetime.fromtimestamp(block[0]['start'],TZ) if len(block)<len(hours) else start)
+
 def battery_at(battery,stamp):
     rows={float(r['start'])/1000:r.get('mean') for e in body(battery)['entities'] for r in e.get('statistics',[])}
     candidates=[v for t,v in rows.items() if v is not None and abs(t-stamp)<=3600]
@@ -114,6 +128,7 @@ async def run(args):
         row={'start':t,'ev':ev.get(t) if EVS else 0.}
         for key,entity in ENERGY.items():row[key]=data.get(entity,{}).get(t)
         hours.append(row);t+=3600
+    hours,start=trailing_complete(hours,prices,start)
     start_kwh=battery_at(battery,start.timestamp()-3600) or battery_at(battery,start.timestamp())
     end_kwh=battery_at(battery,end.timestamp()-3600)
     if start_kwh is None or end_kwh is None:raise ValueError('Battery energy at week boundaries unavailable')

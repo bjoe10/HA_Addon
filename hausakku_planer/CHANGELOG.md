@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.4
+- Wochenbilanz rechnet mit dem letzten lückenlosen Block aus Stunden mit Preis und vollständigen Messwerten (mindestens 24 Stunden), statt abzubrechen, wenn das Preisarchiv noch nicht die ganze Woche abdeckt. Der Zeitraum steht im Bericht.
+
 ## 0.5.3
 - Wochenbilanz meldet bei einem Fehler die Fundstelle (Datei:Zeile).
 
