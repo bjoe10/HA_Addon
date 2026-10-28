@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.1
+- „Steuerung einrichten“ bricht ab, wenn nicht geprüft werden kann, ob schon eine Steuerung existiert, und ist ausgegraut, wenn das Add-on keine Automationen anlegen darf.
+
 ## 0.9.0
 - „Steuerung einrichten“ in den Einstellungen: legt den Blueprint und die Automation „Hausakku-Planer Steuerung“ in Home Assistant an (nach Bestätigung; nur mit eingeschaltetem Veröffentlichen und zugeordneten Schaltern; nie, wenn schon eine Steuerung diese Helfer benutzt). Die Freigabe bleibt aus, es wird nichts geschaltet.
 - Der Blueprint liegt jetzt im Add-on selbst (`hausakku_planer/app/blueprint/steuerung.yaml`), eine Kopie für Add-on und Import.

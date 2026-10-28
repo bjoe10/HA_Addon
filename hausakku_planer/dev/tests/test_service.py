@@ -108,6 +108,21 @@ class ControlSetupGuardTests(AioHTTPTestCase):
         settings.use({'publish':False})
         r=await self.client.post('/api/control/setup')
         self.assertEqual(r.status,409);self.assertIn('veröffentlichen',(await r.json())['message'])
+    async def test_nothing_is_created_when_the_existing_control_cannot_be_checked(self):
+        settings.use({'publish':True,'entities':{'charger_switch':'switch.c','inverter_switch':'switch.i','battery_soc':'sensor.s'}})
+        calls=[]
+        class Broken:
+            async def __aenter__(s):return s
+            async def __aexit__(s,*a):return False
+            async def call(s,name,**kw):
+                calls.append(name)
+                if name=='ha_related':raise RuntimeError('boom')
+            async def install_control(s,*a):calls.append('install')
+            async def ensure_own_helpers(s):calls.append('helpers')
+        original=service.connection;service.connection=lambda:Broken()
+        try:r=await self.client.post('/api/control/setup')
+        finally:service.connection=original
+        self.assertEqual(r.status,500);self.assertNotIn('install',calls);self.assertNotIn('helpers',calls)
     async def test_refused_without_the_switches_and_soc(self):
         settings.use({'publish':True})
         r=await self.client.post('/api/control/setup')

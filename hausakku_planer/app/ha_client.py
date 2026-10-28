@@ -16,7 +16,7 @@ SUPERVISOR_URL='http://supervisor/core'
 def own():
     """Object ids of the helpers the add-on owns (from the helper prefix). Created on first publish if missing."""
     return {v for k,v in settings.current().helpers().items() if k in ('charge','serve','expiry','status','target')}
-READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services','ha_entity_registry','ha_related'}
+READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services','ha_entity_registry','ha_related','ha_control_automation'}
 
 class WritesDisabled(RuntimeError):
     pass
@@ -163,6 +163,10 @@ class HA:
 
     async def _ha_entity_registry(self):
         return {'entities':await self.t.command(type='config/entity_registry/list') or []}
+
+    async def _ha_control_automation(self):
+        """Does the control automation exist? Raises if Home Assistant's automation config API cannot be reached."""
+        return {'exists':await self.t.rest('GET','/config/automation/config/'+CONTROL_AUTOMATION) is not None}
 
     async def _ha_related(self,entity_id):
         return await self.t.command(type='search/related',item_type='entity',item_id=entity_id) or {}

@@ -184,8 +184,7 @@ async def control_setup(request):
     try:
         async with connection() as ha:
             owner='input_boolean.'+cfg.helpers()['owner']
-            try:related=await ha.call('ha_related',entity_id=owner)
-            except Exception:related={}
+            related=await ha.call('ha_related',entity_id=owner)      # an error here stops the setup: no check, no automation
             if related.get('automation'):
                 return web.json_response({'ok':False,'message':'Es gibt schon eine Steuerung, die diese Helfer benutzt. Es wurde nichts angelegt.'},status=409)
             await ha.ensure_own_helpers()
@@ -218,18 +217,20 @@ async def entities(request):
 
 async def setup(request):
     """The setup checklist. The two Home Assistant questions (is a control automation using the marker, is it released) may stay open."""
-    cfg=settings.current();plan=load_plan();found=released=None
+    cfg=settings.current();plan=load_plan();found=released=None;config_api=None
     try:
         names=cfg.helpers()
         async with connection() as ha:
             related=await ha.call('ha_related',entity_id='input_boolean.'+names['owner'])
             found=bool(related.get('automation'))
+            try:config_api=True;await ha.call('ha_control_automation')
+            except Exception:config_api=False
             try:released=(await ha.call('ha_get_state',entity_id='input_boolean.'+names['permission'])).get('state')=='on'
             except Exception:released=False
     except Exception:pass
     steps=views.setup_steps(cfg.missing('plan'),plan,settings.operating_mode(),found,released)
     return web.json_response({'steps':[{'id':i,'label':l,'done':d,'go':g} for i,l,d,g in steps],'complete':all(d for _,_,d,_ in steps),
-                              'automation_known':found is not None})
+                              'automation_known':found is not None,'config_api':config_api})
 
 async def autofill(request):
     """Proposals for empty entity roles from the Energy dashboard, device siblings and names. Nothing is saved."""
