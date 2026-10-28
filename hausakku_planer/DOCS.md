@@ -14,7 +14,7 @@ PV- und Verbrauchsprognose.
 | Stufe | Wirkung |
 |---|---|
 | `observe` (Standard) | Rechnet und zeigt den Plan. Schreibt **nichts** in Home Assistant. |
-| `publish` | Schreibt den Plan in eigene Helfer (`schedule.hausakku_*`, `input_*.hausakku_*`). Schaltet nichts. |
+| `publish` | Schreibt den Plan in eigene Helfer (`schedule.<Präfix>_*`, `input_*.<Präfix>_*`, Standardpräfix `hap`, einstellbar unter „Eigene Helfer“; `hausakku…` ist gesperrt). Schaltet nichts. |
 | `control` | Reserviert für die Steuer-Automation (noch nicht verfügbar). |
 
 Das Add-on schaltet in keiner Stufe selbst Geräte.

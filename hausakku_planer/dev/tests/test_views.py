@@ -63,6 +63,13 @@ class SuggestTests(unittest.TestCase):
         self.assertEqual(self.ids('grid_import','netz'),['sensor.netz_bezug'])
 
 class ValidationTests(unittest.TestCase):
+    def test_helper_prefix_validated(self):
+        clean,err=views.validate_settings({'helper_prefix':' Solar '})
+        self.assertEqual(clean['helper_prefix'],'solar');self.assertNotIn('helper_prefix',err)
+        _,err=views.validate_settings({'helper_prefix':'hausakku'})
+        self.assertIn('helper_prefix',err)
+        clean,_=views.validate_settings({})
+        self.assertNotIn('helper_prefix',clean)
     def test_valid_input_is_cleaned(self):
         clean,err=views.validate_settings({'entities':{'battery_soc':' sensor.soc ','ev_energy':['sensor.a','',' sensor.b'],'bogus':'x'},
             'location':{'latitude':'52.5212','longitude':'13.4011'},'battery':{'capacity_kwh':'10'}})

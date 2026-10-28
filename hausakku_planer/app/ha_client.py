@@ -13,8 +13,9 @@ import aiohttp
 import settings
 
 SUPERVISOR_URL='http://supervisor/core'
-# Helpers the planner owns (entity object ids). Created on first publish if missing.
-OWN={'hausakku_netzladen','hausakku_entladen','hausakku_plan_gueltig_bis','hausakku_plan_status','hausakku_ziel_soc','hausakku_planer_freigabe'}
+def own():
+    """Object ids of the helpers the add-on owns (from the helper prefix). Created on first publish if missing."""
+    return set(settings.current().helpers().values())
 READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services'}
 
 class WritesDisabled(RuntimeError):
@@ -38,12 +39,12 @@ def check_call(name,args,mode=None):
         # Read-only services that return data.
         if pair==('tibber','get_prices'): return
         if pair==('weather','get_forecasts') and weather and entity==weather and args.get('data')=={'type':'hourly'}: return
-        if pair in {('input_datetime','set_datetime'),('input_text','set_value'),('input_number','set_value')} and entity.split('.')[-1] in OWN:
+        if pair in {('input_datetime','set_datetime'),('input_text','set_value'),('input_number','set_value')} and entity.split('.')[-1] in own():
             _require_writes(mode);return
         raise ValueError('Hardware/service writes prohibited by planner client')
     if name=='ha_config_set_helper':
         helper=args.get('helper_id','').split('.')[-1]
-        if (helper in OWN or (ev_helper() and helper==ev_helper())) and args.get('action')=='update':
+        if (helper in own() or (ev_helper() and helper==ev_helper())) and args.get('action')=='update':
             _require_writes(mode);return
     raise ValueError('Tool or helper outside planner scope')
 
@@ -176,10 +177,11 @@ class HA:
     async def ensure_own_helpers(self):
         """Create the planner's own input helpers if missing (publish stage and above)."""
         _require_writes(self.mode)
+        names=settings.current().helpers()
         spec={
-         'input_datetime':{'name':'hausakku_plan_gueltig_bis','has_date':True,'has_time':True},
-         'input_text':{'name':'hausakku_plan_status','max':255},
-         'input_number':{'name':'hausakku_ziel_soc','min':0,'max':100,'step':1,'mode':'box','unit_of_measurement':'%'},
+         'input_datetime':{'name':names['expiry'],'has_date':True,'has_time':True},
+         'input_text':{'name':names['status'],'max':255},
+         'input_number':{'name':names['target'],'min':0,'max':100,'step':1,'mode':'box','unit_of_measurement':'%'},
         }
         created=[]
         for kind,fields in spec.items():

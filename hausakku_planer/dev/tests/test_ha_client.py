@@ -36,10 +36,31 @@ class ClientTests(unittest.TestCase):
         with self.assertRaises(ValueError): check_call('ha_call_service',{'domain':'switch','service':'turn_on'})
     def test_only_own_helpers_written(self):
         with self.assertRaises(ValueError): check_call('ha_config_set_helper',{'helper_type':'schedule','helper_id':'car_charge_window'})
-        check_call('ha_config_set_helper',{'helper_type':'schedule','helper_id':'hausakku_netzladen','action':'update'})
+        check_call('ha_config_set_helper',{'helper_type':'schedule','helper_id':'hap_netzladen','action':'update'})
+    def test_original_planner_helpers_are_never_written(self):
+        for helper in ('hausakku_netzladen','hausakku_entladen'):
+            with self.assertRaises(ValueError):
+                check_call('ha_config_set_helper',{'helper_type':'schedule','helper_id':helper,'action':'update'})
+        for entity in ('input_datetime.hausakku_plan_gueltig_bis','input_number.hausakku_ziel_soc','input_text.hausakku_plan_status'):
+            with self.assertRaises(ValueError):
+                check_call('ha_call_service',{'domain':entity.split('.')[0],'service':'set_value','entity_id':entity})
+    def test_prefix_decides_the_own_helpers(self):
+        old=settings.current()
+        try:
+            settings.use({'helper_prefix':'solar'})
+            check_call('ha_config_set_helper',{'helper_type':'schedule','helper_id':'solar_netzladen','action':'update'})
+            with self.assertRaises(ValueError):
+                check_call('ha_config_set_helper',{'helper_type':'schedule','helper_id':'hap_netzladen','action':'update'})
+            self.assertEqual(settings.current().helpers()['target'],'solar_ziel_soc')
+        finally:settings.use(old)
+    def test_reserved_or_malformed_prefix_rejected(self):
+        for bad in ('hausakku','hausakku2','x','Ab','a-b','1abc','',None,'a'*17):
+            self.assertIsNotNone(settings.check_prefix(bad),bad)
+        self.assertIsNone(settings.check_prefix('hap'))
+        with self.assertRaises(ValueError):settings.Settings({'helper_prefix':'hausakku'}).helpers()
     def test_only_own_helper_values_written(self):
         with self.assertRaises(ValueError): check_call('ha_call_service',{'domain':'input_datetime','service':'set_datetime','entity_id':'input_datetime.other'})
-        check_call('ha_call_service',{'domain':'input_datetime','service':'set_datetime','entity_id':'input_datetime.hausakku_plan_gueltig_bis'})
+        check_call('ha_call_service',{'domain':'input_datetime','service':'set_datetime','entity_id':'input_datetime.hap_plan_gueltig_bis'})
 
 
 class FakeTransport:
@@ -95,12 +116,12 @@ class NativeClientTests(unittest.TestCase):
 
     def test_schedule_is_created_then_updated(self):
         week={d:[] for d in ('monday','tuesday','wednesday','thursday','friday','saturday','sunday')}
-        run(self.ha.call('ha_config_set_helper',helper_type='schedule',helper_id='hausakku_netzladen',action='update',config=week))
+        run(self.ha.call('ha_config_set_helper',helper_type='schedule',helper_id='hap_netzladen',action='update',config=week))
         self.assertEqual([c['type'] for c in self.t.commands],['schedule/list','schedule/create'])
         self.t.commands.clear()
-        run(self.ha.call('ha_config_set_helper',helper_type='schedule',helper_id='hausakku_netzladen',action='update',config=week))
+        run(self.ha.call('ha_config_set_helper',helper_type='schedule',helper_id='hap_netzladen',action='update',config=week))
         self.assertEqual([c['type'] for c in self.t.commands],['schedule/list','schedule/update'])
-        self.assertEqual(self.t.commands[1]['schedule_id'],'hausakku_netzladen')
+        self.assertEqual(self.t.commands[1]['schedule_id'],'hap_netzladen')
 
     def test_ensure_own_helpers_creates_once(self):
         self.assertEqual(len(run(self.ha.ensure_own_helpers())),3)
@@ -111,7 +132,7 @@ class NativeClientTests(unittest.TestCase):
         run(observe.call('ha_get_state',entity_id='sensor.a'))
         run(observe.call('ha_call_service',domain='tibber',service='get_prices',data={},return_response=True))
         with self.assertRaises(WritesDisabled):
-            run(observe.call('ha_call_service',domain='input_text',service='set_value',entity_id='input_text.hausakku_plan_status',data={'value':'x'}))
+            run(observe.call('ha_call_service',domain='input_text',service='set_value',entity_id='input_text.hap_plan_status',data={'value':'x'}))
         with self.assertRaises(WritesDisabled):run(observe.ensure_own_helpers())
         self.assertFalse([c for c in self.t.rest_calls if c[0]=='POST' and 'input_text' in c[1]])
 

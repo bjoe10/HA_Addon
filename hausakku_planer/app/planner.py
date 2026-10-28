@@ -123,7 +123,7 @@ def compute_plan(snapshot,config,learning_artifact=None,dataset=None,price_histo
                 for f in result['intervals'] if f['charger_ac_kwh']>1e-10] or [0])
     target=min(math.floor(data['grid_charge_limit_kwh']/data['nominal_capacity_kwh']*100+1e-9),math.ceil(target-1e-9))
     installed=bool(config.get('controller_installed',False))
-    enabled=installed and snapshot['states'].get('input_boolean.hausakku_planer_freigabe',{}).get('state')=='on'
+    enabled=installed and snapshot['states'].get('input_boolean.'+settings.current().helpers()['permission'],{}).get('state')=='on'
     return {'created_at':datetime.now(TZ).isoformat(),'mode':'live' if enabled else 'shadow','control_installed':installed,'control_enabled':enabled,
       'valid_until':valid_until.isoformat(),'snapshot_collected_at':snapshot['collected_at'],
       'plan':result,'charge_schedule':charge,'serve_schedule':serve,

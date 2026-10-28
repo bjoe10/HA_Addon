@@ -35,7 +35,7 @@ def state_entities(cfg=None):
     roles=('battery_kwh','battery_soc','battery_voltage','pv_forecast_tomorrow','pv_forecast_today_remaining','pv_forecast_today',
            'charger_switch','inverter_switch')
     ids=[cfg.entity(r,required=False) for r in roles]
-    return [e for e in ids if e]+['sun.sun','input_boolean.hausakku_planer_freigabe']
+    return [e for e in ids if e]+['sun.sun','input_boolean.'+cfg.helpers()['permission']]
 
 def body(d): return d.get('data',d)
 

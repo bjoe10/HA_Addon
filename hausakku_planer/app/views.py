@@ -173,6 +173,11 @@ def validate_settings(data):
             pattern=NAME_RE if role=='ev_window_helper' else ENTITY_RE
             if v and not pattern.match(v):errors['entities.'+role]='Ungültiger Name'
             clean['entities'][role]=v
+    if 'helper_prefix' in data:
+        prefix=str(data['helper_prefix'] or '').strip().lower()
+        error=settings.check_prefix(prefix)
+        if error:errors['helper_prefix']=error
+        else:clean['helper_prefix']=prefix
     loc=data.get('location') or {}
     for key,lo,hi in (('latitude',-90,90),('longitude',-180,180)):
         raw=loc.get(key)

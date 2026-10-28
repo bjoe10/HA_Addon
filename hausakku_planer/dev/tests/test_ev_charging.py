@@ -63,7 +63,7 @@ class EvWriteScopeTests(unittest.TestCase):
     def test_only_the_users_ev_helper_is_writable_in_addition(self):
         from ha_client import check_call
         check_call('ha_config_set_helper',{'helper_id':'car_charge_window','action':'update'})
-        check_call('ha_config_set_helper',{'helper_id':'hausakku_netzladen','action':'update'})
+        check_call('ha_config_set_helper',{'helper_id':'hap_netzladen','action':'update'})
         for bad in ({'helper_id':'car_charge_window','action':'delete'},{'helper_id':'auto_netz_laden','action':'update'},{'helper_id':'preis_gut','action':'update'}):
             with self.assertRaises(ValueError):check_call('ha_config_set_helper',bad)
         with self.assertRaises(ValueError):check_call('ha_call_service',{'domain':'switch','service':'turn_off','entity_id':'switch.cee_outlet'})

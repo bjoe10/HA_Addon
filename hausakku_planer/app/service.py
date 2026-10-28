@@ -133,7 +133,8 @@ async def plan(request):
 async def get_settings(request):
     cfg=settings.current()
     roles=[{'role':r,'label':label,'need':need,'list':r in settings.LISTS} for r,(label,need) in settings.ROLES.items()]
-    return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices')},'roles':roles,
+    return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices','helper_prefix')},'roles':roles,
+                              'helpers':cfg.helpers(),
                               'missing':cfg.missing('plan'),'missing_control':cfg.missing('control'),'mode':settings.operating_mode()})
 
 async def put_settings(request):

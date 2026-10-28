@@ -4,7 +4,7 @@ Stored in <data>/settings.json (written by the web UI). The add-on options only 
 operating mode and log level. Nothing household-specific is defaulted: an unconfigured
 role raises NotConfigured with a message naming the role.
 """
-import json, os
+import json, os, re
 from pathlib import Path
 import paths
 
@@ -38,6 +38,7 @@ ROLES={
 LISTS={'ev_energy'}
 
 DEFAULTS={
+ 'helper_prefix':'hap',
  'location':{'latitude':None,'longitude':None},
  'entities':{r:([] if r in LISTS else None) for r in ROLES},
  'prices':{'provider':'tibber','tibber_home':None,'entity':None,'attribute':None,'bidding_zone':'DE-LU','markup_ct':0.0,'vat_percent':0.0},
@@ -54,6 +55,18 @@ def label(role):
 
 class NotConfigured(RuntimeError):
     pass
+
+PREFIX_RE=re.compile(r'^[a-z][a-z0-9]{1,15}$')
+# Names the original single-household planner uses; the add-on must never write them.
+RESERVED_PREFIX='hausakku'
+
+def check_prefix(prefix):
+    """Error text for an unusable helper prefix, else None."""
+    if not isinstance(prefix,str) or not PREFIX_RE.match(prefix):
+        return 'Präfix: 2 bis 16 Zeichen, nur Kleinbuchstaben und Ziffern, mit Buchstabe beginnend'
+    if prefix.startswith(RESERVED_PREFIX):
+        return 'Präfix darf nicht mit "'+RESERVED_PREFIX+'" beginnen (so heißen die Helfer des Original-Planers)'
+    return None
 
 def _merge(base,over):
     out={k:(dict(v) if isinstance(v,dict) else v) for k,v in base.items()}
@@ -83,6 +96,14 @@ class Settings:
         prices=self.data['prices']
         if prices.get('provider')=='entity' and not prices.get('entity'):missing.append('price_entity')
         return missing
+
+    def helpers(self):
+        """Object ids of the add-on's own helpers, derived from the prefix."""
+        prefix=self.data['helper_prefix']
+        error=check_prefix(prefix)
+        if error:raise ValueError(error)
+        return {'charge':prefix+'_netzladen','serve':prefix+'_entladen','expiry':prefix+'_plan_gueltig_bis',
+                'status':prefix+'_plan_status','target':prefix+'_ziel_soc','permission':prefix+'_planer_freigabe'}
 
     def location(self):
         loc=self.data['location']

@@ -20,7 +20,7 @@ class PlannerTests(unittest.TestCase):
         if not (base/'fixtures/test_fixture_snapshot.json').exists(): self.skipTest('Local integration snapshot not available')
         config=json.loads((base.parent/'tests/fixtures/config_legacy.json').read_text())
         r=compute_plan(json.loads((base/'fixtures/test_fixture_snapshot.json').read_text()),config)
-        expected_enabled=json.loads((base/'fixtures/test_fixture_snapshot.json').read_text())['states'].get('input_boolean.hausakku_planer_freigabe',{}).get('state')=='on'
+        expected_enabled=json.loads((base/'fixtures/test_fixture_snapshot.json').read_text())['states'].get('input_boolean.hap_planer_freigabe',{}).get('state')=='on'
         self.assertEqual(r['mode'],'live' if expected_enabled else 'shadow')
         self.assertTrue(r['control_installed']);self.assertEqual(r['control_enabled'],expected_enabled)
         tv=float(r['plan']['params'].get('terminal_value_eur_kwh',0.0))
@@ -42,7 +42,7 @@ class PlannerTests(unittest.TestCase):
         base=Path(__file__).parent
         snapshot=json.loads((base/'fixtures/test_fixture_snapshot.json').read_text())
         config=json.loads((base.parent/'tests/fixtures/config_legacy.json').read_text());config['controller_installed']=True
-        snapshot['states']['input_boolean.hausakku_planer_freigabe']={'state':'off'}
+        snapshot['states']['input_boolean.hap_planer_freigabe']={'state':'off'}
         result=compute_plan(snapshot,config)
         self.assertTrue(result['control_installed']);self.assertFalse(result['control_enabled'])
         self.assertIn('Steuerung installiert',report(result))
