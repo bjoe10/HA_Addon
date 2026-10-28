@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1
+- „Schätzen“ ermittelt nur Kapazität und Ladeleistung; die Wechselrichter-Leistung ist nicht aus der Messung ableitbar (Ausgang folgt dem Hausverbrauch).
+- „Vorschläge einsetzen“ sagt, wenn das Energie-Dashboard oder die Geräteliste nicht lesbar war.
+
 ## 0.7.0
 - Einfachere Einrichtung: „Vorschläge einsetzen“ füllt leere Felder aus dem Energie-Dashboard, aus Sensoren am selben Gerät wie die Schalter und nach Namen vor (nichts wird überschrieben oder gespeichert).
 - „Schätzen“ ermittelt Akku-Kapazität, Ladeleistung und Wechselrichter-Leistung aus den letzten 28 Tagen Statistik.

@@ -329,7 +329,7 @@ async function settingsPage(){
    <div class="field"><label for="cap">Akku-Kapazität (kWh)</label><input id="cap" inputmode="decimal" value="${esc(s.battery.capacity_kwh??'')}" placeholder="nutzbare Kapazität"><span></span><div class="fmsg" id="m-battery.capacity_kwh"></div></div>
    <div class="field"><label for="chg">Ladeleistung Netzladegerät (kW, AC)</label><input id="chg" inputmode="decimal" value="${esc(s.battery.max_charge_kw??'')}" placeholder="z. B. 1,1"><span></span><div class="fmsg" id="m-battery.max_charge_kw"></div></div>
    <div class="field"><label for="dis">Maximale WR-Leistung (kW, AC)</label><input id="dis" inputmode="decimal" value="${esc(s.battery.max_discharge_kw??'')}" placeholder="z. B. 2"><span></span><div class="fmsg" id="m-battery.max_discharge_kw"></div></div>
-   <div class="field"><label>Aus Messwerten schätzen</label><div class="fmsg mut" id="m-estimates" style="grid-column:auto">Schätzt Kapazität und Leistungen aus den letzten 28 Tagen. Dafür müssen die Zähler schon gespeichert sein. Füllt nur leere Felder.</div><button class="btn sec" id="estimate">Schätzen</button></div>
+   <div class="field"><label>Aus Messwerten schätzen</label><div class="fmsg mut" id="m-estimates" style="grid-column:auto">Schätzt Kapazität und Ladeleistung aus den letzten 28 Tagen (die Wechselrichter-Leistung steht auf dem Typenschild). Dafür müssen die Zähler schon gespeichert sein. Füllt nur leere Felder.</div><button class="btn sec" id="estimate">Schätzen</button></div>
    <div class="field"><label for="nv">Nennspannung Akku (V)</label><input id="nv" inputmode="decimal" value="${esc(s.battery.nominal_voltage??'')}" placeholder="z. B. 51,2"><span></span><div class="fmsg mut" id="m-battery.nominal_voltage">Optional. Nur für die Wirkungsgrad-Messung: Spannung, mit der dein kWh-Sensor aus Ah umgerechnet wird. Leer lassen, wenn der Sensor SOC × Kapazität liefert.</div></div>
    <div class="field"><label for="flo">Preisuntergrenze (ct/kWh)</label><input id="flo" inputmode="decimal" value="${s.tariff.price_floor_eur_kwh==null?'':esc(String(+(s.tariff.price_floor_eur_kwh*100).toFixed(2)))}" placeholder="optional"><span></span><div class="fmsg mut" id="m-tariff.price_floor_eur_kwh">Feste Preisbestandteile (Netzentgelt, Steuern, Abgaben), unter die der Bezugspreis nie fällt. Begrenzt die Preisprognose für kommende Tage.</div></div></div>`;
   const pr=s.prices||{};
@@ -402,13 +402,13 @@ function bindSettings(){
     try{const r=await api('autofill');let n=0;
       Object.entries(r.proposals||{}).forEach(([role,p])=>{const inp=main.querySelector(`[data-role="${role}"]`);
         if(inp&&!inp.value.trim()){inp.value=p.entity;n++;msg('entities.'+role,'Vorschlag ('+esc(p.why)+'). Bitte prüfen.','wn')}});
-      out.className='small '+(n?'ok':'mut');out.textContent=r.warning||(n?n+' Felder vorbelegt. Bitte prüfen und speichern.':'Keine eindeutigen Vorschläge gefunden.')}
+      out.className='small '+(n?'ok':'mut');out.textContent=r.warning||((n?n+' Felder vorbelegt. Bitte prüfen und speichern.':'Keine eindeutigen Vorschläge für leere Felder gefunden.')+' '+(r.notes||[]).join(' '))}
     catch(e){out.className='small err';out.textContent='Vorschläge nicht verfügbar.'}
     b.disabled=false});
   document.getElementById('estimate').addEventListener('click',async()=>{
     const b=document.getElementById('estimate'),out=document.getElementById('m-estimates');b.disabled=true;out.className='fmsg mut';out.textContent='Rechne …';
     try{const r=await api('estimates'),e=r.estimates||{},put=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&!el.value.trim()){el.value=String(v).replace('.',',');return 1}return 0};
-      const n=put('cap',e.capacity_kwh)+put('chg',e.charge_kw)+put('dis',e.discharge_kw);
+      const n=put('cap',e.capacity_kwh)+put('chg',e.charge_kw);
       out.className='fmsg '+(n?'ok':'wn');out.textContent=(n?n+' Werte eingetragen (Schätzung, bitte prüfen). ':'')+(r.notes||[]).join(' ')}
     catch(e){out.className='fmsg err';out.textContent='Schätzung nicht verfügbar.'}
     b.disabled=false});

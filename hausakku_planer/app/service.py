@@ -212,16 +212,18 @@ async def autofill(request):
     try:
         async with connection() as ha:
             states=(await ha.call('ha_list_states'))['states']
+            notes=[]
             try:registry=(await ha.call('ha_entity_registry'))['entities']
-            except Exception:registry=[]
+            except Exception:registry=[];notes.append('Die Geräteliste war nicht lesbar, Zähler an den Schaltern werden nicht gesucht.')
             try:prefs=(await ha.call('ha_manage_energy_prefs',mode='get')).get('config') or {}
-            except Exception:prefs=None
+            except Exception:prefs=None;notes.append('Das Energie-Dashboard war nicht lesbar.')
     except Exception as exc:
         return web.json_response({'proposals':{},'warning':'Home Assistant nicht erreichbar ('+type(exc).__name__+')'})
-    return web.json_response({'proposals':views.autofill(states,registry,prefs,settings.current().data['entities'])})
+    return web.json_response({'proposals':views.autofill(states,registry,prefs,settings.current().data['entities']),'notes':notes,
+                              'sources':{'registry':len(registry),'energy_dashboard':len(views.energy_dashboard_roles(prefs))}})
 
 async def estimates(request):
-    """Battery capacity and charger/inverter power estimated from the recorded statistics. Nothing is saved."""
+    """Battery capacity and charger power estimated from the recorded statistics. Nothing is saved."""
     cfg=settings.current();now=datetime.now(TZ);start=(now-timedelta(days=28)).isoformat()
     out={};notes=[]
     try:
@@ -231,7 +233,7 @@ async def estimates(request):
                                 period='hour',statistic_types=[kind],limit=1000)
                 rows={float(x['start'])/1000:x.get(kind) for e in r['entities'] for x in e.get('statistics',[]) if x.get(kind) is not None}
                 return rows,(r['entities'][0].get('unit_of_measurement') if r['entities'] else None)
-            for role,key,pct in (('charger_energy','charge_kw',.9),('inverter_energy','discharge_kw',.98)):
+            for role,key,pct in (('charger_energy','charge_kw',.9),):   # the inverter's output is limited by the house load, so it says nothing about its maximum
                 entity=cfg.entity(role,required=False)
                 if not entity:notes.append('Für '+settings.label(role)+' ist noch nichts eingetragen.');continue
                 values,unit=await hourly(entity,'change')
