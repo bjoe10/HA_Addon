@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.5
+- Wochenbilanz nennt bei zu wenigen vollständigen Stunden die Gründe (Zählung fehlender Preise und Messwerte).
+
 ## 0.5.4
 - Wochenbilanz rechnet mit dem letzten lückenlosen Block aus Stunden mit Preis und vollständigen Messwerten (mindestens 24 Stunden), statt abzubrechen, wenn das Preisarchiv noch nicht die ganze Woche abdeckt. Der Zeitraum steht im Bericht.
 

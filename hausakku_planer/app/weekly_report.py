@@ -60,6 +60,9 @@ async def fetch(start,end):
 
 MIN_HOURS=24
 
+class WeeklyError(ValueError):
+    """A reason the balance cannot be made; the text holds only counts, so it is safe to report."""
+
 def trailing_complete(hours,prices,start):
     """The latest unbroken block of hours with a known price and complete measurements. A new installation has no
     price archive for the whole week yet, so the balance then covers the shorter period it can stand behind."""
@@ -69,7 +72,11 @@ def trailing_complete(hours,prices,start):
         if not ok(h):break
         block.append(h)
     block.reverse()
-    if len(block)<MIN_HOURS:raise ValueError('Fewer than %d complete hours with prices'%MIN_HOURS)
+    if len(block)<MIN_HOURS:
+        missing={k:sum(1 for h in hours if h.get(k) is None) for k in sorted({k for h in hours for k in h if k!='start'})}
+        raise WeeklyError('Nur %d lückenlose Stunden am Ende (nötig %d); von %d Stunden ohne Preis: %d, Messwert fehlt: %s'%(
+            len(block),MIN_HOURS,len(hours),sum(1 for h in hours if h['start'] not in prices),
+            ', '.join(k+' '+str(n) for k,n in missing.items() if n)))
     return block,(datetime.fromtimestamp(block[0]['start'],TZ) if len(block)<len(hours) else start)
 
 def battery_at(battery,stamp):
@@ -160,6 +167,6 @@ def main():
         tb=exc.__traceback__
         while tb.tb_next:tb=tb.tb_next
         where=', '+Path(tb.tb_frame.f_code.co_filename).name+':'+str(tb.tb_lineno)   # location only: messages may carry private values
-        print('[CRON_FAILURE] Wochenbilanz fehlgeschlagen ('+type(exc).__name__+where+'). Der Akku-Betrieb ist davon nicht betroffen.',file=sys.stderr)
+        print('[CRON_FAILURE] Wochenbilanz fehlgeschlagen ('+type(exc).__name__+where+(': '+str(exc) if isinstance(exc,WeeklyError) else '')+'). Der Akku-Betrieb ist davon nicht betroffen.',file=sys.stderr)
         return 1
 if __name__=='__main__':sys.exit(main())
