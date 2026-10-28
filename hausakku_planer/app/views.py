@@ -98,6 +98,7 @@ KEYWORDS={
  'pv_forecast_today':('today','heute','forecast','prognose','production'),
  'pv_forecast_today_remaining':('remaining','rest','today','heute','forecast'),
  'pv_forecast_tomorrow':('tomorrow','morgen','forecast','prognose'),
+ 'price_entity':('price','preis','nordpool','epex','awattar','tibber','strom','electricity'),
  'ev_energy':('wallbox','car','auto','ev','charger','cee','lade'),
  'ev_soc':('soc','battery','charge'),'ev_target_soc':('target','limit','ziel'),'ev_plug':('plug','cable','stecker','connected'),
 }
@@ -114,6 +115,7 @@ def _matches(role,state):
     if role=='battery_voltage':return domain=='sensor' and (dclass=='voltage' or unit=='V')
     if role in ('charger_switch','inverter_switch'):return domain=='switch'
     if role=='weather':return domain=='weather'
+    if role=='price_entity':return domain=='sensor' and any(isinstance(v,list) and v and isinstance(v[0],dict) for v in attrs.values())
     if role=='ev_plug':return domain=='binary_sensor'
     return False
 
@@ -134,12 +136,31 @@ def suggest(role,states,query='',limit=12):
     return [x[2] for x in scored[:limit]]
 
 # --- settings validation ----------------------------------------------------------------
+def validate_prices(raw,errors):
+    out={'provider':raw.get('provider') or 'tibber','tibber_home':(raw.get('tibber_home') or '').strip() or None,
+         'entity':(raw.get('entity') or '').strip() or None,'attribute':(raw.get('attribute') or '').strip() or None,
+         'bidding_zone':(raw.get('bidding_zone') or 'DE-LU').strip().upper(),'markup_ct':0.0,'vat_percent':0.0}
+    if out['provider'] not in ('tibber','entity','spot'):errors['prices.provider']='Unbekannter Anbieter'
+    if out['entity'] and not ENTITY_RE.match(out['entity']):errors['prices.entity']='Ungültige Entität'
+    if out['provider']=='entity' and not out['entity']:errors['prices.entity']='Preis-Sensor angeben'
+    if out['attribute'] and not NAME_RE.match(out['attribute']):errors['prices.attribute']='Ungültiger Attributname'
+    if not re.match(r'^[A-Z0-9-]{2,12}$',out['bidding_zone']):errors['prices.bidding_zone']='Gebotszone wie DE-LU oder AT'
+    for key,hi,msg in (('markup_ct',100,'Aufschlag zwischen 0 und 100 ct/kWh'),('vat_percent',30,'MwSt. zwischen 0 und 30 %')):
+        v=raw.get(key)
+        if v in (None,''):continue
+        try:
+            x=float(str(v).replace(',','.'))
+            if not 0<=x<=hi:raise ValueError
+            out[key]=x
+        except (TypeError,ValueError):errors['prices.'+key]=msg
+    return out
+
 ENTITY_RE=re.compile(r'^[a-z_]+\.[a-z0-9_]+$')
 NAME_RE=re.compile(r'^[a-z0-9_]+$')
 
 def validate_settings(data):
     """Return (clean_settings_dict, errors). Unknown keys are dropped, bad values reported by field."""
-    errors={};clean={'entities':{},'location':{},'battery':{},'prices':{'provider':'tibber'}}
+    errors={};clean={'entities':{},'location':{},'battery':{},'prices':{}}
     for role,value in (data.get('entities') or {}).items():
         if role not in settings.ROLES:continue
         if role in settings.LISTS:
@@ -163,6 +184,7 @@ def validate_settings(data):
         except (TypeError,ValueError):errors['location.'+key]=f'Zahl zwischen {lo} und {hi} erwartet'
     if (clean['location'].get('latitude') is None)!=(clean['location'].get('longitude') is None):
         errors['location.latitude']='Breiten- und Längengrad gemeinsam angeben'
+    clean['prices']=validate_prices(data.get('prices') or {},errors)
     battery=data.get('battery') or {}
     for key,lo,hi,msg in (('capacity_kwh',1,100,'Kapazität zwischen 1 und 100 kWh erwartet'),
                           ('max_charge_kw',.1,50,'Leistung zwischen 0,1 und 50 kW erwartet'),

@@ -21,10 +21,10 @@ Das Add-on schaltet in keiner Stufe selbst Geräte.
 
 ## Voraussetzungen
 
-- Tibber-Integration in Home Assistant (Viertelstundenpreise über `tibber.get_prices`); weitere Preisquellen folgen.
+- Eine Preisquelle (Einstellungen → Strompreis): die Tibber-Integration, ein Sensor mit Preisliste im Attribut (z. B. Nordpool oder EPEX Spot) oder der Börsenpreis mit Aufschlag und MwSt. Preise im 15- oder 60-Minuten-Raster; Preise für morgen liegen erst nach der Veröffentlichung vor, der Plan nutzt nur bekannte Preise.
 - Zähler für Netzbezug, Einspeisung, PV, Wechselrichter-Ausgang und Netzladegerät (kWh, mit Langzeitstatistik).
 - Akku-Ladestand in %.
-- Zeitzone und Preislogik sind derzeit auf Deutschland ausgelegt.
+- Zeitzone ist fest Europa/Berlin (Mitteleuropäische Zeit). Börsenpreis-Zonen außerhalb davon sind ungetestet.
 
 ## Lokale Installation zum Testen
 

@@ -40,11 +40,17 @@ LISTS={'ev_energy'}
 DEFAULTS={
  'location':{'latitude':None,'longitude':None},
  'entities':{r:([] if r in LISTS else None) for r in ROLES},
- 'prices':{'provider':'tibber'},
+ 'prices':{'provider':'tibber','tibber_home':None,'entity':None,'attribute':None,'bidding_zone':'DE-LU','markup_ct':0.0,'vat_percent':0.0},
  'battery':{'capacity_kwh':None,'max_charge_kw':None,'max_discharge_kw':None},
  'tariff':{'price_floor_eur_kwh':None},
  'planner':{},
 }
+
+# Pseudo-roles that can be missing without being an entity role.
+EXTRA_LABELS={'price_entity':'Preis-Sensor (Strompreis)'}
+
+def label(role):
+    return ROLES[role][0] if role in ROLES else EXTRA_LABELS.get(role,role)
 
 class NotConfigured(RuntimeError):
     pass
@@ -73,7 +79,10 @@ class Settings:
     def missing(self,stage='plan'):
         """Roles that must be set before `stage` ('plan' or 'control') can work."""
         need={'plan'} if stage=='plan' else {'plan','control'}
-        return [r for r,(label,when) in ROLES.items() if when in need and not self.data['entities'].get(r)]
+        missing=[r for r,(text,when) in ROLES.items() if when in need and not self.data['entities'].get(r)]
+        prices=self.data['prices']
+        if prices.get('provider')=='entity' and not prices.get('entity'):missing.append('price_entity')
+        return missing
 
     def location(self):
         loc=self.data['location']

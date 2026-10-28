@@ -102,7 +102,7 @@ async def run(args):
     config=load_config(BASE);ENERGY=energy_map();EVS=vehicle_entities()
     end=datetime.combine(datetime.now(TZ).date(),datetime.min.time(),TZ) if not args.end else datetime.fromisoformat(args.end).astimezone(TZ)
     start=datetime.combine((end-timedelta(days=args.days)).date(),datetime.min.time(),TZ)
-    try:spot_prices.refresh(BASE/'state/training/spot_prices.json',datetime.now(TZ).date())
+    try:spot_prices.refresh(BASE/'state/training/spot_prices.json',datetime.now(TZ).date(),zone=settings.current().data['prices'].get('bidding_zone') or 'DE-LU')
     except Exception:pass
     prices,calibration=hourly_prices(BASE/'state/multiday_audit.sqlite',BASE/'state/training/spot_prices.json',end)
     energy,vehicles,battery,devices=await fetch(start,end)

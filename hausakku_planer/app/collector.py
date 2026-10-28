@@ -3,7 +3,7 @@ import asyncio, json, math
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
-import paths, settings
+import paths, settings, prices as price_sources
 from ha_client import connection
 from forecast import energy_kwh
 from openmeteo import fetch_forecast
@@ -135,7 +135,7 @@ async def collect():
     end=daystart
     cfg=settings.current()
     missing=cfg.missing('plan')
-    if missing:raise settings.NotConfigured('Nicht eingerichtet: '+', '.join(settings.ROLES[r][0] for r in missing))
+    if missing:raise settings.NotConfigured('Nicht eingerichtet: '+', '.join(settings.label(r) for r in missing))
     ENERGY=energy_map(cfg);EVS=vehicle_entities(cfg);WEATHER=weather_entity(cfg)
     FORECAST_TOMORROW=cfg.entity('pv_forecast_tomorrow',required=False)
     async with connection() as ha:
@@ -143,8 +143,8 @@ async def collect():
         raw['states']=await ha.call('ha_get_state',entity_id=state_entities(cfg))
         got=body(raw['states'])
         if set(required_states(cfg))-set(got.get('states',{})): raise ValueError('Required HA state missing')
-        raw['prices']=await ha.call('ha_call_service',domain='tibber',service='get_prices',
-              data={'start':daystart.isoformat(),'end':(daystart+timedelta(days=2)).isoformat()},return_response=True,wait=False)
+        price_rows,price_info=await price_sources.fetch(ha,daystart)
+        raw['prices']={'provider':price_info.get('provider'),'unit':price_info.get('unit')}
         raw['energy']=await ha.call('ha_get_history',source='statistics',entity_ids=list(ENERGY.values()),
               start_time=start.isoformat(),end_time=end.isoformat(),period='hour',statistic_types=['change'],limit=1000)
         raw['ev']=({'entities':[]} if not EVS else await ha.call('ha_get_history',source='statistics',entity_ids=EVS,
@@ -231,14 +231,12 @@ async def collect():
                 dt=datetime.fromtimestamp(t,TZ)
                 pvshape[dt.hour].append(data[ENERGY['pv']][t])
     states=body(raw['states'])['states']
-    prices=raw['prices'].get('service_response',{}).get('prices',{})
-    if len(prices)!=1: raise ValueError('Expected exactly one Tibber home, configure explicit selection')
     weather_forecasts=normalize_hourly_weather(raw.get('weather',{}))
     weather_warning=None if weather_forecasts else (
         'No valid hourly DWD cloud forecast; future PV uses historical climatology.' if not raw.get('weather',{}).get('collection_error')
         else 'DWD weather forecast unavailable; future PV uses historical climatology ('+raw['weather']['collection_error']+').')
     snapshot={'collected_at':datetime.now(TZ).isoformat(),'planning_start':now.isoformat(),
-       'states':states,'prices':next(iter(prices.values())), 'balances':balances,
+       'states':states,'prices':price_rows, 'balances':balances,
        'pv_actual_by_day':pvdays,'pv_shape_samples':pvshape,
        'pv_predicted_by_day':historical_forecasts(raw['forecast_history']),
        'weather_forecasts':weather_forecasts,'weather_forecast_warning':weather_warning,

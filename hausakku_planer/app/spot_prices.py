@@ -33,15 +33,17 @@ def parse(payload):
     return result
 
 
-def refresh(path,today,first=date(2026,1,1)):
+def refresh(path,today,first=date(2026,1,1),zone='DE-LU'):
     """Incremental cache up to and including tomorrow (day-ahead is known after ~13:00)."""
     path=Path(path)
-    prices={float(k):v for k,v in json.loads(path.read_text())['prices'].items()} if path.exists() else {}
+    cached=json.loads(path.read_text()) if path.exists() else {}
+    # A cache from another bidding zone must not be mixed in.
+    prices={float(k):v for k,v in cached.get('prices',{}).items()} if cached.get('bzn','DE-LU')==zone else {}
     start=first if not prices else max(first,datetime.fromtimestamp(max(prices),TZ).date()-timedelta(days=2))
-    prices.update(parse(_get({'bzn':'DE-LU','start':start.isoformat(),'end':(today+timedelta(days=1)).isoformat()})))
+    prices.update(parse(_get({'bzn':zone,'start':start.isoformat(),'end':(today+timedelta(days=1)).isoformat()})))
     path.parent.mkdir(parents=True,exist_ok=True)
     temp=path.with_suffix('.new')
-    temp.write_text(json.dumps({'source':URL,'bzn':'DE-LU','prices':{str(int(k)):v for k,v in sorted(prices.items())}}))
+    temp.write_text(json.dumps({'source':URL,'bzn':zone,'prices':{str(int(k)):v for k,v in sorted(prices.items())}}))
     temp.replace(path)
     return prices
 

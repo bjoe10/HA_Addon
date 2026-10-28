@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from aiohttp import web
-import paths, settings, views
+import paths, prices, settings, views
 from ha_client import connection
 
 TZ=ZoneInfo('Europe/Berlin')
@@ -45,7 +45,7 @@ async def run_planner(kind,mode,trigger='zeit',command=None):
     started=datetime.now(TZ)
     if missing:
         entry={'time':started.isoformat(),'kind':kind,'trigger':trigger,'mode':mode,'ok':False,'skipped':True,
-               'message':'Einrichtung unvollständig: '+', '.join(settings.ROLES[r][0] for r in missing)}
+               'message':'Einrichtung unvollständig: '+', '.join(settings.label(r) for r in missing)}
         log_run(entry);return entry
     cmd=command or [sys.executable,str(APP/'planner.py'),*planner_args(kind,mode)]
     t0=time.monotonic()
@@ -114,7 +114,7 @@ async def status(request):
     sched=request.app['scheduler']
     runs=read_runs(1)
     return web.json_response({'mode':settings.operating_mode(),
-        'missing':[settings.ROLES[r][0] for r in cfg.missing('plan')],
+        'missing':[settings.label(r) for r in cfg.missing('plan')],
         'running':sched.running,'plan':plan_summary(),
         'last_run':{k:runs[0][k] for k in ('time','kind','ok','message') if k in runs[0]} if runs else None})
 
@@ -133,7 +133,7 @@ async def plan(request):
 async def get_settings(request):
     cfg=settings.current()
     roles=[{'role':r,'label':label,'need':need,'list':r in settings.LISTS} for r,(label,need) in settings.ROLES.items()]
-    return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff')},'roles':roles,
+    return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices')},'roles':roles,
                               'missing':cfg.missing('plan'),'missing_control':cfg.missing('control'),'mode':settings.operating_mode()})
 
 async def put_settings(request):
@@ -145,7 +145,7 @@ async def put_settings(request):
 
 async def entities(request):
     role=request.query.get('role','')
-    if role not in settings.ROLES and role!='weather':return web.json_response({'error':'unknown role'},status=400)
+    if role not in settings.ROLES and role!='price_entity':return web.json_response({'error':'unknown role'},status=400)
     try:
         async with connection() as ha:states=(await ha.call('ha_list_states'))['states']
     except Exception as exc:
@@ -184,6 +184,23 @@ async def check(request):
     except Exception as exc:
         return web.json_response({'entity':entity,'ok':False,'messages':['Home Assistant nicht erreichbar ('+type(exc).__name__+')']})
 
+async def check_prices(request):
+    """Fetch the configured price source once and report what the planner would see."""
+    now=datetime.now(TZ);daystart=now.replace(hour=0,minute=0,second=0,microsecond=0)
+    try:
+        async with connection() as ha:
+            rows,info=await prices.fetch(ha,daystart)
+    except prices.PriceError as exc:
+        return web.json_response({'ok':False,'message':str(exc)})
+    except Exception as exc:
+        return web.json_response({'ok':False,'message':'Abruf fehlgeschlagen ('+type(exc).__name__+')'})
+    s=prices.summarize(rows,info,now)
+    notes=[]
+    if s['gaps']:notes.append(f"{s['gaps']} Lücke(n) in den Preisen; der Planer lehnt lückenhafte Preise ab.")
+    if info.get('unit_known') is False:notes.append('Einheit des Sensors unbekannt, es wird EUR/kWh angenommen.')
+    if s['now'] is None:notes.append('Für die aktuelle Viertelstunde liegt kein Preis vor.')
+    return web.json_response({'ok':not s['gaps'] and s['now'] is not None,'summary':s,'notes':notes})
+
 INGRESS_GATEWAY='172.30.32.2'
 
 @web.middleware
@@ -198,7 +215,7 @@ def make_app():
     app.router.add_get('/',index);app.router.add_get('/api/status',status)
     app.router.add_get('/api/runs',runs);app.router.add_post('/api/run',run_now);app.router.add_get('/api/plan',plan)
     app.router.add_get('/api/settings',get_settings);app.router.add_put('/api/settings',put_settings)
-    app.router.add_get('/api/entities',entities);app.router.add_get('/api/check',check)
+    app.router.add_get('/api/entities',entities);app.router.add_get('/api/check',check);app.router.add_get('/api/prices/check',check_prices)
     async def start(app):app['task']=asyncio.create_task(app['scheduler'].loop())
     async def stop(app):app['task'].cancel()
     if os.environ.get('HAUSAKKU_NO_SCHEDULER')!='1':app.on_startup.append(start);app.on_cleanup.append(stop)

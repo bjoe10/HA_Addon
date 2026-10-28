@@ -463,7 +463,7 @@ async def run(args):
     archive=read_prices(price_path,snapshot['collected_at']);price_history=archive;price_source={'reconstructed_intervals':0}
     if config.get('tail_price_history')=='energy_charts':
         spot_path=BASE/'state/training/spot_prices.json'
-        try:spot=spot_prices.load(spot_path) if args.from_snapshot else await asyncio.to_thread(spot_prices.refresh,spot_path,datetime.now(TZ).date())
+        try:spot=spot_prices.load(spot_path) if args.from_snapshot else await asyncio.to_thread(spot_prices.refresh,spot_path,datetime.now(TZ).date(),zone=settings.current().data['prices'].get('bidding_zone') or 'DE-LU')
         except Exception as exc:
             spot=spot_prices.load(spot_path);price_source['warning']='exchange price refresh failed ('+type(exc).__name__+')'
         if spot:
