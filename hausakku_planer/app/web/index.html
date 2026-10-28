@@ -306,8 +306,7 @@ async function settingsPage(){
   const m=MODES[cfg.mode]||MODES.observe;
   let h=`<h2>Betriebsstufe</h2><div class="card"><span class="chip ${cfg.mode==='observe'?'off':'serve'}">${esc(m[0])}</span> <span class="mut small">${esc(m[1])}<br>Ändern in der Add-on-Konfiguration (Einstellungen → Add-ons → Hausakku-Planer → Konfiguration).</span></div>
   <h2>Eigene Helfer</h2><div class="card">
-   <div class="field"><label for="hp">Präfix</label><input id="hp" value="${esc(s.helper_prefix)}" autocapitalize="off"><span></span><div class="fmsg mut" id="m-helper_prefix">Ab der Stufe „Plan veröffentlichen“ schreibt das Add-on nur in Helfer mit diesem Präfix: <code>${esc(Object.values(cfg.helpers).slice(0,5).join(', '))}</code>. Namen, die mit „hausakku“ beginnen, sind gesperrt.</div></div>
-   <div class="field"><label for="ad">Helfer übernehmen</label><input id="ad" type="checkbox" ${s.adopt_legacy_helpers?'checked':''}><span></span><div class="fmsg mut">Nur für den Umstieg von einem bestehenden Einzel-Planer: erlaubt das Präfix „hausakku“, damit das Add-on dessen Helfer und damit dessen Wächter und Dashboard weiterbenutzt. Den alten Planer vorher abschalten.</div></div>
+   <div class="field"><label for="hp">Präfix</label><input id="hp" value="${esc(s.helper_prefix)}" autocapitalize="off"><span></span><div class="fmsg mut" id="m-helper_prefix">Ab der Stufe „Plan veröffentlichen“ schreibt das Add-on nur in Helfer mit diesem Präfix: <code>${esc(Object.values(cfg.helpers).slice(0,5).join(', '))}</code>.</div></div>
   </div>
   <h2>Standort und Akku</h2><div class="card">
    <div class="field"><label for="lat">Breitengrad</label><input id="lat" inputmode="decimal" value="${esc(s.location.latitude??'')}" placeholder="z. B. 52.52"><span></span><div class="fmsg mut" id="m-location.latitude">Für die Strahlungsprognose (Open-Meteo). Auf 2 Nachkommastellen gerundet, also ca. 1 km genau.</div></div>
@@ -350,7 +349,7 @@ async function settingsPage(){
 }
 
 function collect(){
-  const data={helper_prefix:document.getElementById('hp').value,adopt_legacy_helpers:document.getElementById('ad').checked,entities:{},location:{latitude:document.getElementById('lat').value,longitude:document.getElementById('lon').value},
+  const data={helper_prefix:document.getElementById('hp').value,entities:{},location:{latitude:document.getElementById('lat').value,longitude:document.getElementById('lon').value},
               battery:{capacity_kwh:document.getElementById('cap').value,max_charge_kw:document.getElementById('chg').value,max_discharge_kw:document.getElementById('dis').value,nominal_voltage:document.getElementById('nv').value},
               prices:{provider:document.getElementById('pv').value,tibber_home:document.getElementById('ph').value,entity:document.getElementById('pe').value,
                       attribute:document.getElementById('pa').value,bidding_zone:document.getElementById('pz').value,markup_ct:document.getElementById('pm').value,vat_percent:document.getElementById('pt').value},

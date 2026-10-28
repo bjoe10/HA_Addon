@@ -51,6 +51,24 @@ class ServiceTests(AioHTTPTestCase):
         self.assertIn(s['mode'],('observe','publish','control'));self.assertTrue(s['missing']);self.assertIsNone(s['plan'])
         self.assertEqual(await (await self.client.get('/api/runs')).json(),[] if not (paths.STATE/'runs.jsonl').exists() else await (await self.client.get('/api/runs')).json())
 
+class AdoptedHelpersTests(AioHTTPTestCase):
+    async def get_application(self):
+        self.old=paths.DATA;paths.DATA=__import__('pathlib').Path(tempfile.mkdtemp())
+        settings.use({'helper_prefix':'hausakku','adopt_legacy_helpers':True});return service.make_app()
+    async def tearDownAsync(self):paths.DATA=self.old;settings.use(None)
+
+    async def test_saving_from_the_ui_keeps_an_adopted_prefix(self):
+        body={'helper_prefix':'hausakku','entities':{},'location':{},'battery':{},'prices':{'provider':'tibber'}}   # the UI does not send the flag
+        r=await self.client.put('/api/settings',json=body)
+        self.assertEqual(r.status,200)
+        saved=settings.Settings(json.loads((paths.DATA/'settings.json').read_text()))   # what the add-on loads next
+        self.assertEqual(saved.helpers()['charge'],'hausakku_netzladen');self.assertTrue(saved.data['adopt_legacy_helpers'])
+
+    async def test_without_adoption_the_reserved_prefix_is_refused(self):
+        settings.use({})
+        r=await self.client.put('/api/settings',json={'helper_prefix':'hausakku','entities':{},'location':{},'battery':{},'prices':{'provider':'tibber'}})
+        self.assertEqual(r.status,400)
+
 class AsyncRunTests(AioHTTPTestCase):
     async def get_application(self):
         settings.use({});return service.make_app()

@@ -173,7 +173,9 @@ async def blueprint(request):
                               'values':[{'label':l,'value':v} for l,v in views.blueprint_values(cfg)]})
 
 async def put_settings(request):
-    clean,errors=views.validate_settings(await request.json())
+    data=await request.json()
+    data.setdefault('adopt_legacy_helpers',settings.current().data.get('adopt_legacy_helpers',False))   # not editable in the UI
+    clean,errors=views.validate_settings(data)
     if errors:return web.json_response({'ok':False,'errors':errors},status=400)
     clean['planner']=settings.current().data.get('planner',{})   # developer overrides are not edited here
     settings.save(clean)
