@@ -4,7 +4,7 @@ Clean hours only, so PV and simultaneous flows cannot distort the ratio:
 - charge: charger >= 0.8 kWh AC, no PV, WR off, no battery output;
 - discharge: WR >= 0.3 kWh AC, no PV, charger off, no battery input.
 battery_in/out_sum integrate BMS current x real voltage (DC). The planner's energy
-unit is the battery-kWh sensor = remaining Ah x 51.2 V nominal, so both
+unit is the battery-kWh sensor = remaining Ah x nominal voltage (e.g. 51.2 V), so both
 efficiencies are converted to that scale with the mean BMS voltage of the used
 hours. Charging happens at a higher voltage (~54 V) than discharging (~52 V), so
 this conversion also captures the voltage-hysteresis loss: the nominal-scale
@@ -15,10 +15,10 @@ from statistics import mean
 
 # Roles of the hourly counters; the collector maps them to the configured entities.
 ENTITIES=('charger','battery_in','battery_out','pv','wr')
-NOMINAL_VOLTAGE=51.2
+NOMINAL_VOLTAGE=51.2   # default of calibrate(); the add-on passes the configured value (None: no voltage scaling)
 
 
-def calibrate(energy,voltage,min_charge_hours=10,min_discharge_hours=20):
+def calibrate(energy,voltage,min_charge_hours=10,min_discharge_hours=20,nominal_voltage=NOMINAL_VOLTAGE):
     """energy: {key in ENTITIES: {hour start: kWh}}, voltage: {hour start: mean V}."""
     hours=set.intersection(*(set(energy.get(k,{})) for k in ENTITIES)) if all(energy.get(k) for k in ENTITIES) else set()
     rows={t:{k:energy[k][t] for k in ENTITIES} for t in hours}
@@ -28,8 +28,9 @@ def calibrate(energy,voltage,min_charge_hours=10,min_discharge_hours=20):
     if not charge or not discharge:
         result['reason']='keine sauberen Lade- oder Entladestunden';return result
     def scale(stamps):
-        values=[voltage[t] for t in stamps if t in voltage and math.isfinite(voltage[t]) and 40<voltage[t]<60]
-        return (mean(values) if values else NOMINAL_VOLTAGE)/NOMINAL_VOLTAGE
+        if not nominal_voltage:return 1.   # nominal voltage unknown: the battery-kWh sensor is taken to be on the measured scale
+        values=[voltage[t] for t in stamps if t in voltage and math.isfinite(voltage[t]) and .5*nominal_voltage<voltage[t]<1.2*nominal_voltage]
+        return (mean(values) if values else nominal_voltage)/nominal_voltage
     real_charge=sum(rows[t]['battery_in'] for t in charge)/sum(rows[t]['charger'] for t in charge)
     out=sum(rows[t]['battery_out'] for t in discharge)
     real_discharge=sum(rows[t]['wr'] for t in discharge)/out if out>0 else 0.

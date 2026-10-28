@@ -90,7 +90,7 @@ class ValidationTests(unittest.TestCase):
 class BatterySettingsTests(unittest.TestCase):
     def test_power_and_floor_validated_and_mapped(self):
         clean,err=views.validate_settings({'battery':{'capacity_kwh':'15,85','max_charge_kw':'1,13','max_discharge_kw':'2'},'tariff':{'price_floor_eur_kwh':'0.173'}})
-        self.assertEqual(err,{});self.assertEqual(clean['battery'],{'capacity_kwh':15.85,'max_charge_kw':1.13,'max_discharge_kw':2.})
+        self.assertEqual(err,{});self.assertEqual(clean['battery'],{'capacity_kwh':15.85,'max_charge_kw':1.13,'max_discharge_kw':2.,'nominal_voltage':None})
         cfg=settings.Settings(clean).planner_config()
         self.assertEqual((cfg['max_charge_kw'],cfg['max_discharge_kw'],cfg['tail_price_floor_eur_kwh']),(1.13,2.,.173))
         self.assertTrue(cfg['tail_end_value_from_floor'])
@@ -174,5 +174,16 @@ class IngressTests(AioHTTPTestCase):
         os.environ['SUPERVISOR_TOKEN']='x'
         try:self.assertEqual((await self.client.get('/api/status')).status,200)   # test client connects from 127.0.0.1
         finally:os.environ.pop('SUPERVISOR_TOKEN')
+
+class BlueprintValuesTests(unittest.TestCase):
+    def test_values_follow_the_prefix_and_the_entities(self):
+        cfg=settings.Settings({'helper_prefix':'solar','entities':{'charger_switch':'switch.c','inverter_switch':'switch.i','battery_soc':'sensor.s'}})
+        values=dict(views.blueprint_values(cfg))
+        self.assertEqual(values['Schalter Netzladegerät'],'switch.c');self.assertEqual(values['Akku-Ladestand in %'],'sensor.s')
+        self.assertEqual(values['Zeitplan Netzladen'],'schedule.solar_netzladen');self.assertEqual(values['Freigabe'],'input_boolean.solar_planer_freigabe')
+        self.assertEqual(values['Schaltsperre (Timer)'],'timer.solar_schaltsperre');self.assertEqual(values['Übernahme-Marker'],'input_boolean.solar_regler_uebernommen')
+        self.assertIsNone(values['Gesamtspannung (optional)'])
+    def test_import_link_points_at_the_blueprint(self):
+        self.assertIn('blueprint_import',views.BLUEPRINT_IMPORT);self.assertIn('steuerung.yaml',views.BLUEPRINT_IMPORT)
 
 if __name__=='__main__':unittest.main()

@@ -85,7 +85,7 @@ class FakeTransport:
     """Records calls and answers like the HA REST/WebSocket API."""
     def __init__(self):
         self.rest_calls=[];self.commands=[];self.states={'sensor.a':{'entity_id':'sensor.a','state':'5','attributes':{}}}
-        self.schedules=[];self.helpers={'input_datetime':[],'input_text':[],'input_number':[]}
+        self.schedules=[];self.helpers={'input_datetime':[],'input_text':[],'input_number':[],'input_boolean':[],'timer':[]}
     async def rest(self,method,path,json_body=None,params=None):
         self.rest_calls.append((method,path,json_body,params))
         if path.startswith('/states/'):return self.states.get(path.split('/states/')[1])
@@ -104,7 +104,7 @@ class FakeTransport:
             return {}
         if t=='energy/get_prefs':return {'device_consumption':[]}
         if t.endswith('/list'):return list(self.helpers[t.split('/')[0]])
-        if t.endswith('/create'):self.helpers[t.split('/')[0]].append({'id':p['name']});return {}
+        if t.endswith('/create'):self.helpers[t.split('/')[0]].append({'id':p['name'].lower().replace(' ','_')});return {}
 
 def run(coro):return asyncio.run(coro)
 
@@ -144,7 +144,8 @@ class NativeClientTests(unittest.TestCase):
         self.assertEqual(self.t.commands[1]['schedule_id'],'hap_netzladen');self.assertIn('name',self.t.commands[1])
 
     def test_ensure_own_helpers_creates_once(self):
-        self.assertEqual(len(run(self.ha.ensure_own_helpers())),3)
+        created=run(self.ha.ensure_own_helpers());self.assertEqual(len(created),6)
+        self.assertIn('input_boolean.hap_planer_freigabe',created);self.assertIn('timer.hap_schaltsperre',created)
         self.assertEqual(run(self.ha.ensure_own_helpers()),[])
 
     def test_observe_mode_refuses_every_write_but_allows_reads(self):

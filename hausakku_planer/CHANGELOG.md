@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+- **Blueprint „Hausakku-Planer Steuerung“** (`blueprints/automation/hausakku_planer/steuerung.yaml`): führt den Plan sicher aus, ohne eigenen Wächter-Sensor. Freigabe, Ablaufdatum und Datumsbindung, bestätigtes Aus mit Totzeit, Schaltsperre, Reserve mit Hysterese, Ladeziel, optionaler Batterie-Schutz (Spannung, Temperaturen, BMS-Herzschlag, Lade- und Entlade-Freigabe, externe Sperre). Mit 56 Simulationstests und gegen die echte Home-Assistant-Template-Engine geprüft.
+- Das Add-on legt ab „Plan veröffentlichen“ auch die Freigabe (immer aus), den Übernahme-Marker und die Schaltsperre an; die Einstellungsseite zeigt, welche Werte im Blueprint zu wählen sind, samt Import-Link.
+- Nennspannung des Akkus einstellbar (nur für die Wirkungsgrad-Messung); ohne Angabe keine Spannungsumrechnung.
+- Die Betriebsstufe `control` entfällt: Das Add-on schaltet nie selbst, das übernimmt der Blueprint.
+- Icon und Logo; ausführliche Dokumentation (Einrichtung, Sicherungen, Fehlersuche), README im Repository.
+
 ## 0.5.6
 - Wochenbilanz-Fehlertext nennt Umfang des Preisarchivs und Kalibrierung.
 

@@ -15,7 +15,7 @@ import settings
 SUPERVISOR_URL='http://supervisor/core'
 def own():
     """Object ids of the helpers the add-on owns (from the helper prefix). Created on first publish if missing."""
-    return {v for k,v in settings.current().helpers().items() if k!='report'}
+    return {v for k,v in settings.current().helpers().items() if k in ('charge','serve','expiry','status','target')}
 READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services'}
 
 class WritesDisabled(RuntimeError):
@@ -190,16 +190,20 @@ class HA:
         """Create the planner's own input helpers if missing (publish stage and above)."""
         _require_writes(self.mode)
         names=settings.current().helpers()
-        spec={
-         'input_datetime':{'name':names['expiry'],'has_date':True,'has_time':True},
-         'input_text':{'name':names['status'],'max':255},
-         'input_number':{'name':names['target'],'min':0,'max':100,'step':1,'mode':'box','unit_of_measurement':'%'},
-        }
-        created=[]
-        for kind,fields in spec.items():
-            existing=await self.t.command(type=kind+'/list') or []
-            if not any(i.get('id')==fields['name'] for i in existing):
-                await self.t.command(type=kind+'/create',**fields);created.append(kind+'.'+fields['name'])
+        # (kind, object id, fields). The display name is the id in words, so Home Assistant derives the same id from it.
+        spec=[
+         ('input_datetime',names['expiry'],{'has_date':True,'has_time':True}),
+         ('input_text',names['status'],{'max':255}),
+         ('input_number',names['target'],{'min':0,'max':100,'step':1,'mode':'box','unit_of_measurement':'%'}),
+         ('input_boolean',names['permission'],{}),     # release switch of the control blueprint: created OFF, never switched on here
+         ('input_boolean',names['owner'],{}),
+         ('timer',names['timer'],{'duration':'0:05:00','restore':True}),
+        ]
+        created=[];listed={}
+        for kind,object_id,fields in spec:
+            if kind not in listed:listed[kind]=await self.t.command(type=kind+'/list') or []
+            if not any(i.get('id')==object_id for i in listed[kind]):
+                await self.t.command(type=kind+'/create',name=object_id.replace('_',' ').capitalize(),**fields);created.append(kind+'.'+object_id)
         return created
 
 @asynccontextmanager

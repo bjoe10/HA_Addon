@@ -1,7 +1,7 @@
 configuration:
   operating_mode:
     name: Betriebsstufe
-    description: "observe = nur rechnen und anzeigen (schreibt nichts in HA). publish = Plan in eigene Helfer und Zeitpläne schreiben. control = zusätzlich Steuer-Automation (noch nicht verfügbar)."
+    description: "observe = nur rechnen und anzeigen (schreibt nichts in HA). publish = Plan zusätzlich in eigene Helfer und Zeitpläne schreiben. Geschaltet wird nur von der Automation aus dem Blueprint."
   log_level:
     name: Log-Stufe
     description: Detailgrad der Protokollierung im Add-on-Log.

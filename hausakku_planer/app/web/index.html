@@ -315,6 +315,7 @@ async function settingsPage(){
    <div class="field"><label for="cap">Akku-Kapazität (kWh)</label><input id="cap" inputmode="decimal" value="${esc(s.battery.capacity_kwh??'')}" placeholder="nutzbare Kapazität"><span></span><div class="fmsg" id="m-battery.capacity_kwh"></div></div>
    <div class="field"><label for="chg">Ladeleistung Netzladegerät (kW, AC)</label><input id="chg" inputmode="decimal" value="${esc(s.battery.max_charge_kw??'')}" placeholder="z. B. 1,1"><span></span><div class="fmsg" id="m-battery.max_charge_kw"></div></div>
    <div class="field"><label for="dis">Maximale WR-Leistung (kW, AC)</label><input id="dis" inputmode="decimal" value="${esc(s.battery.max_discharge_kw??'')}" placeholder="z. B. 2"><span></span><div class="fmsg" id="m-battery.max_discharge_kw"></div></div>
+   <div class="field"><label for="nv">Nennspannung Akku (V)</label><input id="nv" inputmode="decimal" value="${esc(s.battery.nominal_voltage??'')}" placeholder="z. B. 51,2"><span></span><div class="fmsg mut" id="m-battery.nominal_voltage">Optional. Nur für die Wirkungsgrad-Messung: Spannung, mit der dein kWh-Sensor aus Ah umgerechnet wird. Leer lassen, wenn der Sensor SOC × Kapazität liefert.</div></div>
    <div class="field"><label for="flo">Preisuntergrenze (ct/kWh)</label><input id="flo" inputmode="decimal" value="${s.tariff.price_floor_eur_kwh==null?'':esc(String(+(s.tariff.price_floor_eur_kwh*100).toFixed(2)))}" placeholder="optional"><span></span><div class="fmsg mut" id="m-tariff.price_floor_eur_kwh">Feste Preisbestandteile (Netzentgelt, Steuern, Abgaben), unter die der Bezugspreis nie fällt. Begrenzt die Preisprognose für kommende Tage.</div></div></div>`;
   const pr=s.prices||{};
   h+=`<h2>Strompreis</h2><div class="card">
@@ -338,13 +339,19 @@ async function settingsPage(){
         ${r.list||r.role==='ev_window_helper'||need==='control'&&false?'<span></span>':`<button class="btn sec" data-check="${r.role}">Prüfen</button>`}<div class="fmsg" id="m-entities.${r.role}"></div></div>`});
     h+='</div>';
   });
+  try{const bp=await api('blueprint');
+    h+=`<h2>Steuerung (Blueprint)</h2><div class="card"><div class="small">Das Add-on plant und schreibt den Plan, schaltet aber selbst nichts. Das übernimmt eine Automation aus dem Blueprint „Hausakku-Planer Steuerung“. Die Freigabe bleibt zunächst aus.</div>
+     <ol class="small"><li><a href="${esc(bp.import_url)}" target="_blank" rel="noopener">Blueprint importieren</a> (oder die Datei <a href="${esc(bp.source_url)}" target="_blank" rel="noopener">aus GitHub</a> übernehmen).</li>
+     <li>In Home Assistant: Einstellungen → Automationen → Neue Automation → Blueprint „Hausakku-Planer Steuerung“. Dort diese Werte wählen:</li></ol>
+     <table class="small">${bp.values.map(v=>`<tr><td>${esc(v.label)}</td><td>${v.value?`<code>${esc(v.value)}</code>`:'<span class="mut">nicht eingerichtet</span>'}</td></tr>`).join('')}</table>
+     <div class="small mut" style="margin-top:8px">Die Hilfsobjekte (Freigabe, Marker, Schaltsperre) legt das Add-on ab der Stufe „Plan veröffentlichen“ selbst an. Weitere Batterie-Schutzwerte im Blueprint sind optional.</div></div>`}catch(e){}
   h+=`<div style="display:flex;gap:12px;align-items:center;margin-top:16px"><button class="btn" id="save">Speichern</button><span id="saved" class="small"></span></div>`;
   return h;
 }
 
 function collect(){
   const data={helper_prefix:document.getElementById('hp').value,adopt_legacy_helpers:document.getElementById('ad').checked,entities:{},location:{latitude:document.getElementById('lat').value,longitude:document.getElementById('lon').value},
-              battery:{capacity_kwh:document.getElementById('cap').value,max_charge_kw:document.getElementById('chg').value,max_discharge_kw:document.getElementById('dis').value},
+              battery:{capacity_kwh:document.getElementById('cap').value,max_charge_kw:document.getElementById('chg').value,max_discharge_kw:document.getElementById('dis').value,nominal_voltage:document.getElementById('nv').value},
               prices:{provider:document.getElementById('pv').value,tibber_home:document.getElementById('ph').value,entity:document.getElementById('pe').value,
                       attribute:document.getElementById('pa').value,bidding_zone:document.getElementById('pz').value,markup_ct:document.getElementById('pm').value,vat_percent:document.getElementById('pt').value},
               tariff:{price_floor_eur_kwh:(()=>{const v=document.getElementById('flo').value.trim().replace(',','.');return v===''?'':String(+v/100)})()}};

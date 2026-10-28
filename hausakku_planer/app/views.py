@@ -1,5 +1,6 @@
 """Pure functions behind the web UI: plan view, entity suggestions, settings validation."""
 import re
+from urllib.parse import quote
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import settings
@@ -135,6 +136,21 @@ def suggest(role,states,query='',limit=12):
     scored.sort(key=lambda x:(x[0],x[1]))
     return [x[2] for x in scored[:limit]]
 
+# --- control blueprint -------------------------------------------------------------------
+BLUEPRINT_URL='https://github.com/bjoe10/HA_Addon/blob/main/blueprints/automation/hausakku_planer/steuerung.yaml'
+BLUEPRINT_IMPORT='https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url='+quote(BLUEPRINT_URL,safe='')
+
+def blueprint_values(cfg):
+    """What to pick in the control blueprint's form, from the settings: (label of the blueprint field, value or None)."""
+    h=cfg.helpers();e=lambda role:cfg.entity(role,required=False)
+    return [('Schalter Netzladegerät',e('charger_switch')),('Schalter Wechselrichter',e('inverter_switch')),
+            ('Akku-Ladestand in %',e('battery_soc')),
+            ('Zeitplan Netzladen','schedule.'+h['charge']),('Zeitplan Versorgen','schedule.'+h['serve']),
+            ('Plan gültig bis','input_datetime.'+h['expiry']),('Ladeziel in %','input_number.'+h['target']),
+            ('Freigabe','input_boolean.'+h['permission']),('Übernahme-Marker','input_boolean.'+h['owner']),
+            ('Schaltsperre (Timer)','timer.'+h['timer']),
+            ('Gesamtspannung (optional)',e('battery_voltage'))]
+
 # --- settings validation ----------------------------------------------------------------
 def validate_prices(raw,errors):
     out={'provider':raw.get('provider') or 'tibber','tibber_home':(raw.get('tibber_home') or '').strip() or None,
@@ -194,7 +210,8 @@ def validate_settings(data):
     battery=data.get('battery') or {}
     for key,lo,hi,msg in (('capacity_kwh',1,100,'Kapazität zwischen 1 und 100 kWh erwartet'),
                           ('max_charge_kw',.1,50,'Leistung zwischen 0,1 und 50 kW erwartet'),
-                          ('max_discharge_kw',.1,50,'Leistung zwischen 0,1 und 50 kW erwartet')):
+                          ('max_discharge_kw',.1,50,'Leistung zwischen 0,1 und 50 kW erwartet'),
+                          ('nominal_voltage',10,1000,'Spannung zwischen 10 und 1000 V erwartet')):
         raw=battery.get(key)
         if raw in (None,''):clean['battery'][key]=None;continue
         try:

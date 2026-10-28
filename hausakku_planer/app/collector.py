@@ -184,7 +184,8 @@ async def collect():
                     start_time=(daystart-timedelta(days=40)).isoformat(),end_time=now.isoformat(),period='hour',statistic_types=['mean'],limit=1000)
                 normalized=normalize_statistics(counters)
                 voltage={float(r['start'])/1000:float(r['mean']) for e in body(volts)['entities'] for r in e.get('statistics',[]) if r.get('mean') is not None}
-                calibration=battery_calibration.calibrate({k:normalized.get(e,{}) for k,e in cal_map.items()},voltage)
+                calibration=battery_calibration.calibrate({k:normalized.get(e,{}) for k,e in cal_map.items()},voltage,
+                    nominal_voltage=cfg.data['battery'].get('nominal_voltage'))
         except Exception as error:
             calibration={'valid':False,'reason':'Abruf fehlgeschlagen ('+type(error).__name__+')'}
         devices=None;devices_warning=None

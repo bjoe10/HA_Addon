@@ -167,6 +167,11 @@ async def get_settings(request):
                               'helpers':cfg.helpers(),
                               'missing':cfg.missing('plan'),'missing_control':cfg.missing('control'),'mode':settings.operating_mode()})
 
+async def blueprint(request):
+    cfg=settings.current()
+    return web.json_response({'import_url':views.BLUEPRINT_IMPORT,'source_url':views.BLUEPRINT_URL,
+                              'values':[{'label':l,'value':v} for l,v in views.blueprint_values(cfg)]})
+
 async def put_settings(request):
     clean,errors=views.validate_settings(await request.json())
     if errors:return web.json_response({'ok':False,'errors':errors},status=400)
@@ -245,6 +250,7 @@ def make_app():
     app=web.Application(middlewares=[ingress_only]);app['scheduler']=Scheduler()
     app.router.add_get('/',index);app.router.add_get('/api/status',status)
     app.router.add_get('/api/runs',runs);app.router.add_post('/api/run',run_now);app.router.add_get('/api/plan',plan)
+    app.router.add_get('/api/blueprint',blueprint)
     app.router.add_get('/api/settings',get_settings);app.router.add_put('/api/settings',put_settings)
     app.router.add_get('/api/entities',entities);app.router.add_get('/api/check',check);app.router.add_get('/api/prices/check',check_prices)
     async def start(app):app['task']=asyncio.create_task(app['scheduler'].loop())

@@ -1,0 +1,653 @@
+blueprint:
+  name: Hausakku-Planer Steuerung
+  description: >-
+    Führt den Plan des Hausakku-Planer-Add-ons aus: schaltet das Netzladegerät
+    und den Wechselrichter eines Heimspeichers nach den vom Add-on veröffentlichten
+    Zeitplänen. Das Add-on plant nur, dieser Blueprint schaltet.
+
+
+    **Sicherheit:** Nichts wird geschaltet, solange der Freigabe-Schalter aus ist.
+    Ein Plan wirkt nur bis zu seinem Ablaufdatum und nur am eingetragenen Tag.
+    Netzladegerät und Wechselrichter laufen nie gleichzeitig: Vor jedem Einschalten
+    wird das Gegenstück bestätigt ausgeschaltet, 2 Sekunden gewartet und alles
+    erneut geprüft. Schutzstopps und Ladeende schalten sofort ab, ein erneutes
+    Einschalten wartet die Schaltsperre ab. Unbekannte oder unplausible Werte
+    führen zum Abschalten beider Geräte.
+
+
+    Ohne Batterie-Sensoren gilt der Basisschutz (Plan, Reserve, Ladeziel). Mit
+    Spannungs-, Temperatur- und BMS-Sensoren (optional, unten) kommt der
+    Geräteschutz dazu. **Das ersetzt kein BMS und keine elektrische Absicherung.**
+  domain: automation
+  source_url: https://github.com/bjoe10/HA_Addon/blob/main/blueprints/automation/hausakku_planer/steuerung.yaml
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    devices:
+      name: Geräte und Plan
+      icon: mdi:battery-charging
+      input:
+        charger_switch:
+          name: Schalter Netzladegerät
+          selector:
+            entity:
+              domain: switch
+        inverter_switch:
+          name: Schalter Wechselrichter
+          selector:
+            entity:
+              domain: switch
+        soc_sensor:
+          name: Akku-Ladestand in %
+          selector:
+            entity:
+              domain: sensor
+        charge_schedule:
+          name: Zeitplan Netzladen (vom Add-on)
+          selector:
+            entity:
+              domain: schedule
+        serve_schedule:
+          name: Zeitplan Versorgen (vom Add-on)
+          selector:
+            entity:
+              domain: schedule
+        plan_valid_until:
+          name: Plan gültig bis (vom Add-on)
+          selector:
+            entity:
+              domain: input_datetime
+        target_soc:
+          name: Ladeziel in % (vom Add-on)
+          selector:
+            entity:
+              domain: input_number
+        release_switch:
+          name: Freigabe
+          description: Solange aus, wird nichts geschaltet.
+          selector:
+            entity:
+              domain: input_boolean
+        owner_marker:
+          name: Übernahme-Marker
+          description: Merkt sich, dass diese Steuerung die Geräte übernommen hat, damit sie beim Ausschalten der Freigabe sicher freigegeben werden.
+          selector:
+            entity:
+              domain: input_boolean
+        cooldown_timer:
+          name: Schaltsperre (Timer)
+          selector:
+            entity:
+              domain: timer
+    limits:
+      name: Grenzen
+      icon: mdi:tune
+      input:
+        reserve_stop_percent:
+          name: Reserve, unter der nicht mehr entladen wird (%)
+          default: 10
+          selector:
+            number:
+              min: 0
+              max: 50
+              unit_of_measurement: "%"
+              mode: box
+        reserve_resume_percent:
+          name: Wieder entladen ab (%)
+          description: Muss über der Reserve liegen (Hysterese gegen Pendeln).
+          default: 12
+          selector:
+            number:
+              min: 1
+              max: 60
+              unit_of_measurement: "%"
+              mode: box
+        grid_charge_max_percent:
+          name: Obergrenze für Netzladen (%)
+          default: 90
+          selector:
+            number:
+              min: 10
+              max: 100
+              unit_of_measurement: "%"
+              mode: box
+        cooldown_minutes:
+          name: Schaltsperre (Minuten)
+          description: Mindestabstand zwischen zwei Schaltungen aus wirtschaftlichen Gründen. Schutzstopps ignorieren sie.
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 60
+              unit_of_measurement: min
+              mode: box
+    battery_protection:
+      name: Batterie-Schutz (optional)
+      icon: mdi:shield-check
+      collapsed: true
+      input:
+        battery_voltage:
+          name: Gesamtspannung
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+        voltage_stop:
+          name: Entladen stoppen bei (V) oder weniger
+          default: 48.9
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 0.1
+              unit_of_measurement: V
+              mode: box
+        voltage_resume:
+          name: Wieder entladen ab (V)
+          default: 49.2
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 0.1
+              unit_of_measurement: V
+              mode: box
+        voltage_charge_max:
+          name: Netzladen nur unter (V)
+          default: 56
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 0.1
+              unit_of_measurement: V
+              mode: box
+        voltage_valid_min:
+          name: Plausible Spannung, Minimum (V)
+          description: Werte außerhalb gelten als Messfehler und schalten ab. Standard für 16S LiFePO4 (51,2 V).
+          default: 40
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 0.1
+              unit_of_measurement: V
+              mode: box
+        voltage_valid_max:
+          name: Plausible Spannung, Maximum (V)
+          default: 60
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 0.1
+              unit_of_measurement: V
+              mode: box
+        temperature_sensors:
+          name: Temperatursensoren
+          default: []
+          selector:
+            entity:
+              domain: sensor
+              multiple: true
+        temp_discharge_min:
+          name: Entladen erlaubt ab (°C)
+          default: 0
+          selector:
+            number:
+              min: -40
+              max: 60
+              unit_of_measurement: °C
+              mode: box
+        temp_discharge_max:
+          name: Entladen erlaubt bis (°C)
+          default: 45
+          selector:
+            number:
+              min: -40
+              max: 100
+              unit_of_measurement: °C
+              mode: box
+        temp_charge_min:
+          name: Netzladen erlaubt ab (°C)
+          default: 5
+          selector:
+            number:
+              min: -40
+              max: 60
+              unit_of_measurement: °C
+              mode: box
+        temp_charge_max:
+          name: Netzladen erlaubt bis (°C)
+          default: 40
+          selector:
+            number:
+              min: -40
+              max: 100
+              unit_of_measurement: °C
+              mode: box
+        bms_online:
+          name: BMS online (Binärsensor)
+          default: ""
+          selector:
+            entity:
+              domain: binary_sensor
+        bms_heartbeat:
+          name: BMS-Herzschlag (Sensor, der sich laufend ändert)
+          description: Muss mindestens alle 2 Minuten neue Werte liefern, sonst wird abgeschaltet (z. B. Laufzeit-Zähler).
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+        uptime_sensor:
+          name: Betriebszeit von Home Assistant (Sensor Uptime)
+          description: Verhindert, dass ein nach dem Neustart wiederhergestellter Herzschlag als frisch gilt.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+        charge_mos:
+          name: Lade-Freigabe des BMS (Sensor)
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+        charge_mos_on_states:
+          name: Zustände, in denen Laden erlaubt ist
+          description: Kommagetrennt, Groß-/Kleinschreibung egal.
+          default: "on"
+          selector:
+            text:
+        charge_mos_neutral_states:
+          name: Weitere normale Zustände (Laden gesperrt, aber kein Fehler)
+          description: Etwa wenn der Akku voll ist. Jeder andere Zustand schaltet ab.
+          default: "off, overcharge protection, battery full"
+          selector:
+            text:
+        discharge_mos:
+          name: Entlade-Freigabe des BMS (Sensor)
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+        discharge_mos_on_states:
+          name: Zustände, in denen Entladen erlaubt ist
+          default: "on"
+          selector:
+            text:
+        discharge_mos_neutral_states:
+          name: Weitere normale Zustände (Entladen gesperrt, aber kein Fehler)
+          default: "off"
+          selector:
+            text:
+        discharge_block:
+          name: Externe Entladesperre (Schalter/Binärsensor, an = gesperrt)
+          description: Zum Beispiel ein Batterie-leer-Merker. Netzladen bleibt trotzdem möglich.
+          default: ""
+          selector:
+            entity:
+              domain:
+                - input_boolean
+                - binary_sensor
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  charger: !input charger_switch
+  inverter: !input inverter_switch
+  soc_entity: !input soc_sensor
+  charge_schedule: !input charge_schedule
+  serve_schedule: !input serve_schedule
+  expiry_entity: !input plan_valid_until
+  target_entity: !input target_soc
+  release: !input release_switch
+  timer_entity: !input cooldown_timer
+  reserve_stop: !input reserve_stop_percent
+  reserve_resume: !input reserve_resume_percent
+  grid_max: !input grid_charge_max_percent
+  cooldown_minutes: !input cooldown_minutes
+  voltage_entity: !input battery_voltage
+  voltage_stop: !input voltage_stop
+  voltage_resume: !input voltage_resume
+  voltage_charge_max: !input voltage_charge_max
+  voltage_valid_min: !input voltage_valid_min
+  voltage_valid_max: !input voltage_valid_max
+  temp_entities: !input temperature_sensors
+  temp_discharge_min: !input temp_discharge_min
+  temp_discharge_max: !input temp_discharge_max
+  temp_charge_min: !input temp_charge_min
+  temp_charge_max: !input temp_charge_max
+  online_entity: !input bms_online
+  hb_entity: !input bms_heartbeat
+  uptime_entity: !input uptime_sensor
+  cmos_entity: !input charge_mos
+  cmos_on_states: !input charge_mos_on_states
+  cmos_neutral_states: !input charge_mos_neutral_states
+  dmos_entity: !input discharge_mos
+  dmos_on_states: !input discharge_mos_on_states
+  dmos_neutral_states: !input discharge_mos_neutral_states
+  block_entity: !input discharge_block
+
+triggers:
+  - trigger: state
+    entity_id:
+      - !input release_switch
+      - !input charge_schedule
+      - !input serve_schedule
+    id: aenderung
+  - trigger: numeric_state
+    entity_id: !input soc_sensor
+    below: !input reserve_stop_percent
+    id: reserve
+  - trigger: numeric_state
+    entity_id: !input soc_sensor
+    above: !input target_soc
+    id: ziel
+  - trigger: numeric_state
+    entity_id: !input soc_sensor
+    above: !input grid_charge_max_percent
+    id: obergrenze
+  - trigger: state
+    entity_id: !input cooldown_timer
+    from: active
+    to: idle
+    id: schaltsperre_ende
+  - trigger: time_pattern
+    minutes: /1
+    seconds: 0
+    id: watchdog
+  - trigger: homeassistant
+    event: start
+    id: start
+
+conditions: []
+
+actions:
+  # The control mode. Computed again after the dead time, so a change in between prevents the start.
+  - variables: &calc
+      mode: |-
+        {%- set now_ts = as_timestamp(now()) -%}
+        {%- set expiry = state_attr(expiry_entity, 'timestamp') | float(0) -%}
+        {%- set plan_valid = expiry > now_ts -%}
+        {%- set today = now().date().isoformat() -%}
+        {%- set c_on = is_state(charge_schedule, 'on') -%}
+        {%- set s_on = is_state(serve_schedule, 'on') -%}
+        {%- if not plan_valid -%}{%- set plan = 'abgelaufen' -%}
+        {%- elif c_on and s_on -%}{%- set plan = 'fehler' -%}
+        {%- elif c_on and state_attr(charge_schedule, 'plan_date') == today -%}{%- set plan = 'netzladen' -%}
+        {%- elif s_on and state_attr(serve_schedule, 'plan_date') == today -%}{%- set plan = 'versorgen' -%}
+        {%- elif c_on or s_on -%}{%- set plan = 'fehler' -%}
+        {%- else -%}{%- set plan = 'aufheben' -%}{%- endif -%}
+        {%- set soc_raw = states(soc_entity) -%}
+        {%- set soc = soc_raw | float(-999) -%}
+        {%- set chg = states(charger) -%}
+        {%- set inv = states(inverter) -%}
+        {%- set bad = namespace(v=false) -%}
+        {%- if not is_number(soc_raw) or not 0 <= soc <= 100 -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- if chg not in ['on', 'off'] or inv not in ['on', 'off'] or (chg == 'on' and inv == 'on') -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- set has_v = voltage_entity != '' -%}
+        {%- set volt = states(voltage_entity) | float(-999) if has_v else 0 -%}
+        {%- if has_v and (not is_number(states(voltage_entity)) or not voltage_valid_min <= volt <= voltage_valid_max) -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- set temps = temp_entities if temp_entities is not string else [] -%}
+        {%- set tv = namespace(low=999, high=-999) -%}
+        {%- for t in temps -%}
+          {%- set x = states(t) -%}
+          {%- if is_number(x) -%}
+            {%- if x | float < tv.low -%}{%- set tv.low = x | float -%}{%- endif -%}
+            {%- if x | float > tv.high -%}{%- set tv.high = x | float -%}{%- endif -%}
+          {%- else -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- endfor -%}
+        {%- if temps and (tv.low < temp_discharge_min or tv.high > temp_discharge_max) -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- if online_entity != '' and not is_state(online_entity, 'on') -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- if hb_entity != '' -%}
+          {%- if not has_value(hb_entity) -%}{%- set bad.v = true -%}
+          {%- else -%}
+            {%- set hb_updated = as_timestamp((expand(hb_entity) | first).last_updated, 0) -%}
+            {%- if now_ts - hb_updated > 120 or now_ts - hb_updated < 0 -%}{%- set bad.v = true -%}{%- endif -%}
+            {%- if uptime_entity != '' -%}
+              {%- set boot = as_timestamp(states(uptime_entity), 0) -%}
+              {%- if not (boot > 0 and hb_updated > boot) -%}{%- set bad.v = true -%}{%- endif -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endif -%}
+        {%- set c_on_list = cmos_on_states.split(',') | map('trim') | map('lower') | list -%}
+        {%- set c_ok_list = c_on_list + cmos_neutral_states.split(',') | map('trim') | map('lower') | list -%}
+        {%- set d_on_list = dmos_on_states.split(',') | map('trim') | map('lower') | list -%}
+        {%- set d_ok_list = d_on_list + dmos_neutral_states.split(',') | map('trim') | map('lower') | list -%}
+        {%- set cm = states(cmos_entity) | lower if cmos_entity != '' else 'on' -%}
+        {%- set dm = states(dmos_entity) | lower if dmos_entity != '' else 'on' -%}
+        {%- if cmos_entity != '' and cm not in c_ok_list -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- if dmos_entity != '' and dm not in d_ok_list -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- set blk = states(block_entity) if block_entity != '' else 'off' -%}
+        {%- if blk not in ['on', 'off'] -%}{%- set bad.v = true -%}{%- endif -%}
+        {%- set target = [states(target_entity) | float(0), grid_max | float(90)] | min -%}
+        {%- if not is_state(release, 'on') -%}manuell
+        {%- elif bad.v or plan == 'fehler' -%}sicher_aus
+        {%- elif plan_valid and plan == 'netzladen' -%}
+          {%- if (cmos_entity == '' or cm in c_on_list)
+               and (not temps or (tv.low >= temp_charge_min and tv.high <= temp_charge_max))
+               and (not has_v or volt < voltage_charge_max)
+               and target > 0 and soc < target
+               and (chg == 'on' or soc <= target - 2) -%}netzladen
+          {%- else -%}ladepause{%- endif -%}
+        {%- elif blk == 'on' or soc <= reserve_stop or (inv == 'off' and soc < reserve_resume)
+               or (has_v and (volt <= voltage_stop or (inv == 'off' and volt < voltage_resume)))
+               or (dmos_entity != '' and dm not in d_on_list) -%}reserve
+        {%- elif plan_valid and plan == 'aufheben' -%}aufheben
+        {%- elif plan_valid and plan == 'versorgen' -%}versorgen
+        {%- else -%}plan_fallback
+        {%- endif -%}
+
+  # Release off: only devices this control had taken over are released safely; manual devices stay untouched.
+  - if:
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: !input release_switch
+            state: "on"
+    then:
+      - if:
+          - condition: state
+            entity_id: !input owner_marker
+            state: "on"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: !input charger_switch
+            continue_on_error: true
+          - action: switch.turn_off
+            target:
+              entity_id: !input inverter_switch
+            continue_on_error: true
+          - if:
+              - condition: state
+                entity_id: !input charger_switch
+                state: "off"
+              - condition: state
+                entity_id: !input inverter_switch
+                state: "off"
+            then:
+              - action: input_boolean.turn_off
+                target:
+                  entity_id: !input owner_marker
+      - stop: Freigabe aus. Nur zuvor übernommene Geräte werden sicher freigegeben.
+
+  - condition: state
+    entity_id: !input release_switch
+    state: "on"
+  - action: input_boolean.turn_on
+    target:
+      entity_id: !input owner_marker
+
+  # Protective stop, reserve, charge target or invalid data: both devices off, regardless of the cooldown.
+  - if:
+      - "{{ mode not in ['netzladen', 'versorgen', 'plan_fallback', 'aufheben'] }}"
+    then:
+      - if:
+          - condition: or
+            conditions:
+              - condition: not
+                conditions:
+                  - condition: state
+                    entity_id: !input charger_switch
+                    state: "off"
+              - condition: not
+                conditions:
+                  - condition: state
+                    entity_id: !input inverter_switch
+                    state: "off"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: !input charger_switch
+            continue_on_error: true
+          - action: switch.turn_off
+            target:
+              entity_id: !input inverter_switch
+            continue_on_error: true
+          - action: timer.start
+            target:
+              entity_id: !input cooldown_timer
+            data:
+              duration: "{{ cooldown_minutes | int * 60 }}"
+      - stop: Schutzstopp, Reserve, Ladeziel oder ungültige Daten. Beide Geräte aus.
+
+  # Leaving grid charge stops it immediately, regardless of the cooldown.
+  - if:
+      - "{{ mode != 'netzladen' }}"
+      - condition: state
+        entity_id: !input charger_switch
+        state: "on"
+    then:
+      - action: switch.turn_off
+        target:
+          entity_id: !input charger_switch
+      - wait_template: "{{ is_state(charger, 'off') }}"
+        timeout:
+          seconds: 10
+        continue_on_timeout: false
+      - action: timer.start
+        target:
+          entity_id: !input cooldown_timer
+        data:
+          duration: "{{ cooldown_minutes | int * 60 }}"
+
+  # Already in the wanted state: no switching and no timer restart.
+  - if:
+      - condition: or
+        conditions:
+          - "{{ mode in ['versorgen', 'plan_fallback'] and is_state(charger, 'off') and is_state(inverter, 'on') }}"
+          - "{{ mode == 'netzladen' and is_state(charger, 'on') and is_state(inverter, 'off') }}"
+          - "{{ mode == 'aufheben' and is_state(charger, 'off') and is_state(inverter, 'off') }}"
+    then:
+      - stop: Istzustand passt bereits.
+
+  - condition: state
+    entity_id: !input cooldown_timer
+    state: idle
+
+  - choose:
+      - conditions:
+          - "{{ mode == 'netzladen' }}"
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input inverter_switch
+          - wait_template: "{{ is_state(inverter, 'off') }}"
+            timeout:
+              seconds: 10
+            continue_on_timeout: false
+          - delay:
+              seconds: 2
+          - variables: *calc
+          - condition: state
+            entity_id: !input release_switch
+            state: "on"
+          - condition: template
+            value_template: "{{ mode == 'netzladen' }}"
+          - condition: state
+            entity_id: !input inverter_switch
+            state: "off"
+          - condition: state
+            entity_id: !input charger_switch
+            state: "off"
+          - condition: state
+            entity_id: !input cooldown_timer
+            state: idle
+          - action: timer.start
+            target:
+              entity_id: !input cooldown_timer
+            data:
+              duration: "{{ cooldown_minutes | int * 60 }}"
+          - action: switch.turn_on
+            target:
+              entity_id: !input charger_switch
+          - wait_template: "{{ is_state(charger, 'on') }}"
+            timeout:
+              seconds: 30
+            continue_on_timeout: false
+      - conditions:
+          - "{{ mode in ['versorgen', 'plan_fallback'] }}"
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input charger_switch
+          - wait_template: "{{ is_state(charger, 'off') }}"
+            timeout:
+              seconds: 10
+            continue_on_timeout: false
+          - delay:
+              seconds: 2
+          - variables: *calc
+          - condition: state
+            entity_id: !input release_switch
+            state: "on"
+          - condition: template
+            value_template: "{{ mode in ['versorgen', 'plan_fallback'] }}"
+          - condition: state
+            entity_id: !input charger_switch
+            state: "off"
+          - condition: state
+            entity_id: !input inverter_switch
+            state: "off"
+          - condition: state
+            entity_id: !input cooldown_timer
+            state: idle
+          - action: timer.start
+            target:
+              entity_id: !input cooldown_timer
+            data:
+              duration: "{{ cooldown_minutes | int * 60 }}"
+          - action: switch.turn_on
+            target:
+              entity_id: !input inverter_switch
+          - wait_template: "{{ is_state(inverter, 'on') }}"
+            timeout:
+              seconds: 30
+            continue_on_timeout: false
+      - conditions:
+          - "{{ mode == 'aufheben' }}"
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input charger_switch
+            continue_on_error: true
+          - action: switch.turn_off
+            target:
+              entity_id: !input inverter_switch
+            continue_on_error: true
+          - action: timer.start
+            target:
+              entity_id: !input cooldown_timer
+            data:
+              duration: "{{ cooldown_minutes | int * 60 }}"
+    default:
+      - action: switch.turn_off
+        target:
+          entity_id: !input charger_switch
+        continue_on_error: true
+      - action: switch.turn_off
+        target:
+          entity_id: !input inverter_switch
+        continue_on_error: true
