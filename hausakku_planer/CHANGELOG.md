@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.2
+- Fix: Zeitplan-Update schickt den vorhandenen Namen mit (Home Assistant verlangt ihn); 0.5.1 brach damit die Veröffentlichung ab.
+
 ## 0.5.1
 - Bericht-Sensor enthält den vollständigen Bericht (vorher fehlte der Anfang).
 - Beim Aktualisieren eines Zeitplan-Helfers bleibt sein Anzeigename erhalten; neue Helfer bekommen einen lesbaren Namen.

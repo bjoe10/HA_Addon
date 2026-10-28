@@ -179,8 +179,9 @@ class HA:
         name=helper_id.split('.')[-1]
         week={k:v for k,v in config.items() if k in WEEK}
         existing=await self.t.command(type='schedule/list') or []
-        if any(i['id']==name for i in existing):
-            await self.t.command(type='schedule/update',schedule_id=name,**week)    # keep the name the user sees
+        current=next((i for i in existing if i['id']==name),None)
+        if current:
+            await self.t.command(type='schedule/update',schedule_id=name,name=current.get('name') or name,**week)    # keep the name the user sees
         else:
             await self.t.command(type='schedule/create',name=name.replace('_',' ').capitalize(),**week)
         return {'success':True}

@@ -150,7 +150,9 @@ async def runs(request):return web.json_response(read_runs(int(request.query.get
 
 async def run_now(request):
     """Start a run in the background. The UI polls /api/status; a run can take minutes on the first start."""
-    if not request.app['scheduler'].start('main','manuell'):
+    kind=request.query.get('kind','main')
+    if kind not in ('main','replan','weekly'):return web.json_response({'ok':False,'message':'Unbekannte Laufart.'},status=400)
+    if not request.app['scheduler'].start(kind,'manuell'):
         return web.json_response({'ok':False,'message':'Ein Lauf ist bereits aktiv.'},status=409)
     return web.json_response({'ok':True,'started':True},status=202)
 

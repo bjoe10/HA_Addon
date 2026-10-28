@@ -99,7 +99,9 @@ class FakeTransport:
         if t=='recorder/get_statistics_metadata':return [{'statistic_id':'sensor.a','statistics_unit_of_measurement':'Wh'}]
         if t=='schedule/list':return list(self.schedules)
         if t=='schedule/create':self.schedules.append({'id':p['name'].lower().replace(' ','_'),**p});return {}   # HA derives the id from the name
-        if t=='schedule/update':return {}
+        if t=='schedule/update':
+            if 'name' not in p:raise RuntimeError('invalid_format')   # as Home Assistant answers
+            return {}
         if t=='energy/get_prefs':return {'device_consumption':[]}
         if t.endswith('/list'):return list(self.helpers[t.split('/')[0]])
         if t.endswith('/create'):self.helpers[t.split('/')[0]].append({'id':p['name']});return {}
@@ -139,7 +141,7 @@ class NativeClientTests(unittest.TestCase):
         self.t.commands.clear()
         run(self.ha.call('ha_config_set_helper',helper_type='schedule',helper_id='hap_netzladen',action='update',config=week))
         self.assertEqual([c['type'] for c in self.t.commands],['schedule/list','schedule/update'])
-        self.assertEqual(self.t.commands[1]['schedule_id'],'hap_netzladen')
+        self.assertEqual(self.t.commands[1]['schedule_id'],'hap_netzladen');self.assertIn('name',self.t.commands[1])
 
     def test_ensure_own_helpers_creates_once(self):
         self.assertEqual(len(run(self.ha.ensure_own_helpers())),3)
