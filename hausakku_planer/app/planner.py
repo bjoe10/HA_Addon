@@ -192,7 +192,7 @@ def report(plan):
     if source.get('source')=='openmeteo_radiation':
         fits=source['fits'];first=min(fits)
         lines.append(f"PV-Prognose: Open-Meteo-Strahlung, kalibriert auf eigene Messwerte ({fits[first]['training_days']} Tage gleichen Sonnenstands, {fits[first]['matched_from']}–{fits[first]['matched_to']}). "
-                     +'; '.join(f"{d[5:]} {v:.1f} kWh" for d,v in sorted(plan['inputs']['pv_totals_corrected_kwh'].items()))+'.')
+                     +'; '.join(f"{d[5:]} {v:.1f} kWh{_pv_rest_note(d,plan)}" for d,v in sorted(plan['inputs']['pv_totals_corrected_kwh'].items()))+'.')
     else:
         if source.get('warning'):lines.append(f"PV-Prognose: Open-Meteo nicht verwendet ({source['warning']}); HA-Prognose mit Faktor.")
         lines.append(f"PV-Korrektur: Faktor {inputs['pv_calibration'].get('applied_factor',inputs['pv_calibration']['factor']):.2f} aus {inputs['pv_calibration']['pairs']} Vergleichstagen; Tagesverlauf weiterhin historisch.")
@@ -233,6 +233,12 @@ def plan_summary(plan):
     return {'charge_kwh':round(math.fsum(f['charger_ac_kwh'] for f in iv),2),'charge':_windows(iv,'charge'),
             'serve':_windows(iv,'serve'),'target_soc':plan.get('target_soc'),'reason':plan['operating_policy']['reason_code'],
             'end_kwh':round(result['terminal_kwh'],2),'created_at':plan.get('created_at')}
+
+
+def _pv_rest_note(day,plan):
+    """Today's PV total is the forecast for the rest of the day only; say so."""
+    created=datetime.fromisoformat(plan['created_at'])
+    return f" (nur Rest ab {created.strftime('%H:%M')}, kein Tageswert)" if day==created.date().isoformat() else ''
 
 
 def _actual_day(dataset,day):
@@ -306,7 +312,10 @@ def llm_facts(plan,previous=None,dataset=None):
             for d,v in tdays.items())+'.')
     source=plan.get('pv_source',{})
     pv=inputs.get('pv_totals_corrected_kwh',{})
-    lines.append(f"PV-Prognose bekannte Tage ({'Open-Meteo kalibriert' if source.get('source')=='openmeteo_radiation' else 'HA-Prognose × Faktor'}): "+'; '.join(f"{d[8:10]}.{d[5:7]}. {v:.1f} kWh" for d,v in sorted(pv.items()))+'.')
+    lines.append(f"PV-Prognose bekannte Tage ({'Open-Meteo kalibriert' if source.get('source')=='openmeteo_radiation' else 'HA-Prognose × Faktor'}): "+'; '.join(f"{d[8:10]}.{d[5:7]}. {v:.1f} kWh{_pv_rest_note(d,plan)}" for d,v in sorted(pv.items()))+'.')
+    today=datetime.fromisoformat(plan['created_at'])
+    so_far=[r['pv_kwh'] for r in (dataset or {}).get('hours',[]) if datetime.fromtimestamp(r['start'],TZ).date()==today.date() and r.get('pv_kwh') is not None]
+    if so_far:lines.append(f"Heute bisher gemessen: PV {sum(so_far):.1f} kWh (bis {today.strftime('%H:%M')}; die Prognose für heute oben ist nur der Rest, kein Tageswert).")
     yesterday=datetime.fromisoformat(plan['created_at']).date()-timedelta(days=1)
     actual=_actual_day(dataset,yesterday)
     if actual:lines.append(f"Gestern gemessen: PV {actual[0]:.1f} kWh, Hausverbrauch {actual[1]:.1f} kWh (ohne Fahrzeugladen).")

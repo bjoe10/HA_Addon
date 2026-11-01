@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.2
+- Bericht: Die PV-Prognose für heute ist nur der Rest ab Berichtszeit und wird so gekennzeichnet; zusätzlich steht die heute bisher gemessene PV drin. Vorher las sich abends „0,0 kWh“ wie ein Tageswert.
+
 ## 0.9.1
 - „Steuerung einrichten“ bricht ab, wenn nicht geprüft werden kann, ob schon eine Steuerung existiert, und ist ausgegraut, wenn das Add-on keine Automationen anlegen darf.
 
