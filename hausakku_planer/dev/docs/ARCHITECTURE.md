@@ -121,6 +121,10 @@ docs/
 | M6 | Generierter Guard + Steuer-Automation (`control`) | Umstieg möglich |
 | M7 | Doku, Übersetzungen, Icon, Release-Pipeline, öffentliches Repository | Weitergabe |
 
+## Dashboard-Karte
+
+`app/card/hausakku-card.js` ist eine Lovelace-Karte um die Diagrammkarte der Integration Tibber Prices. Sie enthält keine Entitäten eines Haushalts: Das Add-on setzt beim Einrichten seine Helfer, den Akku und die Kapazität in den Platzhalter `ADDON` ein (`dashboard_card.py`) und legt das Ergebnis als Inline-Ressource (`data:`-URL) an. Erkannt wird die Ressource daran, dass sie das Element der Karte registriert; nur diese eine Ressource wird angelegt oder aktualisiert, beim Start und nach dem Speichern der Einstellungen nur aktualisiert. Alles Weitere (Leistungen, Netz, Uhr, Vollbild) steht in der Konfiguration der Karte im Dashboard.
+
 ## Offene Risiken
 
 - **Tibber-Antwortformat** und `return_response` über REST sind zu prüfen; Anbieter-Schnittstelle fängt Unterschiede ab.

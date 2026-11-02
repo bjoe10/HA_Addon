@@ -365,6 +365,12 @@ async function settingsPage(){
      <li>In Home Assistant: Einstellungen → Automationen → Neue Automation → Blueprint „Hausakku-Planer Steuerung“. Dort diese Werte wählen:</li></ol>
      <table class="small">${bp.values.map(v=>`<tr><td>${esc(v.label)}</td><td>${v.value?`<code>${esc(v.value)}</code>`:'<span class="mut">nicht eingerichtet</span>'}</td></tr>`).join('')}</table></details>
      <div class="small mut" style="margin-top:8px">Danach in der Automation die Batterie-Schutzwerte ergänzen (Spannung, Temperaturen, BMS), soweit du die Sensoren hast. Den Freigabe-Schalter schaltest du erst nach ein paar Tagen Beobachten ein.</div></div>`}catch(e){}
+  try{const cs=await api('card');
+    const example=`type: custom:tibber-prices-battery-chart-card\ndevice_id: ${cs.device_id||'<Gerät der Tibber-Prices-Integration>'}\nviews: [outlook]`;
+    const done=cs.installed&&cs.current;
+    h+=`<h2>Dashboard-Karte</h2><div class="card"><div class="small">Eine Karte fürs Dashboard: die Preiskurve der Integration „Tibber Prices“ mit Akku-Linie, veröffentlichtem Plan, Leistungen und auf Wunsch einer Uhr. Das Add-on legt sie als Dashboard-Ressource an und hält sie danach bei jedem Update aktuell. Andere Ressourcen und die Dashboards selbst ändert es nicht.</div>
+     ${done?`<div class="ok" style="margin:10px 0">✓ Die Karte ist eingerichtet und aktuell${cs.version?' ('+esc(cs.version)+')':''}.</div>`:`<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0"><button class="btn" id="setupCard" ${cfg.publish&&cs.installed!==null?'':'disabled'}>${cs.installed?'Karte aktualisieren':'Karte einrichten'}</button><span class="small" id="m-card">${esc(cs.warning||(!cfg.publish?'Zuerst „In Home Assistant veröffentlichen“ einschalten und speichern.':(cs.installed?'Die eingerichtete Karte ist nicht aktuell.':'Legt die Karte als Dashboard-Ressource an.')))}</span></div>`}
+     <details><summary class="small mut">Karte ins Dashboard einfügen</summary><div class="small">Im Dashboard „Karte hinzufügen“ → „Manuell“ und das hier einsetzen. Weitere Optionen (Leistungen, Netz, Uhr, Vollbild für ein Display) stehen in der Dokumentation des Add-ons.</div><pre class="small" style="white-space:pre-wrap">${esc(example)}</pre></details></div>`}catch(e){}
   h+=`<div style="display:flex;gap:12px;align-items:center;margin-top:16px"><button class="btn" id="save">Speichern</button><span id="saved" class="small"></span></div>`;
   return h;
 }
@@ -423,6 +429,13 @@ function bindSettings(){
       out.className='small '+(r.ok?'ok':'err');out.textContent=r.message||'Fehlgeschlagen.';
       if(r.ok){await load();setTimeout(()=>{if(tab==='settings')render()},1500)}else sc.disabled=false}
     catch(e){out.className='small err';out.textContent='Einrichten fehlgeschlagen.';sc.disabled=false}});
+  const sk=document.getElementById('setupCard');
+  if(sk)sk.addEventListener('click',async()=>{
+    if(!confirm('Das Add-on legt die Dashboard-Karte als Ressource in Home Assistant an (oder aktualisiert sie) und hält sie danach bei Updates aktuell.\n\nDashboards ändert es nicht. Fortfahren?'))return;
+    const out=document.getElementById('m-card');sk.disabled=true;out.className='small mut';out.textContent='Richte ein …';
+    try{const r=await api('card/setup',{method:'POST'});
+      out.className='small '+(r.ok?'ok':'err');out.textContent=r.message||'Fehlgeschlagen.';if(!r.ok)sk.disabled=false}
+    catch(e){out.className='small err';out.textContent='Einrichten fehlgeschlagen.';sk.disabled=false}});
   document.getElementById('checkPrices').addEventListener('click',async()=>{
     const b=document.getElementById('checkPrices'),out=document.getElementById('m-priceCheck');b.disabled=true;out.className='fmsg mut';out.textContent='Prüfe …';
     try{const r=await api('prices/check');

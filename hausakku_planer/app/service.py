@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from aiohttp import web
-import paths, prices, settings, views
+import dashboard_card, paths, prices, settings, views
 import ha_client
 from ha_client import connection
 
@@ -211,6 +211,46 @@ async def control_setup(request):
         return web.json_response({'ok':False,'message':'Einrichten fehlgeschlagen ('+type(exc).__name__+'). Es wurde nichts eingeschaltet.'},status=500)
     return web.json_response({'ok':True,**done,'message':'Die Automation wurde angelegt. Die Freigabe ist aus, es wird nichts geschaltet.'})
 
+async def card(request):
+    """The dashboard card: installed, current with this add-on version and settings, and the Tibber home for the example."""
+    cfg=settings.current()
+    try:
+        async with connection() as ha:
+            resource=dashboard_card.find_card(await ha.lovelace_resources())
+            try:device=dashboard_card.tibber_device((await ha.call('ha_entity_registry'))['entities'])
+            except Exception:device=None
+    except Exception as exc:
+        return web.json_response({'installed':None,'warning':'Home Assistant nicht erreichbar ('+type(exc).__name__+')'})
+    return web.json_response({'installed':resource is not None,'current':bool(resource) and resource.get('url')==dashboard_card.current_url(cfg),
+                              'version':dashboard_card.installed_version(resource),'device_id':device})
+
+async def card_setup(request):
+    """Install the dashboard card as a Lovelace resource or bring it up to date (the UI asks first)."""
+    if settings.operating_mode()!='publish':
+        return web.json_response({'ok':False,'message':'Zuerst „In Home Assistant veröffentlichen“ einschalten und speichern.'},status=409)
+    if not settings.current().entity('battery_soc',required=False):
+        return web.json_response({'ok':False,'message':'Es fehlt: '+settings.label('battery_soc')+'.'},status=400)
+    try:
+        async with connection() as ha:done=await ha.install_card(dashboard_card.current_url())
+    except Exception as exc:
+        log.warning('Dashboard-Karte einrichten fehlgeschlagen (%s)',type(exc).__name__)
+        return web.json_response({'ok':False,'message':'Einrichten fehlgeschlagen ('+type(exc).__name__+'). Die Dashboard-Ressourcen dürfen nicht im YAML-Modus sein.'},status=500)
+    text={'created':'Die Karte ist als Dashboard-Ressource angelegt.','updated':'Die Karte ist aktualisiert.','unchanged':'Die Karte ist schon aktuell.'}[done['action']]
+    return web.json_response({'ok':True,**done,'message':text+' Danach die Dashboard-Seite neu laden.'})
+
+async def refresh_card():
+    """Keep an installed card in step with this add-on version and its settings. Never installs it by itself."""
+    if settings.operating_mode()!='publish' or not settings.current().entity('battery_soc',required=False):return
+    try:
+        async with connection() as ha:done=await ha.install_card(dashboard_card.current_url(),adopt_only=True)
+        if done['action']=='updated':log.info('Dashboard-Karte aktualisiert')
+    except Exception as exc:
+        log.warning('Dashboard-Karte nicht aktualisiert (%s)',type(exc).__name__)
+
+BACKGROUND=set()
+def background(coro):
+    task=asyncio.create_task(coro);BACKGROUND.add(task);task.add_done_callback(BACKGROUND.discard)
+
 async def put_settings(request):
     data=await request.json()
     data.setdefault('adopt_legacy_helpers',settings.current().data.get('adopt_legacy_helpers',False))   # not editable in the UI
@@ -219,6 +259,7 @@ async def put_settings(request):
     if errors:return web.json_response({'ok':False,'errors':errors},status=400)
     clean['planner']=settings.current().data.get('planner',{})   # developer overrides are not edited here
     settings.save(clean)
+    background(refresh_card())     # the card carries the helper names and battery entities
     return web.json_response({'ok':True,'missing':settings.current().missing('plan')})
 
 async def entities(request):
@@ -354,10 +395,12 @@ def make_app():
     app=web.Application(middlewares=[ingress_only]);app['scheduler']=Scheduler()
     app.router.add_get('/',index);app.router.add_get('/api/status',status)
     app.router.add_get('/api/runs',runs);app.router.add_post('/api/run',run_now);app.router.add_get('/api/plan',plan)
-    app.router.add_get('/api/blueprint',blueprint);app.router.add_post('/api/control/setup',control_setup);app.router.add_get('/api/autofill',autofill);app.router.add_get('/api/setup',setup);app.router.add_get('/api/estimates',estimates)
+    app.router.add_get('/api/blueprint',blueprint);app.router.add_post('/api/control/setup',control_setup);app.router.add_get('/api/card',card);app.router.add_post('/api/card/setup',card_setup);app.router.add_get('/api/autofill',autofill);app.router.add_get('/api/setup',setup);app.router.add_get('/api/estimates',estimates)
     app.router.add_get('/api/settings',get_settings);app.router.add_put('/api/settings',put_settings)
     app.router.add_get('/api/entities',entities);app.router.add_get('/api/check',check);app.router.add_get('/api/prices/check',check_prices)
-    async def start(app):app['task']=asyncio.create_task(app['scheduler'].loop())
+    async def start(app):
+        app['task']=asyncio.create_task(app['scheduler'].loop())
+        background(refresh_card())     # an add-on update brings a new card
     async def stop(app):app['task'].cancel()
     if os.environ.get('HAUSAKKU_NO_SCHEDULER')!='1':app.on_startup.append(start);app.on_cleanup.append(stop)
     return app

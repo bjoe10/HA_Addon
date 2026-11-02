@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.0
+- **Dashboard-Karte** im Add-on: die Tibber-Prices-Preiskurve mit Akku-Linie (gemessen und geplant), Phasenplan, Kacheln für Akku, PV, Wechselrichter, Netz und Bezug heute, dazu wahlweise Uhr mit Preiszeiträumen, Vollbild für ein Display und Nachtmodus. „Karte einrichten“ in den Einstellungen legt sie als Dashboard-Ressource an (oder übernimmt eine frühere Kopie) und trägt die Helfer, den Akku und die Kapazität ein; danach hält das Add-on genau diese Ressource bei Updates und Einstellungsänderungen aktuell. Dashboards ändert es nicht.
+
 ## 0.9.3
 - Der Bericht-Sensor (`sensor.<Präfix>_bericht`) trägt im Attribut `soc_plan` den geplanten Akkustand des zuletzt bestätigt veröffentlichten Plans (kWh am Ende jedes Intervalls), etwa für eine Akku-Linie im Dashboard. Ein nicht veröffentlichter Plan ändert es nicht.
 

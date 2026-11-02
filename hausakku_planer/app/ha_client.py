@@ -5,12 +5,13 @@ publisher already use are kept (`call('ha_get_state', ...)`), so the planner cor
 have to change; each tool is implemented on the plain HA API.
 
 Safety, unchanged in spirit: a write allowlist. The client can only write the add-on's own
-helpers and never switches hardware. In operating mode `observe` no write is allowed at all.
+helpers (and, when asked, the dashboard card's Lovelace resource) and never switches hardware.
+In operating mode `observe` no write is allowed at all.
 """
 import json, os
 from contextlib import asynccontextmanager
 import aiohttp
-import settings
+import dashboard_card, settings
 
 SUPERVISOR_URL='http://supervisor/core'
 def own():
@@ -213,6 +214,22 @@ class HA:
             'description':'Führt den Plan des Hausakku-Planer-Add-ons aus. Schaltet nichts, solange die Freigabe aus ist.',
             'use_blueprint':{'path':CONTROL_BLUEPRINT,'input':inputs}})
         return {'automation':'automation.'+CONTROL_AUTOMATION}
+
+    async def lovelace_resources(self):
+        return await self.t.command(type='lovelace/resources') or []
+
+    async def install_card(self,url,adopt_only=False):
+        """Point the dashboard card's one Lovelace resource at `url`: update it where it exists, else create it
+        (not with adopt_only). Only the resource that registers the card is ever touched."""
+        _require_writes(self.mode)
+        current=dashboard_card.find_card(await self.lovelace_resources())
+        if current and current.get('url')==url:return {'action':'unchanged','resource_id':current.get('id')}
+        if current:
+            await self.t.command(type='lovelace/resources/update',resource_id=current['id'],res_type='module',url=url)
+            return {'action':'updated','resource_id':current['id']}
+        if adopt_only:return {'action':'absent'}
+        created=await self.t.command(type='lovelace/resources/create',res_type='module',url=url) or {}
+        return {'action':'created','resource_id':created.get('id')}
 
     async def ensure_own_helpers(self):
         """Create the planner's own input helpers if missing (publish stage and above)."""

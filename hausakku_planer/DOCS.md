@@ -52,7 +52,7 @@ Mit eingeschaltetem „Veröffentlichen“ legt das Add-on diese Helfer an, mit 
 | `timer.hap_schaltsperre` | Schaltsperre |
 | `sensor.hap_bericht` | Bericht und Faktenblock der letzten Läufe (für Zusammenfassungen); im Attribut `soc_plan` der geplante Akkustand des veröffentlichten Plans (Start, Minuten und kWh je Intervallende) |
 
-Das Add-on schreibt nur in diese Helfer. Gerätezustände oder Schalter fasst es nicht an.
+Das Add-on schreibt nur in diese Helfer und, wenn du es auslöst, in die Ressource der Dashboard-Karte (siehe unten). Gerätezustände oder Schalter fasst es nicht an.
 
 ## Steuerung: der Blueprint
 
@@ -75,6 +75,39 @@ Der Blueprint **„Hausakku-Planer Steuerung“** führt den Plan aus. Er schalt
 5. Zum Stoppen: Freigabe aus. Die Steuerung gibt dann nur Geräte frei, die sie vorher selbst übernommen hatte.
 
 **Bekannte Grenzen:** Spannungs-, Temperatur- und BMS-Schutz greifen innerhalb einer Minute (Minutenlauf), nicht in derselben Sekunde. Das BMS muss seine Schutzfunktionen selbst übernehmen. Hybridwechselrichter mit Betriebsmodus statt Schaltern werden nicht unterstützt.
+
+## Dashboard-Karte
+
+Das Add-on bringt eine Karte fürs Dashboard mit: die Preiskurve der Integration **Tibber Prices** (HACS) mit deinem Akku, dem veröffentlichten Plan, Leistungen, Netzbezug und auf Wunsch einer Uhr. Gedacht auch als Daueranzeige, etwa auf einem Nest Hub.
+
+- **Akku-Linie im Diagramm:** gemessener Inhalt in kWh (durchgezogen) und der geplante Verlauf des veröffentlichten Plans (gestrichelt, aus dem Attribut `soc_plan` des Bericht-Sensors).
+- **Phasenplan** unter dem Diagramm: Halten, Netzladen und Versorgen, zeitlich passend zur Preiskurve.
+- **Kacheln** für Akku, PV, Wechselrichter, Netz und den Bezug heute. Eine Kachel erscheint nur, wenn ihre Entität eingetragen ist.
+- **Uhr** mit Datum und dem nächsten günstigen und teuren Zeitraum der Tibber-Prices-Integration.
+
+**Einrichten:** Einstellungen → Dashboard-Karte → **„Karte einrichten“** (dafür muss „Veröffentlichen“ an sein). Das Add-on legt die Karte als Dashboard-Ressource an und trägt seine Helfer, den Akku-Ladestand, den Akku-Inhalt und die Kapazität ein. Nach einem Add-on-Update oder einer Änderung dieser Einstellungen hält es genau diese Ressource aktuell. Andere Ressourcen und die Dashboards selbst ändert es nicht. Danach im Dashboard „Karte hinzufügen“ → „Manuell“:
+
+```yaml
+type: custom:tibber-prices-battery-chart-card
+device_id: <Gerät der Tibber-Prices-Integration>   # steht in den Einstellungen unter „Karte ins Dashboard einfügen“
+views: [outlook]
+```
+
+Weitere Optionen, alle freiwillig:
+
+| Option | Wirkung |
+|---|---|
+| `battery_power_entity`, `pv_power_entity`, `inverter_power_entity`, `charger_power_entity` | Leistungs-Sensoren in W. Aus Ladegerät, Wechselrichter und PV leitet die Karte die Richtung des Akkus ab (Laden ↑, Entladen ↓). |
+| `grid_import_entity`, `grid_export_entity` | Netzbezug und Einspeisung in W (z. B. Tibber Pulse) |
+| `grid_today_entity`, `grid_cost_entity`, `meter_entity` | Bezug heute (kWh), Kosten heute, Zählerstand |
+| `mode_entity`, `strategy_entity` | eigene Sensoren für den wirksamen Regelmodus und die Planempfehlung, falls vorhanden |
+| `clock: true` | Uhr mit Datum und Preiszeiträumen im Kopf |
+| `kiosk: true` | randlos und bildschirmhoch, für eine Panel-Ansicht auf einem Display |
+| `night_mode: true` | dunkel zwischen Sonnenunter- und Sonnenaufgang |
+| `soc_line: false` | ohne Akku-Linie |
+| `reserve_percent` | Reserve-Markierung im Akkubalken (Standard 10 %) |
+
+Alles andere geht an die Tibber-Prices-Karte, etwa `all_views: {resolution: quarter_hour}` gegen den Umschalter 15 min / 60 min. Für ein Display: eine eigene Dashboard-Ansicht vom Typ **Panel** mit nur dieser Karte und `clock`, `kiosk` und `night_mode`.
 
 ## Preisquellen
 
