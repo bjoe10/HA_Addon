@@ -50,7 +50,7 @@ Mit eingeschaltetem „Veröffentlichen“ legt das Add-on diese Helfer an, mit 
 | `input_boolean.hap_planer_freigabe` | **Freigabe**, immer aus beim Anlegen, wird vom Add-on nie eingeschaltet |
 | `input_boolean.hap_regler_uebernommen` | Merker der Steuerung |
 | `timer.hap_schaltsperre` | Schaltsperre |
-| `sensor.hap_bericht` | Bericht und Faktenblock der letzten Läufe (für Zusammenfassungen) |
+| `sensor.hap_bericht` | Bericht und Faktenblock der letzten Läufe (für Zusammenfassungen); im Attribut `soc_plan` der geplante Akkustand des veröffentlichten Plans (Start, Minuten und kWh je Intervallende) |
 
 Das Add-on schreibt nur in diese Helfer. Gerätezustände oder Schalter fasst es nicht an.
 

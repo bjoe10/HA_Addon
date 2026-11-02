@@ -63,11 +63,26 @@ async def run_planner(kind,mode,trigger='zeit',command=None):
     if mode!='observe' and not command:await publish_report({**entry,'stdout':full})
     return entry
 
-def bridge_attributes(entry,previous):
-    """Attributes of the report sensor: the latest output per run kind, merged into what is already there."""
+def soc_plan_attribute(plan):
+    """The published plan's battery energy at each interval end, compact for a dashboard line.
+    Only a verified publication counts: any other plan is not what the schedules in HA say."""
+    if not plan or not (plan.get('publication') or {}).get('verified'):return None
+    intervals=(plan.get('plan') or {}).get('intervals') or []
+    if not intervals:return None
+    start=datetime.fromisoformat(intervals[0]['start'])
+    return {'created_at':plan.get('created_at'),'valid_until':plan.get('valid_until'),'start':intervals[0]['start'],
+            'capacity_kwh':(plan.get('inputs') or {}).get('nominal_capacity_kwh'),'initial_kwh':round(intervals[0]['initial_kwh'],2),
+            'minutes':[round((datetime.fromisoformat(i['end'])-start).total_seconds()/60) for i in intervals],
+            'kwh':[round(i['terminal_kwh'],2) for i in intervals]}
+
+def bridge_attributes(entry,previous,plan=None):
+    """Attributes of the report sensor: the latest output per run kind, merged into what is already there,
+    and the planned battery energy of the last verified publication."""
     attrs=dict(previous)
     report=(entry.get('stdout') or '').strip()
     attrs[entry['kind']]={'time':entry['time'],'ok':entry['ok'],'report':report[:12000],'error':(entry.get('stderr') or '').strip()[-1500:]}
+    soc=soc_plan_attribute(plan)
+    if soc:attrs['soc_plan']=soc
     return attrs
 
 async def publish_report(entry):
@@ -75,7 +90,7 @@ async def publish_report(entry):
     if entry.get('skipped'):return
     f=paths.STATE/'bridge.json'
     previous=json.loads(f.read_text()) if f.exists() else {}
-    attrs=bridge_attributes(entry,previous)
+    attrs=bridge_attributes(entry,previous,load_plan())
     f.write_text(json.dumps(attrs,ensure_ascii=False))
     try:
         async with connection() as ha:

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.3
+- Der Bericht-Sensor (`sensor.<Präfix>_bericht`) trägt im Attribut `soc_plan` den geplanten Akkustand des zuletzt bestätigt veröffentlichten Plans (kWh am Ende jedes Intervalls), etwa für eine Akku-Linie im Dashboard. Ein nicht veröffentlichter Plan ändert es nicht.
+
 ## 0.9.2
 - Bericht: Die PV-Prognose für heute ist nur der Rest ab Berichtszeit und wird so gekennzeichnet; zusätzlich steht die heute bisher gemessene PV drin. Vorher las sich abends „0,0 kWh“ wie ein Tageswert.
 

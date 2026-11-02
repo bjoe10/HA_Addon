@@ -198,6 +198,22 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(b['main']['report'],'bericht');self.assertEqual(b['replan']['report'],'')
         c=service.bridge_attributes({'kind':'main','time':'t3','ok':False,'stdout':'','stderr':'boom'},b)
         self.assertEqual(c['main']['error'],'boom');self.assertIn('replan',c)
+    def test_soc_plan_only_from_verified_publication(self):
+        iv=lambda a,b,start,end:{'start':a,'end':b,'initial_kwh':start,'terminal_kwh':end}
+        plan={'created_at':'2026-11-02T14:15:00+01:00','valid_until':'2026-11-04T00:00:00+01:00','publication':{'verified':True},
+              'inputs':{'nominal_capacity_kwh':16.0},
+              'plan':{'intervals':[iv('2026-11-02T14:15:00+01:00','2026-11-02T14:30:00+01:00',4.123,4.0),
+                                   iv('2026-11-02T14:30:00+01:00','2026-11-02T15:30:00+01:00',4.0,3.456)]}}
+        soc=service.soc_plan_attribute(plan)
+        self.assertEqual(soc['minutes'],[15,75]);self.assertEqual(soc['kwh'],[4.0,3.46])
+        self.assertEqual(soc['initial_kwh'],4.12);self.assertEqual(soc['capacity_kwh'],16.0)
+        self.assertEqual(soc['start'],'2026-11-02T14:15:00+01:00')
+        self.assertIsNone(service.soc_plan_attribute({**plan,'publication':{'verified':False}}))
+        self.assertIsNone(service.soc_plan_attribute(None))
+        entry={'kind':'main','time':'t1','ok':True,'stdout':'','stderr':''}
+        a=service.bridge_attributes(entry,{},plan)
+        b=service.bridge_attributes({**entry,'kind':'replan'},a,{**plan,'publication':{}})
+        self.assertEqual(b['soc_plan'],soc)   # an unpublished plan leaves the last published one
     def test_weekly_run_is_due_monday_8(self):
         from datetime import datetime
         tz=service.TZ
