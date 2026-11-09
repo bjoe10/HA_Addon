@@ -45,6 +45,15 @@ def monday(ts):
     return (d-timedelta(days=d.weekday())).isoformat()
 
 
+def _standby(energy,kwh,params):
+    """Inverter self-consumption drawn from the battery; at the reserve the inverter is off and draws nothing."""
+    return min(kwh,max(0.,energy-params.reserve_kwh))
+
+
+def state_standby(flow,end):
+    return flow['terminal_kwh']-end
+
+
 def residual_share(state):
     """Share of the load that came from the grid in measured serve quarters (0 until enough data)."""
     if state['serve_load_kwh']<RESIDUAL_MIN_KWH:return 0.
@@ -71,7 +80,7 @@ def mode_of(row):
     return 'charge' if row['charger']>.01 else 'serve' if row['wr']>.01 else 'hold'
 
 
-def advance(state,rows,params,value):
+def advance(state,rows,params,value,standby_kw=0.):
     """Add contiguous quarter-hours starting at state['last_end'].
     rows: {start, active, price, battery_kwh (at start), grid, wr, charger, export, pv, ev}; None = missing.
     value: EUR per kWh of battery contents (conservative), used for battery differences."""
@@ -95,13 +104,15 @@ def advance(state,rows,params,value):
         start=datetime.fromtimestamp(row['start'],UTC);end=start+timedelta(seconds=STEP)
         shadow=_flow(Interval(start,end,price,load*(1-r),pv),state['shadow_kwh'],'serve',params)
         shadow_grid=shadow['grid_import_kwh']+load*r
+        shadow_end=shadow['terminal_kwh']-_standby(shadow['terminal_kwh'],standby_kw*hours,params)   # its inverter is always on
         mode=mode_of(row)
         mp=replace(params,max_charge_kw=charger/hours) if mode=='charge' else params
         model=_flow(Interval(start,end,price,load*(1-r) if mode=='serve' else load,pv),state['model_kwh'],mode,mp)
         model_grid=model['grid_import_kwh']+(load*r if mode=='serve' else 0.)
+        model_end=model['terminal_kwh']-(_standby(model['terminal_kwh'],standby_kw*hours,params) if mode=='serve' else 0.)
         state['actual_eur']+=actual_grid*price;state['shadow_eur']+=shadow_grid*price;state['model_eur']+=model_grid*price
         state['cash_eur']+=(shadow_grid-actual_grid)*price
-        state['shadow_kwh']=shadow['terminal_kwh'];state['model_kwh']=model['terminal_kwh']
+        state['shadow_kwh']=shadow_end;state['model_kwh']=model_end;state['standby_kwh']=state.get('standby_kwh',0.)+state_standby(shadow,shadow_end)
         state['active_hours']+=hours
         # Learn the grid share while serving: mostly inverter-covered quarters, battery well above the reserve.
         if mode=='serve' and load>.02 and wr>=.5*load and row.get('battery_kwh') is not None and row['battery_kwh']>params.reserve_kwh+.5:
@@ -138,15 +149,41 @@ def summary(state,value,measured=None):
             'actual_cost_eur':r(state['actual_eur']),'shadow_cost_eur':r(state['shadow_eur']),
             'model_deviation_eur':r(state['model_eur']-state['actual_eur']),
             'residual_share':round(residual_share(state),3),'battery_value_eur_kwh':round(value,4),
+            'shadow_standby_kwh':round(state.get('standby_kwh',0.),3),'inverter':state.get('inverter'),
             'per_week':per_week[-12:]}
 
 
 # ---------- inputs: parameters, valuation and quarter-hour rows from Home Assistant ----------
 
-def model_params(config,calibration):
-    """The planner's battery model; the measured discharge efficiency once 20 clean discharge hours exist."""
+STANDBY_MIN_HOURS=20
+STANDBY_MAX_KW=.1        # a fit above 100 W is taken as a measuring problem, not as the inverter
+
+
+def fit_inverter(hours,scale=1.):
+    """Inverter losses from hourly energies: battery DC out = a x inverter AC out + b x 1 h, fitted on hours with
+    the inverter on and nothing else moving the battery (no PV, no charger, no battery input).
+    b is the inverter's own consumption while on, which the shadow pays every hour its inverter is on.
+    scale converts the DC meter's real-voltage kWh to the battery-kWh scale (see battery_calibration).
+    Returns {'discharge_efficiency', 'standby_kw', 'hours'} or None when the data do not support a fit."""
+    pts=[(h['wr'],h['out']) for h in hours
+         if all(h.get(k) is not None for k in ('wr','out','pv','charger','inn'))
+         and h['wr']>=.05 and h['out']>0 and h['pv']<.01 and h['charger']<.01 and h['inn']<.01]
+    if len(pts)<STANDBY_MIN_HOURS:return None
+    n=len(pts);mx=sum(x for x,_ in pts)/n;my=sum(y for _,y in pts)/n
+    sxx=sum((x-mx)**2 for x,_ in pts)
+    if sxx<1e-6*n:return None                      # all hours at the same load: slope and offset are not separable
+    a=sum((x-mx)*(y-my) for x,y in pts)/sxx;b=my-a*mx
+    eff=scale/a if a>0 else 0.;standby=b/scale
+    if not .5<eff<=1. or not 0.<=standby<=STANDBY_MAX_KW:return None
+    return {'discharge_efficiency':round(eff,4),'standby_kw':round(standby,4),'hours':n}
+
+
+def model_params(config,calibration,inverter=None):
+    """The planner's battery model; the measured discharge efficiency once 20 clean discharge hours exist.
+    With a fitted inverter (fit_inverter) its efficiency under load is used: the plain ratio of the calibration
+    already contains the standby share, which the shadow then adds separately."""
     cap=float(config['capacity_kwh']);cal=calibration or {}
-    measured=cal.get('discharge_efficiency') if cal.get('discharge_hours',0)>=20 else None
+    measured=(inverter or {}).get('discharge_efficiency') or (cal.get('discharge_efficiency') if cal.get('discharge_hours',0)>=20 else None)
     discharge=float(measured) if measured and .5<float(measured)<=1. else float(config['discharge_efficiency'])
     charge=float(cal['charge_efficiency']) if cal.get('valid') else float(config['roundtrip_efficiency'])/float(config['discharge_efficiency'])
     return Params(capacity_kwh=cap,reserve_kwh=cap*float(config['reserve_fraction']),initial_kwh=0.,pv_coupling='dc',

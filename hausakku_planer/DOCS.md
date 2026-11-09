@@ -135,7 +135,7 @@ Die Ersparnis vergleicht deine Anlage mit derselben Anlage, deren Wechselrichter
 - **Gezählt wird nur, solange die Steuerung an ist**, das heißt der Freigabe-Schalter die ganze Viertelstunde an war. Ist sie aus, kommt nichts dazu. Beim Wiedereinschalten startet der Schatten mit dem gemessenen Akkustand.
 - **Ersparnis gesamt** = Kosten des Schattens − deine Kosten + der Unterschied im Akkuinhalt, vorsichtig bewertet (niedrigster Preis der letzten 7 Tage × Entlade-Wirkungsgrad). Weil der Schatten durchgehend läuft, geht für teure Stunden aufgehobene Energie an Tages- und Wochengrenzen nicht verloren.
 - **Diese Woche** ist der Zuwachs seit Montag 00:00. Die Wochen addieren sich genau zum Gesamtwert.
-- Damit der Schatten nicht besser rechnet als die Wirklichkeit, nutzt er den gemessenen Entlade-Wirkungsgrad (ab 20 sauberen Entladestunden) und lernt, wie viel des Verbrauchs beim Versorgen trotzdem aus dem Netz kommt.
+- Damit der Schatten nicht besser rechnet als die Wirklichkeit, nutzt er den gemessenen Entlade-Wirkungsgrad (ab 20 sauberen Entladestunden) und lernt, wie viel des Verbrauchs beim Versorgen trotzdem aus dem Netz kommt. Mit dem Akku-Entladezähler (DC) misst das Add-on außerdem den Eigenverbrauch des Wechselrichters; den zahlt die Vergleichsanlage, weil ihr Wechselrichter dauernd an ist.
 - Als Gütemaß rechnet das Add-on auch deine tatsächliche Fahrweise durch dasselbe Modell. `model_deviation_eur` zeigt, wie weit das Modell von deinen gemessenen Kosten abweicht.
 - Fehlen Zählerwerte oder Preise, zählt die Viertelstunde nicht (`gap_hours`). War das Add-on länger als 8 Tage aus, wird die Zeit übersprungen, weil Home Assistant die 5-Minuten-Werte dann gelöscht hat.
 

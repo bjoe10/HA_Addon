@@ -73,6 +73,47 @@ class AdvanceTests(unittest.TestCase):
         s=shadow.advance(self.state(),rows,P,0.)
         self.assertAlmostEqual(shadow.summary(s,0.)['model_deviation_eur'],0.,places=6)
 
+class InverterTests(unittest.TestCase):
+    def hours(self,a=1/.9,b=.03,n=40):
+        import random;rnd=random.Random(1)
+        return [{'wr':(w:=rnd.uniform(.1,.8)),'out':a*w+b,'pv':0.,'charger':0.,'inn':0.} for _ in range(n)]
+
+    def test_efficiency_and_standby_are_recovered(self):
+        fit=shadow.fit_inverter(self.hours())
+        self.assertAlmostEqual(fit['discharge_efficiency'],.9,places=3);self.assertAlmostEqual(fit['standby_kw'],.03,places=3)
+        self.assertEqual(fit['hours'],40)
+        # A DC meter on real voltage (2 % above nominal): converted to the battery-kWh scale.
+        fit=shadow.fit_inverter([{**h,'out':h['out']*1.02} for h in self.hours()],scale=1.02)
+        self.assertAlmostEqual(fit['standby_kw'],.03,places=3);self.assertAlmostEqual(fit['discharge_efficiency'],.9,places=3)
+
+    def test_unusable_data_gives_no_fit(self):
+        self.assertIsNone(shadow.fit_inverter(self.hours(n=10)))                       # too few hours
+        same=[{'wr':.3,'out':.36,'pv':0.,'charger':0.,'inn':0.}]*30
+        self.assertIsNone(shadow.fit_inverter(same))                                    # one load level only
+        self.assertIsNone(shadow.fit_inverter(self.hours(b=.5)))                        # 500 W: not the inverter
+        pv=[{**h,'pv':.5} for h in self.hours()]
+        self.assertIsNone(shadow.fit_inverter(pv))                                      # PV hours are not clean
+
+    def test_shadow_pays_standby_while_the_actual_inverter_is_off(self):
+        rows=[row(i,battery=8.,grid=.25) for i in range(4)]                             # actual: held, inverter off
+        without=shadow.advance(shadow.new_state(T0),rows,P,0.)
+        withsb=shadow.advance(shadow.new_state(T0),rows,P,0.,standby_kw=.04)
+        self.assertAlmostEqual(without['shadow_kwh']-withsb['shadow_kwh'],.04)            # 40 W for one hour
+        self.assertAlmostEqual(withsb['standby_kwh'],.04)
+        self.assertAlmostEqual(withsb['model_kwh'],8.)                                    # actual inverter off: no standby
+        # Worth that energy at the battery value: the control saved it.
+        self.assertAlmostEqual(shadow.summary(withsb,.5,8.)['total_eur']-shadow.summary(without,.5,8.)['total_eur'],.02)
+
+    def test_no_standby_at_the_reserve(self):
+        s=shadow.advance(shadow.new_state(T0),[row(0,battery=P.reserve_kwh,grid=.25)],P,0.,standby_kw=.04)
+        self.assertAlmostEqual(s['shadow_kwh'],P.reserve_kwh)
+
+    def test_fitted_efficiency_replaces_the_ratio(self):
+        cfg={'capacity_kwh':16,'reserve_fraction':.1,'max_charge_kw':2,'max_discharge_kw':1,'discharge_efficiency':.9,
+             'roundtrip_efficiency':.8,'grid_charge_max_soc_fraction':.9}
+        p=shadow.model_params(cfg,{'discharge_hours':56,'discharge_efficiency':.86},{'discharge_efficiency':.93,'standby_kw':.03})
+        self.assertAlmostEqual(p.discharge_efficiency,.93)
+
 class InputTests(unittest.TestCase):
     def test_quarters_need_all_three_buckets(self):
         b={float(T0+300*i):.01 for i in range(6)};del b[float(T0+300*4)]

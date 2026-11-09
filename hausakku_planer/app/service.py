@@ -162,6 +162,27 @@ async def savings_rows(ha,cfg,config,start,end,prices_by_quarter):
     active=shadow.active_quarters(states,start,end)
     return shadow.build_rows(start,end,meters,battery,active,prices_by_quarter),measured
 
+STANDBY_DAYS=28
+
+async def fit_inverter(ha,cfg,calibration,now_ts):
+    """Inverter efficiency under load and its own consumption, from the last 28 days of hourly statistics.
+    Needs the battery's DC discharge meter; None without it or without enough clean hours."""
+    out=cfg.entity('battery_out_energy',required=False)
+    if not out:return None
+    roles=collector.energy_map(cfg)
+    ids={'wr':roles['wr'],'pv':roles['pv'],'charger':roles['charger'],'out':out,'inn':cfg.entity('battery_in_energy',required=False)}
+    ids={k:v for k,v in ids.items() if v}
+    end=datetime.fromtimestamp(now_ts,TZ).replace(minute=0,second=0,microsecond=0)
+    stats=await ha.call('ha_get_history',source='statistics',entity_ids=list(ids.values()),start_time=(end-timedelta(days=STANDBY_DAYS)).isoformat(),
+                        end_time=end.isoformat(),period='hour',statistic_types=['change'])
+    data=collector.normalize_statistics(stats)
+    stamps=set().union(*(data.get(e,{}).keys() for e in ids.values()))
+    hours=[{k:(data.get(ids[k],{}).get(t) if k in ids else 0.) for k in ('wr','pv','charger','out','inn')} for t in sorted(stamps)]
+    # The DC meter counts real-voltage kWh; the battery-kWh scale of the shadow is nominal (see battery_calibration).
+    real=calibration.get('real_voltage_discharge');eff=calibration.get('discharge_efficiency')
+    scale=eff/real if real and eff else 1.
+    return shadow.fit_inverter(hours,scale)
+
 async def update_savings(ha,now=None):
     """Advance the savings shadow to the last complete quarter-hour and keep its summary for the sensor and the UI."""
     cfg=settings.current();now_ts=(now or datetime.now(TZ)).timestamp()
@@ -170,7 +191,14 @@ async def update_savings(ha,now=None):
     snap=paths.STATE/'snapshot.json'
     try:calibration=json.loads(snap.read_text()).get('battery_calibration') if snap.exists() else None
     except ValueError:calibration=None
-    params=shadow.model_params(config,calibration)
+    today=datetime.fromtimestamp(now_ts,TZ).date().isoformat()
+    if (state.get('inverter') or {}).get('date')!=today:
+        try:fit=await fit_inverter(ha,cfg,calibration or {},now_ts)
+        except Exception as exc:
+            log.warning('Wechselrichter-Verluste nicht gemessen (%s)',type(exc).__name__);fit=None
+        state['inverter']={'date':today,**(fit or {})}
+    inverter=state['inverter'] if 'standby_kw' in state['inverter'] else None
+    params=shadow.model_params(config,calibration,inverter)
     archive=multiday.read_prices(paths.STATE/'multiday_audit.sqlite',datetime.fromtimestamp(now_ts,TZ).isoformat())
     by_quarter={int(r['start']):float(r['price']) for r in archive}
     value=shadow.battery_value(config,by_quarter,params,now_ts)
@@ -180,7 +208,7 @@ async def update_savings(ha,now=None):
         rows,measured=await savings_rows(ha,cfg,config,state['last_end'],end,by_quarter)
         # Quarters with the control on but a meter or price missing: a dead meter shows up here first.
         state['missing']={k:n for k in (*shadow.METERS,'price') if (n:=sum(1 for r in rows if r['active'] and r.get(k) is None))}
-        shadow.advance(state,rows,params,value)
+        shadow.advance(state,rows,params,value,(inverter or {}).get('standby_kw',0.))
         if measured is not None:state['end_kwh']=measured
     state['summary']={**shadow.summary(state,value,state.get('end_kwh')),'missing_quarters':state.get('missing',{})}
     shadow.save_state(f,state)

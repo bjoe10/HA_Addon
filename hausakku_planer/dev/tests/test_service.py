@@ -99,7 +99,8 @@ class SavingsTests(unittest.TestCase):
     def test_counting_starts_now_without_going_back(self):
         ha=FakeHA()
         s=asyncio.run(service.update_savings(ha,self.at(10)))
-        self.assertEqual(ha.calls,[]);self.assertEqual(s['total_eur'],0.);self.assertEqual(s['active_hours'],0.)
+        self.assertEqual([k.get('period') for _,k in ha.calls],['hour'])     # only the daily inverter measurement
+        self.assertEqual(s['total_eur'],0.);self.assertEqual(s['active_hours'],0.)
         self.assertTrue(s['since'].startswith('2026-11-09T10:00'))
 
     def test_held_hour_counts_while_the_control_is_on(self):

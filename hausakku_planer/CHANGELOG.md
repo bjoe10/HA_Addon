@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.13.2
+- **Ersparnis: Eigenverbrauch des Wechselrichters.** Einmal am Tag misst das Add-on aus den Stundenwerten der letzten 28 Tage (Stunden mit Wechselrichter an, ohne PV und Laden), was der Wechselrichter unter Last verliert und was er im Betrieb selbst verbraucht (Ausgleichsgerade Akku-Entnahme gegen Wechselrichter-Ausgang). Die Vergleichsanlage mit dauernd eingeschaltetem Wechselrichter zahlt diesen Eigenverbrauch jede Viertelstunde über der Reserve; die echte Fahrweise nur, solange sie versorgt. Braucht den Akku-Entladezähler (DC); ohne ihn bleibt es beim bisherigen Wirkungsgrad. Attribute `inverter` (Messwerte) und `shadow_standby_kwh`.
+
 ## 0.13.1
 - **Weniger Rechenlast:** Die stündliche Nachplanung archiviert keine Mehrtages-Prognose mehr (drei Optimierungen weniger je Stunde) und bewertet nach der Veröffentlichung nicht ein zweites Mal nach. Archiviert wird nur noch in den zwei Hauptläufen, die Auswertung zählt ohnehin eine Prognose je Tag.
 - **Kein Datenmüll mehr:** Einmal am Tag im Hauptlauf räumt das Add-on auf: Roh-Snapshots nach 14 Tagen, versionierte Modelldateien bis auf die neuesten 20, alte Preis-/Wetter-/Strahlungs-Vorhersagen bis auf den letzten Stand je Zeitpunkt (nach 30 Tagen), wartende Prognosen bis auf eine je Tag, bei bewerteten Prognosen die gespeicherten Pläne, unbenutzte Rohdaten im Lern-Cache sowie alte Einträge der Prognose-Statistik. Montags werden die Datenbanken danach verdichtet. Der Snapshot-Import liest nicht mehr bei jedem Lauf alle Snapshots.
