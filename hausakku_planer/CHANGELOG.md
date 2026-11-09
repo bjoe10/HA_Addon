@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.0
+- **Hinweis in Home Assistant**, wenn etwas nicht stimmt: Planer-Läufe scheitern zweimal hintereinander (auch stille Nachplanungen), die Wochenbilanz ist fehlgeschlagen, der Plan läuft in weniger als 2 Stunden ab ohne Nachfolger oder ist abgelaufen, oder ein Zähler liefert bei eingeschalteter Steuerung keine Werte. Eine einzige Benachrichtigung („Hausakku-Planer“), die sich bei Änderungen aktualisiert und verschwindet, sobald alles wieder in Ordnung ist. Nur mit eingeschaltetem Veröffentlichen.
+- **„Prüfen“ erkennt ausfallende Zähler:** Es zählt die Stunden der letzten 3 Tage ohne Wert. Fehlt mehr als jede zehnte, gilt der Zähler als nicht in Ordnung.
+
 ## 0.12.2
 - **Behoben: Planer-Läufe hingen nach dem Tausch eines Fahrzeug-Zählers.** Mit lückenlosen Daten wurden auf einen Schlag viele archivierte Prognosen nachbewertbar. Diese Nachbewertung rechnet je Prognose den Optimierer mehrfach und speicherte erst am Ende, ein abgebrochener Lauf fing also immer wieder von vorn an. Jetzt wird jedes Ergebnis sofort gespeichert und höchstens 2 Minuten je Hauptlauf bewertet; der Rest folgt in den nächsten Läufen.
 - Weniger Rechenlast auf dem Raspberry Pi: Die stündliche Nachplanung bewertet keine Prognosen nach und lädt den Lerndatensatz nicht neu, sondern nutzt das Modell des letzten Hauptlaufs (14:15 und 20:15).

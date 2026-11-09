@@ -178,9 +178,11 @@ async def update_savings(ha,now=None):
     shadow.skip_to(state,end-shadow.MAX_CATCHUP,value)
     if end>state['last_end']:
         rows,measured=await savings_rows(ha,cfg,config,state['last_end'],end,by_quarter)
+        # Quarters with the control on but a meter or price missing: a dead meter shows up here first.
+        state['missing']={k:n for k in (*shadow.METERS,'price') if (n:=sum(1 for r in rows if r['active'] and r.get(k) is None))}
         shadow.advance(state,rows,params,value)
         if measured is not None:state['end_kwh']=measured
-    state['summary']=shadow.summary(state,value,state.get('end_kwh'))
+    state['summary']={**shadow.summary(state,value,state.get('end_kwh')),'missing_quarters':state.get('missing',{})}
     shadow.save_state(f,state)
     return state['summary']
 
@@ -201,8 +203,63 @@ async def publish_report(entry):
                 log.warning('Ersparnis nicht fortgeschrieben (%s)',type(exc).__name__);summary=savings_summary()
             state,extra=savings_state(summary)
             await ha.call('ha_set_state',entity_id=ha_client.savings_sensor(),state=state,attributes=extra)
+            try:await notify_health(ha,health_issues(read_runs(20),replan_failures(),load_plan(),summary,datetime.now(TZ)))
+            except Exception as exc:log.warning('Hinweis nicht geschrieben (%s)',type(exc).__name__)
     except Exception as exc:
         log.warning('Bericht-Sensor nicht geschrieben (%s)',type(exc).__name__)
+
+NOTIFICATION_ID='hausakku_planer'
+METER_ROLE={'grid':'grid_import','wr':'inverter_energy','charger':'charger_energy','export':'grid_export','pv':'pv_energy','ev':'ev_energy'}
+PLAN_EXPIRY_WARNING=timedelta(hours=2)
+
+def replan_failures():
+    """Silent replan failures in a row (planner.py keeps them out of the report until the third)."""
+    try:return int(json.loads((paths.STATE/'replan_failures.json').read_text()).get('count',0))
+    except (OSError,ValueError):return 0
+
+def _first_line(entry):
+    text=(entry.get('message') or entry.get('stderr') or '').strip()
+    return text.splitlines()[0][:200] if text else 'ohne Meldung'
+
+def health_issues(runs,silent_failures,plan,savings,now):
+    """What the user should know about: repeated planner failures, a failed weekly balance, a plan about
+    to expire without a successor, meters without values. Pure, newest run first in `runs`."""
+    issues=[]
+    planner=[r for r in runs if r.get('kind') in ('main','replan') and not r.get('skipped')]
+    failed=0
+    for r in planner:
+        if r.get('ok'):break
+        failed+=1
+    failed=max(failed,silent_failures)
+    if failed>=2:
+        last=next((r for r in planner if not r.get('ok')),{})
+        issues.append(f'Die letzten {failed} Planer-Läufe sind fehlgeschlagen ({_first_line(last) if last else "still, siehe Protokoll"}). Der zuletzt veröffentlichte Plan gilt bis zu seinem Ablauf weiter.')
+    weekly=next((r for r in runs if r.get('kind')=='weekly' and not r.get('skipped')),None)
+    if weekly and not weekly.get('ok'):
+        issues.append(f'Die Wochenbilanz vom {weekly["time"][:10]} ist fehlgeschlagen ({_first_line(weekly)}). Nach einer Korrektur holt „Wochenbilanz rechnen“ sie nach.')
+    if plan and plan.get('valid_until'):
+        until=datetime.fromisoformat(plan['valid_until'])
+        if until<=now:issues.append('Der Plan ist abgelaufen. Die Steuerung fährt den Rückfall: nur Wechselrichter, kein Netzladen.')
+        elif until-now<PLAN_EXPIRY_WARNING:
+            issues.append(f'Der Plan läuft um {until.astimezone(TZ).strftime("%H:%M")} ab, und es gibt noch keinen neuen. Danach gilt der Rückfall: nur Wechselrichter.')
+    missing=(savings or {}).get('missing_quarters') or {}
+    names=[('Preise' if k=='price' else settings.label(METER_ROLE[k]).split(' (')[0])+f' ({n} Viertelstunden)' for k,n in missing.items() if n>=2]
+    if names:issues.append('Ohne Werte bei eingeschalteter Steuerung: '+', '.join(names)+'. Diese Zeit zählt nicht zur Ersparnis; den Zähler unter Einstellungen mit „Prüfen“ kontrollieren.')
+    return issues
+
+async def notify_health(ha,issues):
+    """One persistent notification in Home Assistant, updated when the text changes and removed when all is well."""
+    f=paths.STATE/'health.json'
+    try:last=json.loads(f.read_text()).get('text')
+    except (OSError,ValueError):last=None
+    text='\n\n'.join('- '+i for i in issues) if issues else None
+    if text==last:return
+    if text:
+        await ha.call('ha_call_service',domain='persistent_notification',service='create',
+                      data={'notification_id':NOTIFICATION_ID,'title':'Hausakku-Planer','message':text})
+    else:
+        await ha.call('ha_call_service',domain='persistent_notification',service='dismiss',data={'notification_id':NOTIFICATION_ID})
+    f.write_text(json.dumps({'text':text}))
 
 class Scheduler:
     def __init__(self):self.lock=asyncio.Lock();self.running=None;self._tasks=set()
@@ -461,7 +518,17 @@ async def check_entity(ha,role,entity,now=None):
         if days==0:result['ok']=False;result['messages'].append('Keine Langzeitstatistik. Der Zähler braucht state_class total oder total_increasing.')
         elif days<STATS_DAYS-3:result['messages'].append(f'Erst {days} von {STATS_DAYS} Tagen Verlauf; der Plan wird mit Startwerten ungenauer.')
         else:result['messages'].append(f'{days} Tage Verlauf vorhanden.')
+        hourly=await ha.call('ha_get_history',source='statistics',entity_ids=entity,start_time=(now-timedelta(hours=GAP_HOURS+1)).isoformat(),
+                             end_time=(now-timedelta(hours=1)).isoformat(),period='hour',statistic_types=['change'])
+        seen=len([r for e in hourly['entities'] for r in e.get('statistics',[]) if r.get('change') is not None])
+        gaps=max(0,GAP_HOURS-seen)
+        result['gap_hours']=gaps
+        if gaps>GAP_HOURS//10:
+            result['ok']=False;result['messages'].append(f'{gaps} der letzten {GAP_HOURS} Stunden ohne Wert. Wochenbilanz und Ersparnis brauchen lückenlose Werte; der Zähler fällt aus oder ist der falsche.')
+        elif gaps:result['messages'].append(f'{gaps} der letzten {GAP_HOURS} Stunden ohne Wert.')
     return result
+
+GAP_HOURS=72
 
 async def check(request):
     role=request.query.get('role','');entity=request.query.get('entity','')

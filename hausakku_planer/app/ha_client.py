@@ -55,6 +55,8 @@ def check_call(name,args,mode=None):
         # Read-only services that return data.
         if pair==('tibber','get_prices'): return
         if pair==('weather','get_forecasts') and weather and entity==weather and args.get('data')=={'type':'hourly'}: return
+        if pair in {('persistent_notification','create'),('persistent_notification','dismiss')} and (args.get('data') or {}).get('notification_id')=='hausakku_planer':
+            _require_writes(mode);return     # the add-on's own notice, nothing else
         if pair in {('input_datetime','set_datetime'),('input_text','set_value'),('input_number','set_value')} and entity.split('.')[-1] in own():
             _require_writes(mode);return
         raise ValueError('Hardware/service writes prohibited by planner client')

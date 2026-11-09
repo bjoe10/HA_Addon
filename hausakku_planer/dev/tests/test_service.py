@@ -138,6 +138,60 @@ class SavingsTests(unittest.TestCase):
             with self.assertRaises(ValueError):check_call('ha_set_state',{'entity_id':'sensor.hap_anderes'},mode='publish')
         finally:settings.use(None)
 
+class HealthTests(unittest.TestCase):
+    now=datetime(2026,11,9,22,30,tzinfo=TZ)
+    def run_(self,kind,ok,**kw):return {'kind':kind,'ok':ok,'time':'2026-11-09T22:00:00+01:00',**kw}
+
+    def test_all_well_says_nothing(self):
+        runs=[self.run_('replan',True),self.run_('main',True),self.run_('weekly',True)]
+        self.assertEqual(service.health_issues(runs,0,{'valid_until':'2026-11-11T00:00:00+01:00'},{'missing_quarters':{}},self.now),[])
+
+    def test_repeated_planner_failures_are_reported_one_is_not(self):
+        one=[self.run_('replan',False,message='Zeitlimit von 15 min überschritten, Lauf abgebrochen.'),self.run_('main',True)]
+        self.assertEqual(service.health_issues(one,0,None,None,self.now),[])
+        two=[one[0],self.run_('weekly',True),one[0],self.run_('main',True)]
+        issues=service.health_issues(two,0,None,None,self.now)
+        self.assertEqual(len(issues),1);self.assertIn('letzten 2 Planer-Läufe',issues[0]);self.assertIn('Zeitlimit',issues[0])
+        # Silent replan failures (reported ok by the planner) count as well.
+        self.assertIn('letzten 3',service.health_issues([self.run_('replan',True)],3,None,None,self.now)[0])
+
+    def test_failed_weekly_balance_and_expiring_plan(self):
+        runs=[self.run_('weekly',False,stderr='[CRON_FAILURE] Wochenbilanz fehlgeschlagen (Messwert fehlt: ev 37)\nmehr')]
+        issues=service.health_issues(runs,0,{'valid_until':'2026-11-10T00:00:00+01:00'},None,self.now)
+        self.assertIn('Messwert fehlt: ev 37',issues[0]);self.assertIn('läuft um 00:00 ab',issues[1])
+        self.assertIn('abgelaufen',service.health_issues([],0,{'valid_until':'2026-11-09T22:00:00+01:00'},None,self.now)[0])
+
+    def test_meters_without_values_are_named(self):
+        settings.use(settings.load())
+        try:
+            issues=service.health_issues([],0,None,{'missing_quarters':{'ev':8,'pv':1}},self.now)
+            self.assertEqual(len(issues),1);self.assertIn('Fahrzeug-Ladezähler',issues[0]);self.assertIn('8 Viertelstunden',issues[0])
+            self.assertNotIn('PV',issues[0])
+        finally:settings.use(None)
+
+    def test_notice_is_written_on_change_and_removed_when_well(self):
+        from pathlib import Path
+        old=paths.STATE;paths.STATE=Path(tempfile.mkdtemp())
+        class HA:
+            calls=[]
+            async def call(self,name,**kw):self.calls.append((kw['service'],kw['data']))
+        ha=HA()
+        try:
+            asyncio.run(service.notify_health(ha,[]))                       # nothing to say, nothing to remove
+            asyncio.run(service.notify_health(ha,['A']));asyncio.run(service.notify_health(ha,['A']))
+            asyncio.run(service.notify_health(ha,[]))
+            self.assertEqual([c[0] for c in ha.calls],['create','dismiss'])
+            self.assertEqual(ha.calls[0][1]['notification_id'],'hausakku_planer')
+        finally:paths.STATE=old
+
+    def test_only_the_own_notice_may_be_written(self):
+        from ha_client import check_call,WritesDisabled
+        check_call('ha_call_service',{'domain':'persistent_notification','service':'create','data':{'notification_id':'hausakku_planer'}},mode='publish')
+        with self.assertRaises(ValueError):
+            check_call('ha_call_service',{'domain':'persistent_notification','service':'create','data':{'notification_id':'other'}},mode='publish')
+        with self.assertRaises(WritesDisabled):
+            check_call('ha_call_service',{'domain':'persistent_notification','service':'dismiss','data':{'notification_id':'hausakku_planer'}},mode='observe')
+
 class ServiceTests(AioHTTPTestCase):
     async def get_application(self):
         settings.use({});return service.make_app()

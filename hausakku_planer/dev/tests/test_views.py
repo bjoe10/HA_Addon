@@ -111,12 +111,13 @@ class BatterySettingsTests(unittest.TestCase):
         self.assertEqual([e['entity_id'] for e in views.suggest('battery_soc',states)],['sensor.zzz_pack_soc','sensor.bbb_window_battery','sensor.aaa_door_battery'])
 
 class FakeHA:
-    def __init__(self,unit='kWh',state='5',days=28,exists=True):self.unit=unit;self.state=state;self.days=days;self.exists=exists
+    def __init__(self,unit='kWh',state='5',days=28,exists=True,hours=72):self.unit=unit;self.state=state;self.days=days;self.exists=exists;self.hours=hours
     async def call(self,name,**a):
         if name=='ha_get_state':
             if not self.exists:raise RuntimeError('gone')
             return {'state':self.state,'attributes':{'unit_of_measurement':self.unit}}
-        return {'entities':[{'entity_id':a['entity_ids'],'statistics':[{'change':1.}]*self.days}]}
+        n=self.hours if a.get('period')=='hour' else self.days
+        return {'entities':[{'entity_id':a['entity_ids'],'statistics':[{'change':1.}]*n}]}
 
 class CheckTests(unittest.TestCase):
     def check(self,role,**kw):return asyncio.run(service.check_entity(FakeHA(**kw),role,'sensor.x',datetime(2026,10,28,tzinfo=TZ)))
@@ -129,6 +130,10 @@ class CheckTests(unittest.TestCase):
         self.assertIn('Langzeitstatistik',' '.join(self.check('grid_import',days=0)['messages']))
     def test_short_history_warns_but_passes(self):
         r=self.check('grid_import',days=10);self.assertTrue(r['ok']);self.assertIn('10 von 28',' '.join(r['messages']))
+    def test_meter_with_hourly_gaps_fails(self):
+        r=self.check('ev_energy',hours=35)          # a meter that is dead half of the time
+        self.assertFalse(r['ok']);self.assertEqual(r['gap_hours'],37);self.assertIn('37 der letzten 72 Stunden',' '.join(r['messages']))
+        r=self.check('ev_energy',hours=70);self.assertTrue(r['ok']);self.assertIn('2 der letzten 72',' '.join(r['messages']))
     def test_unavailable_fails(self):self.assertFalse(self.check('battery_soc',state='unavailable',unit='%')['ok'])
 
 class ApiTests(AioHTTPTestCase):

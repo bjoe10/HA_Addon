@@ -53,7 +53,7 @@ Mit eingeschaltetem „Veröffentlichen“ legt das Add-on diese Helfer an, mit 
 | `sensor.hap_bericht` | Bericht und Faktenblock der letzten Läufe (für Zusammenfassungen); im Attribut `soc_plan` der geplante Akkustand des veröffentlichten Plans (Start, Minuten und kWh je Intervallende) |
 | `sensor.hap_ersparnis` | Ersparnis durch die Steuerung in EUR seit Zählbeginn (siehe „Ersparnis“); Attribute: `week_eur` diese Woche, `last_week_eur`, gezählte Stunden, Modellabweichung |
 
-Das Add-on schreibt nur in diese Helfer und, wenn du es auslöst, in die Ressource der Dashboard-Karte (siehe unten). Gerätezustände oder Schalter fasst es nicht an.
+Das Add-on schreibt nur in diese Helfer, in eine eigene Benachrichtigung „Hausakku-Planer“ (siehe Fehlersuche) und, wenn du es auslöst, in die Ressource der Dashboard-Karte (siehe unten). Gerätezustände oder Schalter fasst es nicht an.
 
 ## Steuerung: der Blueprint
 
@@ -142,6 +142,8 @@ Die Ersparnis vergleicht deine Anlage mit derselben Anlage, deren Wechselrichter
 Einzelne Tage oder Wochen mit negativer Ersparnis sind normal, wenn Energie für teurere Stunden aufgehoben wurde, die noch nicht gekommen sind.
 
 ## Fehlersuche
+
+Mit eingeschaltetem Veröffentlichen meldet sich das Add-on mit einer Benachrichtigung in Home Assistant, wenn Planer-Läufe wiederholt scheitern, die Wochenbilanz fehlschlägt, der Plan bald abläuft ohne Nachfolger oder ein Zähler bei eingeschalteter Steuerung keine Werte liefert. Sie verschwindet von selbst, wenn alles wieder läuft. „Prüfen“ in den Einstellungen zeigt zu jedem Zähler, wie viele der letzten 72 Stunden ohne Wert sind.
 
 | Meldung oder Beobachtung | Ursache und Abhilfe |
 |---|---|
