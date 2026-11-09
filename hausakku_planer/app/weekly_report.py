@@ -7,7 +7,7 @@ Prints a fact block; a notifier can phrase it. No hardware access.
 import argparse,asyncio,json,math,sys
 from datetime import datetime,timedelta
 from pathlib import Path
-import paths,settings
+import diagnostics,paths,settings
 from collector import energy_map,vehicle_entities,body,device_label,normalize_statistics,vehicle_energy
 from forecast import TZ
 from forecast_audit import audit_summary
@@ -122,6 +122,7 @@ def facts(result,week,devices,calibration,audit,counter=None):
 
 
 async def run(args):
+    watcher=diagnostics.start_watch()     # noqa: F841 (kept alive until asyncio.run ends)
     config=load_config(BASE);ENERGY=energy_map();EVS=vehicle_entities()
     end=datetime.combine(datetime.now(TZ).date(),datetime.min.time(),TZ) if not args.end else datetime.fromisoformat(args.end).astimezone(TZ)
     start=datetime.combine((end-timedelta(days=args.days)).date(),datetime.min.time(),TZ)
@@ -166,6 +167,7 @@ async def run(args):
 def main():
     p=argparse.ArgumentParser();p.add_argument('--days',type=int,default=7);p.add_argument('--end',help='ISO end (local midnight), default today 00:00')
     args=p.parse_args()
+    diagnostics.arm()
     try:asyncio.run(run(args));return 0
     except Exception as exc:
         where=''

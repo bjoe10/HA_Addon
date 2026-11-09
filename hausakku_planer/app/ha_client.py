@@ -8,12 +8,13 @@ Safety, unchanged in spirit: a write allowlist. The client can only write the ad
 helpers (and, when asked, the dashboard card's Lovelace resource) and never switches hardware.
 In operating mode `observe` no write is allowed at all.
 """
-import json, os
+import asyncio, json, os
 from contextlib import asynccontextmanager
 import aiohttp
 import dashboard_card, settings
 
 SUPERVISOR_URL='http://supervisor/core'
+WS_TIMEOUT=180     # seconds for one WebSocket answer; a year of hourly statistics comes back in a few seconds
 def own():
     """Object ids of the helpers the add-on owns (from the helper prefix). Created on first publish if missing."""
     return {v for k,v in settings.current().helpers().items() if k in ('charge','serve','expiry','status','target')}
@@ -89,13 +90,19 @@ class Transport:
             text=await r.text()
             return json.loads(text) if text and 'json' in r.headers.get('Content-Type','') else text
 
+    async def _receive(self,what):
+        """One WebSocket message; an answer that never comes is an error, not a run that hangs for good."""
+        try:return await asyncio.wait_for(self.ws.receive_json(),WS_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise TimeoutError(f'Keine Antwort von Home Assistant auf {what} nach {WS_TIMEOUT} s') from None
+
     async def _ws_connect(self):
         url=self.base.replace('http','ws',1)+'/websocket'
         self.ws=await self.http.ws_connect(url,max_msg_size=0)
-        msg=await self.ws.receive_json()
+        msg=await self._receive('WebSocket-Anmeldung')
         if msg.get('type')!='auth_required':raise RuntimeError('WebSocket handshake failed')
         await self.ws.send_json({'type':'auth','access_token':self.token})
-        msg=await self.ws.receive_json()
+        msg=await self._receive('WebSocket-Anmeldung')
         if msg.get('type')!='auth_ok':raise RuntimeError('WebSocket authentication failed')
 
     async def command(self,**payload):
@@ -103,7 +110,7 @@ class Transport:
         self._id+=1;mid=self._id
         await self.ws.send_json({'id':mid,**payload})
         while True:
-            msg=await self.ws.receive_json()
+            msg=await self._receive(str(payload.get('type','?')))
             if msg.get('id')!=mid:continue
             if not msg.get('success',False):
                 # The error body may echo request details; report the code only.

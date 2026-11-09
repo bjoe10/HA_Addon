@@ -16,7 +16,7 @@ from forecast_audit import archive_forecast,score_forecasts,audit_summary
 from publisher import publish,publish_ev_window,validate_schedule_pair,expire
 import ev_charging
 from ha_client import connection
-import paths,settings
+import diagnostics,paths,settings
 import spot_prices
 from openmeteo import apply_radiation,archive_radiation,load_history,refresh_history
 from multiday import archive_weather,build_tail,scenario_rows,continuation_curve,archive_prices,read_prices,archive_issue,score_issues,seed_price_archive
@@ -433,6 +433,7 @@ def change_message(plan,previous,reason):
     return '\n'.join(lines)
 
 async def run(args):
+    watcher=diagnostics.start_watch(STAGE)     # noqa: F841 (kept alive until asyncio.run ends)
     replan=getattr(args,'replan',False)
     started=time.monotonic();config=load_config()
     STAGE[0]='Datenabruf aus HA'
@@ -571,10 +572,19 @@ async def fail_closed():
         return True
     except Exception:return False
 
+def failure_detail(exc):
+    """Where a run failed: the innermost code location, plus the message of our own timeouts.
+    Other messages are left out: a transport error can carry the private URL."""
+    tb=exc.__traceback__
+    while tb is not None and tb.tb_next is not None:tb=tb.tb_next
+    where=', '+Path(tb.tb_frame.f_code.co_filename).name+':'+str(tb.tb_lineno) if tb is not None else ''
+    return where+(': '+str(exc) if isinstance(exc,TimeoutError) and str(exc).startswith('Keine Antwort') else '')
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('--publish',action='store_true');p.add_argument('--from-snapshot',action='store_true')
     p.add_argument('--replan',action='store_true',help='hourly: publish only on schedule change, quiet output')
     args=p.parse_args()
+    diagnostics.arm()
     if args.replan:args.publish=True
     (BASE/'state').mkdir(exist_ok=True)
     with (BASE/'state/run.lock').open('w') as lock:
@@ -594,14 +604,17 @@ def main():
             # No raw transport exception/traceback: it can contain the private MCP URL.
             failure={'time':datetime.now(TZ).isoformat(),'error_class':type(exc).__name__}
             (BASE/'state/last_failure.json').write_text(json.dumps(failure,indent=2))
+            where=failure_detail(exc)
             if args.replan and invalidated is None:
                 count=(json.loads(failures.read_text()).get('count',0) if failures.exists() else 0)+1
                 failures.write_text(json.dumps({'count':count,'last':failure},indent=2))
-                # Transient HA/network hiccups stay silent; the published plan remains valid.
+                # Transient HA/network hiccups stay silent in the report (the published plan remains valid),
+                # but the run log keeps where it failed.
+                print(f'Nachplanung fehlgeschlagen ({type(exc).__name__}{where}, Abbruch bei: {STAGE[0]}).',file=sys.stderr)
                 if count<3:return 0
                 print(f"⚠️ Hausakku-Nachplanung schlägt seit {count} Läufen fehl ({type(exc).__name__}, Abbruch bei: {STAGE[0]}). Der zuletzt veröffentlichte Plan bleibt bis zu seinem Ablauf gültig.")
                 return 0
-            print('[CRON_FAILURE] Hausakku-Planer fehlgeschlagen ('+type(exc).__name__+', Abbruch bei: '+STAGE[0]+'). Kein neuer Plan freigegeben.',file=sys.stderr)
+            print('[CRON_FAILURE] Hausakku-Planer fehlgeschlagen ('+type(exc).__name__+where+', Abbruch bei: '+STAGE[0]+'). Kein neuer Plan freigegeben.',file=sys.stderr)
             if invalidated:
                 print('HA-Zustand: bisheriger Plan wurde absichtlich UNGÜLTIG gesetzt. Die Steuerung fährt den sicheren Rückfall: keine Netzladung, nur WR. Der alte Plan gilt NICHT weiter.',file=sys.stderr)
             elif invalidated is False:

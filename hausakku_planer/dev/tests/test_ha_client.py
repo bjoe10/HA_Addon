@@ -227,4 +227,17 @@ class NeutralDefaultsTests(unittest.TestCase):
             self.assertAlmostEqual(compute_plan(fixture,cfg)['plan']['initial_kwh'],12*float(fixture['states']['sensor.ant_bms_16_soc']['state'])/100)
         finally:settings.use(None)
 
+class WebSocketTimeoutTests(unittest.TestCase):
+    def test_an_answer_that_never_comes_is_an_error_naming_the_command(self):
+        import ha_client
+        class SilentSocket:
+            async def send_json(self,data):pass
+            async def receive_json(self):await asyncio.sleep(3600)
+        t=ha_client.Transport(base='http://example.invalid',token='t');t.ws=SilentSocket()
+        old=ha_client.WS_TIMEOUT;ha_client.WS_TIMEOUT=.2
+        try:
+            with self.assertRaises(TimeoutError) as ctx:asyncio.run(t.command(type='recorder/statistics_during_period'))
+            self.assertIn('recorder/statistics_during_period',str(ctx.exception))
+        finally:ha_client.WS_TIMEOUT=old
+
 if __name__=='__main__': unittest.main()

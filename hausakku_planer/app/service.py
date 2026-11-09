@@ -49,7 +49,9 @@ def read_runs(limit=50):
 async def run_process(cmd,timeout):
     """Run a command, collecting its output. Past `timeout` seconds it is killed; what it printed so far is kept.
     Returns (returncode or None when killed, stdout bytes, stderr bytes)."""
-    proc=await asyncio.create_subprocess_exec(*cmd,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,cwd=str(APP),env=os.environ.copy())
+    # Unbuffered, so a stopped run keeps what it printed; a minute before the limit it writes where it waits (diagnostics.py).
+    env={**os.environ,'PYTHONUNBUFFERED':'1','HAUSAKKU_DUMP_AFTER':str(max(timeout-60,timeout*.8))}
+    proc=await asyncio.create_subprocess_exec(*cmd,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,cwd=str(APP),env=env)
     reads=[asyncio.ensure_future(proc.stdout.read()),asyncio.ensure_future(proc.stderr.read())]
     try:
         await asyncio.wait_for(proc.wait(),timeout)
@@ -79,8 +81,8 @@ async def run_planner(kind,mode,trigger='zeit',command=None,timeout=None):
     entry={'time':started.isoformat(),'kind':kind,'trigger':trigger,'mode':mode,'ok':code==0,
            'seconds':round(time.monotonic()-t0,1),'stdout':full[-3000:],'stderr':errors[-1500:]}
     if code is None:
-        entry['message']=f'Zeitlimit von {round(limit/60)} min überschritten, Lauf abgebrochen.'
-        entry['stderr']=(errors+'\n'+entry['message']).strip()[-1500:]
+        entry['message']=f'Zeitlimit von {round(limit/60)} min überschritten, Lauf abgebrochen.' if limit>=60 else f'Zeitlimit von {limit} s überschritten, Lauf abgebrochen.'
+        entry['stderr']=(errors+'\n'+entry['message']).strip()[-8000:]     # room for the stack dump
         log.warning('Lauf %s nach %d s abgebrochen (Zeitlimit)',kind,limit)
     log_run(entry)
     if mode!='observe' and not command:await publish_report({**entry,'stdout':full})

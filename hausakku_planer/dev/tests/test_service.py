@@ -49,6 +49,18 @@ class RunTests(unittest.TestCase):
         self.assertIn('schritt 1',r['stdout']);self.assertIn('warte',r['stderr']);self.assertIn('Zeitlimit',r['stderr'])
         self.assertIn('Zeitlimit',service.read_runs()[0]['message'])
 
+    def test_hung_run_writes_where_it_waits_before_it_is_stopped(self):
+        code=('import asyncio,diagnostics\n'
+              'diagnostics.arm()\n'
+              'async def stuck():await asyncio.sleep(60)\n'
+              'async def main():\n'
+              '    w=diagnostics.start_watch(["Datenabruf aus HA"]);await stuck()\n'
+              'asyncio.run(main())\n')
+        r=asyncio.run(service.run_planner('main','observe',command=[sys.executable,'-c',code],timeout=3))
+        self.assertFalse(r['ok']);self.assertIn('Zeitlimit',r['message'])
+        self.assertIn('Lauf hängt seit',r['stderr']);self.assertIn('Schritt: Datenabruf aus HA',r['stderr'])
+        self.assertIn('stuck',r['stderr'])                    # the awaiting coroutine is named
+
     def test_every_run_kind_has_a_time_limit(self):
         for kind in ('main','replan','weekly'):self.assertGreater(service.RUN_TIMEOUT[kind],300)
 

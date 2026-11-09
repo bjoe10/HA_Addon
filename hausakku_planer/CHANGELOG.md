@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.1
+- Hängende Läufe lassen sich finden: Eine Minute vor dem Zeitlimit schreibt der Lauf ins Protokoll, wo er wartet (Schritt, Stacks der Tasks und Threads). Die Ausgabe ist ungepuffert, auch ein abgebrochener Lauf behält sie.
+- Bleibt eine Antwort von Home Assistant über den WebSocket 3 Minuten aus, ist das jetzt ein Fehler, der den Befehl nennt, statt eines Laufs, der bis zum Zeitlimit hängt.
+- Fehlgeschlagene Läufe nennen im Protokoll die Code-Stelle, auch stille Nachplanungen.
+
 ## 0.12.0
 - **Ersparnis neu gerechnet:** Ein Schatten-Akku mit dauernd eingeschaltetem Wechselrichter läuft in Viertelstunden durchgehend mit, aus den 5-Minuten-Werten von Home Assistant und den Tibber-Viertelstundenpreisen. Gezählt wird ab dem Update und **nur, solange die Steuerung an ist** (Freigabe-Schalter die ganze Viertelstunde an). Ist sie aus oder fehlen Daten, kommt nichts dazu; der Schatten übernimmt danach den gemessenen Akkustand.
 - Aufgehobene Energie geht an Wochengrenzen nicht mehr verloren. Gesamt- und Wochenwert addieren sich exakt.
