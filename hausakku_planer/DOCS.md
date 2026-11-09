@@ -51,7 +51,7 @@ Mit eingeschaltetem „Veröffentlichen“ legt das Add-on diese Helfer an, mit 
 | `input_boolean.hap_regler_uebernommen` | Merker der Steuerung |
 | `timer.hap_schaltsperre` | Schaltsperre |
 | `sensor.hap_bericht` | Bericht und Faktenblock der letzten Läufe (für Zusammenfassungen); im Attribut `soc_plan` der geplante Akkustand des veröffentlichten Plans (Start, Minuten und kWh je Intervallende) |
-| `sensor.hap_ersparnis` | Gemessene Ersparnis in EUR seit der ersten vollen Woche (Summe der Wochenbilanzen); Attribute: inklusive Akkustand, letzte Woche, alle Wochen |
+| `sensor.hap_ersparnis` | Ersparnis durch die Steuerung in EUR seit Zählbeginn (siehe „Ersparnis“); Attribute: `week_eur` diese Woche, `last_week_eur`, gezählte Stunden, Modellabweichung |
 
 Das Add-on schreibt nur in diese Helfer und, wenn du es auslöst, in die Ressource der Dashboard-Karte (siehe unten). Gerätezustände oder Schalter fasst es nicht an.
 
@@ -128,7 +128,18 @@ Montags 08:00 rechnet das Add-on nach, was die Steuerung in der letzten Woche ta
 
 Sie braucht außerdem für jede Stunde einen Wert aller Zähler, auch der Fahrzeug-Zähler. Fehlen am Ende der Woche Stunden, etwa weil ein Zähler ausgefallen ist, bricht sie ab und nennt den Zähler. Nach dem Austausch des Zählers in den Einstellungen holt **„Wochenbilanz rechnen“** auf der Übersicht sie nach.
 
-Die Summe aller vollen Wochen steht als **gemessene Ersparnis** auf der Übersicht und in `sensor.<Präfix>_ersparnis`. Der Hauptwert ist die Kasse, also was du tatsächlich weniger (oder mehr) bezahlt hast. „Inklusive Akkustand“ rechnet zusätzlich den Unterschied im Akkuinhalt am Wochenende vorsichtig bewertet ein. Einzelne Wochen mit negativer Kasse sind normal, wenn Energie für teurere Tage aufgehoben wurde.
+## Ersparnis
+
+Die Ersparnis vergleicht deine Anlage mit derselben Anlage, deren Wechselrichter dauernd an ist und die nie aus dem Netz lädt. Diese Vergleichsanlage ist ein **Schatten-Akku**, den das Add-on in Viertelstunden mitlaufen lässt: gleicher Verbrauch, gleiche PV, gleiche Tibber-Viertelstundenpreise, gemessen aus den 5-Minuten-Werten von Home Assistant. Fortgeschrieben wird bei jedem Lauf, also stündlich.
+
+- **Gezählt wird nur, solange die Steuerung an ist**, das heißt der Freigabe-Schalter die ganze Viertelstunde an war. Ist sie aus, kommt nichts dazu. Beim Wiedereinschalten startet der Schatten mit dem gemessenen Akkustand.
+- **Ersparnis gesamt** = Kosten des Schattens − deine Kosten + der Unterschied im Akkuinhalt, vorsichtig bewertet (niedrigster Preis der letzten 7 Tage × Entlade-Wirkungsgrad). Weil der Schatten durchgehend läuft, geht für teure Stunden aufgehobene Energie an Tages- und Wochengrenzen nicht verloren.
+- **Diese Woche** ist der Zuwachs seit Montag 00:00. Die Wochen addieren sich genau zum Gesamtwert.
+- Damit der Schatten nicht besser rechnet als die Wirklichkeit, nutzt er den gemessenen Entlade-Wirkungsgrad (ab 20 sauberen Entladestunden) und lernt, wie viel des Verbrauchs beim Versorgen trotzdem aus dem Netz kommt.
+- Als Gütemaß rechnet das Add-on auch deine tatsächliche Fahrweise durch dasselbe Modell. `model_deviation_eur` zeigt, wie weit das Modell von deinen gemessenen Kosten abweicht.
+- Fehlen Zählerwerte oder Preise, zählt die Viertelstunde nicht (`gap_hours`). War das Add-on länger als 8 Tage aus, wird die Zeit übersprungen, weil Home Assistant die 5-Minuten-Werte dann gelöscht hat.
+
+Einzelne Tage oder Wochen mit negativer Ersparnis sind normal, wenn Energie für teurere Stunden aufgehoben wurde, die noch nicht gekommen sind.
 
 ## Fehlersuche
 

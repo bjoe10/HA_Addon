@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0
+- **Ersparnis neu gerechnet:** Ein Schatten-Akku mit dauernd eingeschaltetem Wechselrichter läuft in Viertelstunden durchgehend mit, aus den 5-Minuten-Werten von Home Assistant und den Tibber-Viertelstundenpreisen. Gezählt wird ab dem Update und **nur, solange die Steuerung an ist** (Freigabe-Schalter die ganze Viertelstunde an). Ist sie aus oder fehlen Daten, kommt nichts dazu; der Schatten übernimmt danach den gemessenen Akkustand.
+- Aufgehobene Energie geht an Wochengrenzen nicht mehr verloren. Gesamt- und Wochenwert addieren sich exakt.
+- Der Schatten nutzt den gemessenen Entlade-Wirkungsgrad und lernt, wie viel beim Versorgen trotzdem aus dem Netz kommt. Er rechnet sich also nicht besser als die echte Anlage.
+- `sensor.<Präfix>_ersparnis`: Wert = Gesamtersparnis, Attribut `week_eur` = diese Woche, dazu letzte Woche, gezählte Stunden, Modellabweichung. Die Übersicht zeigt Gesamt und Woche.
+- Die Wochenbilanz nennt den Zähler. Die bisherige Summe der Wochenbilanzen entfällt.
+
 ## 0.11.0
 - **Gemessene Ersparnis** als Sensor `sensor.<Präfix>_ersparnis` (EUR): die Summe der Wochenbilanzen aller vollen Wochen gegenüber „Wechselrichter dauernd an, nie Netzladen“. In den Attributen stehen der Wert inklusive Akkustand, die letzte Woche und alle Wochen einzeln. Die Übersicht zeigt ihn als Kachel. Er wird mit jedem Lauf neu geschrieben, wie der Bericht-Sensor.
 - Knopf **„Wochenbilanz rechnen“** auf der Übersicht. Damit lässt sich eine fehlgeschlagene Bilanz nachholen, etwa nach dem Austausch eines Zählers. Das Protokoll nennt solche Läufe „Wochenbilanz“.

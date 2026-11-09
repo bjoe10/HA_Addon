@@ -52,31 +52,69 @@ class RunTests(unittest.TestCase):
     def test_every_run_kind_has_a_time_limit(self):
         for kind in ('main','replan','weekly'):self.assertGreater(service.RUN_TIMEOUT[kind],300)
 
-class SavingsTests(unittest.TestCase):
-    def week(self,d,start,days=7,cash=1.,incl=2.):
-        from datetime import date,timedelta
-        s=date.fromisoformat(start);e=s+timedelta(days=days)
-        (d/f'{start}.json').write_text(json.dumps({'period_start':f'{s}T00:00:00+01:00','period_end':f'{e}T00:00:00+01:00',
-            'cash_saving_eur':cash,'saving_incl_inventory_eur':incl,'actual_cost_eur':10.,'counterfactual_cost_eur':10.+cash}))
+class FakeHA:
+    """Answers the three reads of update_savings: 5-minute meter changes, battery means, release-switch history."""
+    def __init__(self,switch='on',grid=.05,battery=8.):self.switch=switch;self.grid=grid;self.battery=battery;self.calls=[]
+    async def call(self,name,**kw):
+        self.calls.append((name,kw))
+        start=datetime.fromisoformat(kw['start_time']).timestamp();end=datetime.fromisoformat(kw['end_time']).timestamp()
+        buckets=range(int(start),int(end),300)
+        ids=kw['entity_ids'] if isinstance(kw['entity_ids'],list) else [kw['entity_ids']]
+        if kw.get('source')=='statistics' and kw['statistic_types']==['mean']:
+            return {'entities':[{'entity_id':e,'unit_of_measurement':'kWh','statistics':[{'start':t*1000,'mean':self.battery} for t in buckets]} for e in ids]}
+        if kw.get('source')=='statistics':
+            grid=settings.current().entity('grid_import')
+            return {'entities':[{'entity_id':e,'unit_of_measurement':'kWh','has_more':False,
+                                 'statistics':[{'start':t*1000,'change':self.grid if e==grid else 0.} for t in buckets]} for e in ids]}
+        return {'entities':[{'entity_id':ids[0],'states':[{'state':self.switch,'last_changed':datetime.fromtimestamp(start-3600,TZ).isoformat()}]}]}
 
-    def test_none_before_the_first_full_week(self):
-        d=__import__('pathlib').Path(tempfile.mkdtemp())
-        self.assertIsNone(service.savings_summary(d/'missing'))
-        self.week(d,'2026-10-29',days=4)            # a new installation's short first period is not counted
-        self.assertIsNone(service.savings_summary(d))
+class SavingsTests(unittest.TestCase):
+    def setUp(self):
+        from pathlib import Path
+        self.old=(paths.DATA,paths.STATE);paths.DATA=Path(tempfile.mkdtemp());paths.STATE=paths.DATA/'state';paths.ensure()
+        settings.use(settings.load())
+        (paths.DATA/'config.json').write_text(json.dumps({'capacity_kwh':16,'reserve_fraction':.1,'max_charge_kw':1,'max_discharge_kw':2,
+            'discharge_efficiency':.9,'roundtrip_efficiency':.8,'grid_charge_max_soc_fraction':.9}))
+        import multiday
+        t0=int(datetime(2026,11,9,10,0,tzinfo=TZ).timestamp())
+        multiday.archive_prices(paths.STATE/'multiday_audit.sqlite',{'collected_at':datetime.fromtimestamp(t0-86400,TZ).isoformat(),
+            'prices':[{'start_time':datetime.fromtimestamp(t0-86400+900*i,TZ).isoformat(),'price':.3} for i in range(4*72)]})
+        self.t0=t0
+    def tearDown(self):paths.DATA,paths.STATE=self.old;settings.use(None)
+
+    def at(self,minutes):return datetime.fromtimestamp(self.t0+60*minutes,TZ)
+
+    def test_counting_starts_now_without_going_back(self):
+        ha=FakeHA()
+        s=asyncio.run(service.update_savings(ha,self.at(10)))
+        self.assertEqual(ha.calls,[]);self.assertEqual(s['total_eur'],0.);self.assertEqual(s['active_hours'],0.)
+        self.assertTrue(s['since'].startswith('2026-11-09T10:00'))
+
+    def test_held_hour_counts_while_the_control_is_on(self):
+        ha=FakeHA(grid=.05)
+        asyncio.run(service.update_savings(ha,self.at(0)))
+        s=asyncio.run(service.update_savings(ha,self.at(67)))           # one complete hour later
+        self.assertEqual(s['active_hours'],1.)
+        # The house drew 0.6 kWh from the grid at 0.30 while the shadow served it from its battery.
+        self.assertAlmostEqual(s['cash_eur'],-.18,places=2);self.assertAlmostEqual(s['actual_cost_eur'],.18,places=2)
+        # The kept energy (0.6 kWh AC = 0.67 kWh in the battery) is valued at the lowest recent price x efficiency.
+        self.assertAlmostEqual(s['inventory_eur'],(.6/.9)*.3*.9,places=2)
+        self.assertEqual(s['week_eur'],s['total_eur']);self.assertTrue(s['control_on'])
+        state,attrs=service.savings_state(s)
+        self.assertEqual(state,s['total_eur']);self.assertEqual(attrs['week_eur'],s['week_eur']);self.assertEqual(attrs['device_class'],'monetary')
+        self.assertEqual(service.savings_summary(),s)
+
+    def test_nothing_is_added_while_the_control_is_off(self):
+        ha=FakeHA(switch='off')
+        asyncio.run(service.update_savings(ha,self.at(0)))
+        s=asyncio.run(service.update_savings(ha,self.at(67)))
+        self.assertEqual(s['total_eur'],0.);self.assertEqual(s['active_hours'],0.);self.assertEqual(s['inactive_hours'],1.)
+        self.assertFalse(s['control_on'])
+
+    def test_unknown_before_the_first_update(self):
+        self.assertIsNone(service.savings_summary())
         state,attrs=service.savings_state(None)
         self.assertEqual(state,'unknown');self.assertEqual(attrs['unit_of_measurement'],'EUR')
-
-    def test_full_weeks_add_up_and_the_last_one_is_shown(self):
-        d=__import__('pathlib').Path(tempfile.mkdtemp())
-        self.week(d,'2026-11-02',cash=-1.884,incl=-1.214);self.week(d,'2026-10-26',cash=-0.38,incl=0.12)
-        self.week(d,'2026-10-22',days=4,cash=50.);(d/'broken.json').write_text('{')
-        s=service.savings_summary(d)
-        self.assertEqual(s['weeks'],2);self.assertEqual(s['cash_eur'],-2.26);self.assertEqual(s['incl_inventory_eur'],-1.09)
-        self.assertTrue(s['since'].startswith('2026-10-26'));self.assertTrue(s['last_week']['period_start'].startswith('2026-11-02'))
-        self.assertEqual(s['last_week']['cash_eur'],-1.88);self.assertEqual([w['start'] for w in s['per_week']],['2026-10-26','2026-11-02'])
-        state,attrs=service.savings_state(s)
-        self.assertEqual(state,-2.26);self.assertEqual(attrs['device_class'],'monetary');self.assertEqual(attrs['weeks'],2)
 
     def test_savings_sensor_is_writable_like_the_report_and_only_when_publishing(self):
         from ha_client import check_call,savings_sensor,WritesDisabled

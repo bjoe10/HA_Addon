@@ -155,15 +155,17 @@ function bind(){
   });
 }
 
-/* The measured balance of all full weeks; the simulated value in the plan is a forecast, this one is not. */
+/* What the control saved compared with the inverter always on, counted only while the control is on.
+   The simulated value in the plan is a forecast; this one is measured against a shadow battery. */
 function savingsCard(){
-  const s=status.savings,eur=v=>(v>=0?'+':'')+num(v,2)+' €';
-  if(!s)return `<div class="card stat"><div class="l">Gemessene Ersparnis</div><div class="v">–</div>
-    <div class="l">nach der ersten vollen Woche (Wochenbilanz montags 08:00)</div></div>`;
-  const w=s.last_week;
-  return `<div class="card stat"><div class="l">Gemessene Ersparnis seit ${fmtDay.format(new Date(s.since))}</div>
-    <div class="v ${s.cash_eur<0?'err':''}">${eur(s.cash_eur)}</div>
-    <div class="l">${s.weeks} ${s.weeks===1?'Woche':'Wochen'} · inkl. Akkustand ${eur(s.incl_inventory_eur)} · letzte Woche ${eur(w.cash_eur)}</div></div>`;
+  const s=status.savings,eur=v=>v==null?'–':(v>=0?'+':'')+num(v,2)+' €';
+  if(!s)return `<div class="card stat"><div class="l">Ersparnis durch die Steuerung</div><div class="v">–</div>
+    <div class="l">wird ab dem nächsten Lauf gezählt, solange die Steuerung an ist</div></div>`;
+  const off=s.control_on===false?' · <span class="wn">Steuerung aus, es wird nicht gezählt</span>':'';
+  return `<div class="card stat"><div class="l">Ersparnis gesamt seit ${fmtDay.format(new Date(s.since))}</div>
+    <div class="v ${s.total_eur<0?'err':''}">${eur(s.total_eur)}</div>
+    <div class="l">Diese Woche <b class="${s.week_eur<0?'err':''}">${eur(s.week_eur)}</b>${s.last_week_eur!=null?' · letzte Woche '+eur(s.last_week_eur):''}
+    · ${num(s.active_hours,0)} h gezählt${off}</div></div>`;
 }
 
 /* ---------- Übersicht ---------- */

@@ -1,10 +1,10 @@
 """Add-on service: scheduler and the web UI backend."""
-import asyncio, json, logging, os, sys, time
+import asyncio, json, logging, math, os, sys, time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from aiohttp import web
-import dashboard_card, paths, prices, settings, views
+import collector, dashboard_card, multiday, paths, prices, settings, shadow, views
 import ha_client
 from ha_client import connection
 
@@ -108,41 +108,84 @@ def bridge_attributes(entry,previous,plan=None):
     if soc:attrs['soc_plan']=soc
     return attrs
 
-def savings_summary(weekly_dir=None):
-    """The measured weekly balances added up: what the control saved in cash since the first full week,
-    and including the battery contents at each week's end. None before the first full week."""
-    weekly_dir=weekly_dir or paths.STATE/'weekly'      # written by weekly_report.py
-    weeks=[]
-    for f in sorted(weekly_dir.glob('*.json')) if weekly_dir.exists() else []:
-        try:w=json.loads(f.read_text())
-        except (OSError,ValueError):continue
-        try:full_week=(datetime.fromisoformat(w['period_end'])-datetime.fromisoformat(w['period_start'])).days==7
-        except (KeyError,TypeError,ValueError):continue
-        if full_week:weeks.append(w)   # shorter periods (a new installation) are reported once but not counted
-    if not weeks:return None
-    weeks.sort(key=lambda w:w['period_start'])
-    r=lambda v:round(float(v),2)
-    last=weeks[-1]
-    return {'cash_eur':r(sum(w['cash_saving_eur'] for w in weeks)),
-            'incl_inventory_eur':r(sum(w['saving_incl_inventory_eur'] for w in weeks)),
-            'weeks':len(weeks),'since':weeks[0]['period_start'],
-            'last_week':{'period_start':last['period_start'],'period_end':last['period_end'],'cash_eur':r(last['cash_saving_eur']),
-                         'incl_inventory_eur':r(last['saving_incl_inventory_eur']),'actual_cost_eur':r(last['actual_cost_eur']),
-                         'counterfactual_cost_eur':r(last['counterfactual_cost_eur'])},
-            'per_week':[{'start':w['period_start'][:10],'cash_eur':r(w['cash_saving_eur']),'incl_inventory_eur':r(w['saving_incl_inventory_eur'])} for w in weeks]}
+SHADOW_FILE='shadow.json'
+
+def savings_summary():
+    """The running savings of the control as last computed (see shadow.py); None before the first update."""
+    try:return json.loads((paths.STATE/SHADOW_FILE).read_text()).get('summary')
+    except (OSError,ValueError):return None
 
 def savings_state(summary):
-    """State and attributes of the savings sensor: measured cash saving in EUR since the first full week."""
+    """State and attributes of the savings sensor: total saving in EUR since counting started, plus this week."""
     attrs={'unit_of_measurement':'EUR','device_class':'monetary','state_class':'total','icon':'mdi:piggy-bank-outline',
-           'friendly_name':'Hausakku gemessene Ersparnis',
-           'note':'Gemessen und nachgerechnet gegen Wechselrichter dauernd an, nie Netzladen; Summe der vollen Wochen.'}
+           'friendly_name':'Hausakku Ersparnis',
+           'note':'Nur Viertelstunden mit eingeschalteter Steuerung; Vergleich: Wechselrichter dauernd an, nie Netzladen.'}
     if not summary:return 'unknown',attrs
-    attrs.update({k:summary[k] for k in ('incl_inventory_eur','weeks','since','last_week','per_week')})
-    return summary['cash_eur'],attrs
+    attrs.update({k:v for k,v in summary.items() if k!='total_eur'})
+    return summary['total_eur'],attrs
+
+def load_config():
+    """The planner's configuration, as planner.load_config (without importing the planner)."""
+    path=paths.DATA/'config.json'
+    return json.loads(path.read_text()) if path.exists() else settings.current().planner_config()
+
+async def savings_rows(ha,cfg,config,start,end,prices_by_quarter):
+    """Quarter-hour rows for the shadow from 5-minute statistics, the release switch's history and the price archive.
+    Returns (rows, battery kWh at the end or None)."""
+    iso=lambda t:datetime.fromtimestamp(t,TZ).isoformat()
+    roles=collector.energy_map(cfg);evs=collector.vehicle_entities(cfg)
+    stats=await ha.call('ha_get_history',source='statistics',entity_ids=list(roles.values())+evs,start_time=iso(start),
+                        end_time=iso(end),period='5minute',statistic_types=['change'])
+    data=collector.normalize_statistics(stats)
+    meters={role:shadow.quarters(data.get(e,{}),start,end) for role,e in roles.items()}   # roles: grid, wr, charger, export, pv
+    buckets=range(int(start),int(end),shadow.BUCKET)
+    ev=collector.vehicle_energy(data.get(evs[0],{}),{e:data.get(e,{}) for e in evs[1:]}) if evs else {float(t):0. for t in buckets}
+    meters['ev']=shadow.quarters(ev,start,end)
+    kwh=cfg.entity('battery_kwh',required=False)
+    entity=kwh or cfg.entity('battery_soc')
+    b=await ha.call('ha_get_history',source='statistics',entity_ids=entity,start_time=iso(start),end_time=iso(end),
+                    period='5minute',statistic_types=['mean'])
+    factor=1. if kwh else float(config['capacity_kwh'])/100.
+    means={}
+    for e in b['entities']:
+        scale=factor*(.001 if kwh and e.get('unit_of_measurement')=='Wh' else 1.)
+        for r in e.get('statistics',[]):
+            if r.get('mean') is not None:means[int(float(r['start'])/1000)]=float(r['mean'])*scale
+    battery={q:means[q] for q in range(int(start),int(end),shadow.STEP) if q in means}
+    measured=means[max(means)] if means else None
+    perm='input_boolean.'+cfg.helpers()['permission']
+    h=await ha.call('ha_get_history',entity_ids=perm,start_time=iso(start),end_time=iso(end),
+                    minimal_response=True,significant_changes_only=False)
+    states=[(datetime.fromisoformat(s['last_changed']).timestamp(),s.get('state')) for e in h['entities'] for s in e['states'] if s.get('last_changed')]
+    active=shadow.active_quarters(states,start,end)
+    return shadow.build_rows(start,end,meters,battery,active,prices_by_quarter),measured
+
+async def update_savings(ha,now=None):
+    """Advance the savings shadow to the last complete quarter-hour and keep its summary for the sensor and the UI."""
+    cfg=settings.current();now_ts=(now or datetime.now(TZ)).timestamp()
+    f=paths.STATE/SHADOW_FILE;state=shadow.load_state(f,now_ts)
+    config=load_config()
+    snap=paths.STATE/'snapshot.json'
+    try:calibration=json.loads(snap.read_text()).get('battery_calibration') if snap.exists() else None
+    except ValueError:calibration=None
+    params=shadow.model_params(config,calibration)
+    archive=multiday.read_prices(paths.STATE/'multiday_audit.sqlite',datetime.fromtimestamp(now_ts,TZ).isoformat())
+    by_quarter={int(r['start']):float(r['price']) for r in archive}
+    value=shadow.battery_value(config,by_quarter,params,now_ts)
+    end=math.floor((now_ts-shadow.SETTLE)/shadow.STEP)*shadow.STEP
+    shadow.skip_to(state,end-shadow.MAX_CATCHUP,value)
+    if end>state['last_end']:
+        rows,measured=await savings_rows(ha,cfg,config,state['last_end'],end,by_quarter)
+        shadow.advance(state,rows,params,value)
+        if measured is not None:state['end_kwh']=measured
+    state['summary']=shadow.summary(state,value,state.get('end_kwh'))
+    shadow.save_state(f,state)
+    return state['summary']
 
 async def publish_report(entry):
     """Hand the run's output to Home Assistant as one sensor, so a summariser can read it without the add-on API.
-    The savings sensor is written alongside, so both come back with the next run after a Home Assistant restart."""
+    The savings are brought up to date and written alongside, so both come back with the next run after a
+    Home Assistant restart."""
     if entry.get('skipped'):return
     f=paths.STATE/'bridge.json'
     previous=json.loads(f.read_text()) if f.exists() else {}
@@ -151,7 +194,10 @@ async def publish_report(entry):
     try:
         async with connection() as ha:
             await ha.call('ha_set_state',entity_id=ha_client.report_sensor(),state=entry['time'],attributes=attrs)
-            state,extra=savings_state(savings_summary())
+            try:summary=await update_savings(ha)
+            except Exception as exc:
+                log.warning('Ersparnis nicht fortgeschrieben (%s)',type(exc).__name__);summary=savings_summary()
+            state,extra=savings_state(summary)
             await ha.call('ha_set_state',entity_id=ha_client.savings_sensor(),state=state,attributes=extra)
     except Exception as exc:
         log.warning('Bericht-Sensor nicht geschrieben (%s)',type(exc).__name__)

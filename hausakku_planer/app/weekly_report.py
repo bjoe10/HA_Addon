@@ -85,7 +85,7 @@ def battery_at(battery,stamp):
     return float(candidates[0]) if candidates else None
 
 
-def facts(result,week,devices,calibration,audit,history):
+def facts(result,week,devices,calibration,audit,counter=None):
     r=result;f=lambda x:f"{x:+.2f} €"
     lines=['=== WOCHENFAKTEN HAUSAKKU (gemessen und nachgerechnet, nicht ändern) ===',
            f"Zeitraum: {WEEKDAYS[week[0].weekday()]} {week[0].strftime('%d.%m.')} bis {WEEKDAYS[(week[1]-timedelta(days=1)).weekday()]} {(week[1]-timedelta(days=1)).strftime('%d.%m.%Y')}; {r['hours']} vollständige Stunden"+(f", {r['skipped_hours']} Stunden ohne vollständige Daten ausgelassen" if r['skipped_hours'] else '')+'.',
@@ -111,9 +111,11 @@ def facts(result,week,devices,calibration,audit,history):
     metrics=(audit or {}).get('metrics',{})
     parts=[f"{label} MAE {metrics[k]['mae_kwh']:.2f} kWh aus {metrics[k]['count']} Zielen" for k,label in (('load_hour','Verbrauch je Stunde'),('pv_day','PV je Tag')) if k in metrics]
     if parts:lines.append('Prognosegüte bisher (Archiv): '+'; '.join(parts)+'.')
-    if history:
-        total=sum(h['cash_saving_eur'] for h in history);incl=sum(h['saving_incl_inventory_eur'] for h in history)
-        lines.append(f"Seit Beginn der Messung ({len(history)} Wochen): Kasse {total:+.2f} €, inkl. Akkustand der jeweiligen Wochen {incl:+.2f} €.")
+    if counter:
+        # The running counter (shadow.py) carries battery contents across week boundaries; the week figure above does not.
+        last=f"letzte Woche {counter['last_week_eur']:+.2f} €, " if counter.get('last_week_eur') is not None else ''
+        lines.append(f"Ersparnis-Zähler (durchgehend, nur bei eingeschalteter Steuerung, seit {datetime.fromisoformat(counter['since']).strftime('%d.%m.%Y')}): "
+                     f"{last}gesamt {counter['total_eur']:+.2f} €. Er ist maßgeblich; die Wochenrechnung oben bewertet den Akkustand am Wochenende nur vorsichtig.")
     if not calibration.get('valid'):lines.append('Hinweis: Preise teilweise nur aus dem Tibber-Archiv, Börsen-Rekonstruktion nicht verfügbar.')
     lines.append('Methode: gleiche gemessene Last, PV und Preise für beide Seiten; Stundenwerte; im Akku-voll-Fall abgeregelte PV fehlt in der Messung (begünstigt leicht die Rechnung ohne Steuerung).')
     return '\n'.join(lines)
@@ -155,10 +157,10 @@ async def run(args):
     result.update(period_start=start.isoformat(),period_end=end.isoformat(),created_at=datetime.now(TZ).isoformat())
     weekly=BASE/'state/weekly';weekly.mkdir(parents=True,exist_ok=True)
     (weekly/f"{start.date().isoformat()}.json").write_text(json.dumps(result,indent=2))
-    history=[json.loads(p.read_text()) for p in sorted(weekly.glob('*.json'))]
-    history=[h for h in history if (datetime.fromisoformat(h['period_end'])-datetime.fromisoformat(h['period_start'])).days==7]
+    try:counter=json.loads((BASE/'state/shadow.json').read_text()).get('summary')
+    except (OSError,ValueError):counter=None
     audit=audit_summary(BASE/'state/forecast_audit.sqlite') if (BASE/'state/forecast_audit.sqlite').exists() else None
-    print(facts(result,(start,end),devices,calibration,audit,history))
+    print(facts(result,(start,end),devices,calibration,audit,counter))
 
 
 def main():
