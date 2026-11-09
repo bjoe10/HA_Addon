@@ -46,6 +46,22 @@ def save(path, data):
     tmp.replace(path)
 
 
+def prune_raw(root):
+    """Remove cached raw batches this collect did not use (daily batches of a finished month, old entity sets),
+    and their manifest entries. Only after a complete collect, so a failed run never empties the cache."""
+    raw = root / 'raw'
+    if not USED or not raw.exists():return 0
+    removed = 0
+    for f in raw.glob('*.json'):
+        if f.name not in USED:f.unlink();removed += 1
+    manifest = root / 'manifest.json'
+    if manifest.exists():
+        m = json.loads(manifest.read_text())
+        m['batches'] = {k:v for k,v in m.get('batches',{}).items() if k in USED}
+        save(manifest,m)
+    return removed
+
+
 def month_chunks(start, cutoff):
     result = []
     while start < cutoff:
@@ -65,11 +81,15 @@ def expected_hours(start, end):
     return int((end.timestamp()-start.timestamp())/3600)
 
 
+USED = set()   # raw cache files read or written by the current collect()
+
+
 async def fetch_cached(ha, root, kind, args, start, end, refresh=False):
     """One request at a time; recursively subdivide any truncated responses."""
     query = dict(args, start_time=start.isoformat(), end_time=end.isoformat(),limit=1000)
     key = hashlib.sha256(json.dumps(query,sort_keys=True).encode()).hexdigest()[:16]
     path = root / 'raw' / f'{kind}_{start.date()}_{key}.json'
+    USED.add(path.name)
     if path.exists() and not refresh:
         raw = json.loads(path.read_text())
     else:
@@ -277,6 +297,7 @@ async def collect(root=BASE, now=None, require_disabled=False):
     cutoff = now.astimezone(TZ).replace(hour=0,minute=0,second=0,microsecond=0)
     start = training_start(cutoff)
     stats,forecasts = [],[]
+    USED.clear()
     async with connection() as ha:
         before = body(await ha.call('ha_get_state',entity_id=[*SAFETY,FORECAST]))['states']
         if require_disabled and any(before.get(e,{}).get('state') != 'off' for e in SAFETY):
@@ -306,6 +327,7 @@ async def collect(root=BASE, now=None, require_disabled=False):
         save(root/'safety_readback_after.json',after)
         if require_disabled and any(after.get(e,{}).get('state') != 'off' for e in SAFETY):
             raise ValueError('Safety readback is not off; collector performed no writes')
+    prune_raw(root)
     dataset = build_dataset(stats,forecasts,start,cutoff,forecast_unit)
     previous_path=root/'annual_dataset.json'
     if previous_path.exists():

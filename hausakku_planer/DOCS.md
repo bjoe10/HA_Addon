@@ -156,6 +156,10 @@ Mit eingeschaltetem Veröffentlichen meldet sich das Add-on mit einer Benachrich
 | Lauf „Zeitlimit überschritten“ | Ein Lauf hing und wurde beendet (Plan nach 15, Wochenbilanz nach 10 Minuten). Das Protokoll zeigt die Ausgabe bis dahin. Der nächste Lauf startet normal. |
 | Wochenbilanz „Messwert fehlt: ev …“ | Ein Fahrzeug-Zähler hat Lücken. Zähler in den Einstellungen tauschen, dann „Wochenbilanz rechnen“. |
 
+## Speicher
+
+Das Add-on hält seine Daten in festen Grenzen. Einmal am Tag entfernt es Roh-Snapshots, die älter als 14 Tage sind, überzählige Modellversionen, überholte Vorhersage-Stände (nach 30 Tagen bleibt je Zeitpunkt der letzte) und alte Einträge der Prognose-Statistik (bewertete ein Jahr, unbewertete 90 Tage). Das Protokoll ist auf 500 Läufe begrenzt.
+
 ## Datenschutz
 
 Das Add-on arbeitet lokal. Nach außen gehen nur die Abfragen von Open-Meteo (Strahlungsprognose, mit dem gerundeten Standort) und, falls gewählt, von energy-charts (Börsenpreise). Persönliche Daten verlassen Home Assistant nicht.

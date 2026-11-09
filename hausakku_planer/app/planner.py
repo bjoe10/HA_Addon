@@ -16,7 +16,7 @@ from forecast_audit import archive_forecast,score_forecasts,audit_summary
 from publisher import publish,publish_ev_window,validate_schedule_pair,expire
 import ev_charging
 from ha_client import connection
-import diagnostics,paths,settings
+import diagnostics,housekeeping,paths,settings
 import spot_prices
 from openmeteo import apply_radiation,archive_radiation,load_history,refresh_history
 from multiday import archive_weather,build_tail,scenario_rows,continuation_curve,archive_prices,read_prices,archive_issue,score_issues,seed_price_archive,SCORE_BUDGET_S
@@ -362,6 +362,19 @@ def llm_facts(plan,previous=None,dataset=None):
 
 
 STAGE=['Start']
+TIMINGS=[]   # (stage, monotonic start) of this run, for the run log
+
+def mark(name):
+    """Enter a stage: shown when a run fails or hangs, and timed for the run log."""
+    STAGE[0]=name;TIMINGS.append((name,time.monotonic()))
+
+def timing_line(end=None):
+    """Seconds per stage, e.g. 'Zeiten: Datenabruf aus HA 12 s · Lernen 41 s'."""
+    end=end or time.monotonic();parts=[]
+    for i,(name,start) in enumerate(TIMINGS):
+        stop=TIMINGS[i+1][1] if i+1<len(TIMINGS) else end
+        parts.append(f'{name} {stop-start:.0f} s')
+    return 'Zeiten: '+' · '.join(parts)+f' (gesamt {end-TIMINGS[0][1]:.0f} s)' if TIMINGS else ''
 
 
 def published_modes(plan):
@@ -436,9 +449,9 @@ async def run(args):
     watcher=diagnostics.start_watch(STAGE)     # noqa: F841 (kept alive until asyncio.run ends)
     replan=getattr(args,'replan',False)
     started=time.monotonic();config=load_config()
-    STAGE[0]='Datenabruf aus HA'
+    mark('Datenabruf aus HA')
     snapshot=json.loads((BASE/'state/snapshot.json').read_text()) if args.from_snapshot else await collect()
-    STAGE[0]='Berechnung'
+    mark('Archiv')
     # Dry runs overwrite plan.json; the last VERIFIED publication is kept separately.
     previous=None
     try:previous=json.loads((BASE/'state/last_published.json').read_text())
@@ -449,10 +462,13 @@ async def run(args):
     dataset=None;artifact=None;learning_error=None
     price_path=BASE/'state/multiday_audit.sqlite'
     if not args.from_snapshot:
-        seed_price_archive(price_path,BASE/'state/snapshots',snapshot['collected_at'])
+        # Seeding imports old snapshot files once, for an archive that does not exist yet; reading every
+        # snapshot on every run would grow with the archive.
+        if not price_path.exists():seed_price_archive(price_path,BASE/'state/snapshots',snapshot['collected_at'])
         archive_prices(price_path,snapshot)
         archive_weather(price_path,snapshot)
         archive_radiation(price_path,snapshot)
+    mark('Lernen')
     learning_enabled=bool(config.get('forecast_learning_enabled',False))
     model_path=BASE/'state/training/model.json'
     if learning_enabled and not args.from_snapshot and replan and model_path.exists():
@@ -468,9 +484,11 @@ async def run(args):
     if dataset is None:
         dataset_path=BASE/'state/training/annual_dataset.json'
         dataset=json.loads(dataset_path.read_text()) if dataset_path.exists() else snapshot_observations(snapshot)
+    mark('Nachbewertung')
     # Re-scoring archived forecasts is CPU-heavy on a Raspberry Pi: only the two main runs a day do it (time-boxed);
     # the hourly replan just reads the stored outcomes.
     evidence=score_issues(price_path,dataset,snapshot['collected_at'],budget_s=0. if replan else SCORE_BUDGET_S) if not args.from_snapshot else None
+    mark('Strahlung und Preisverlauf')
     radiation_history=None;history_path=BASE/'state/training/openmeteo_history.json'
     if config.get('pv_forecast_source')=='openmeteo_radiation':
         try:
@@ -490,6 +508,7 @@ async def run(args):
             extra=spot_prices.reconstructed_history(spot,calibration,archive)
             price_history=archive+extra
             price_source.update(calibration=calibration,reconstructed_intervals=len(extra))
+    mark('Optimierung')
     plan=compute_plan(snapshot,config,learning_artifact=artifact,dataset=dataset,
                       price_history=price_history,price_evidence=evidence,
                       radiation_history=radiation_history)
@@ -512,9 +531,9 @@ async def run(args):
         if not decision['publish']:
             plan['publication']={'verified':False,'skipped':decision['reason']}
         else:
-            STAGE[0]='Veröffentlichung in HA'
+            mark('Veröffentlichung in HA')
             plan['publication']=await publish(plan['charge_schedule'],plan['serve_schedule'],end,plan['target_soc'],status)
-            STAGE[0]='Nacharbeit nach Veröffentlichung'
+            mark('Nacharbeit nach Veröffentlichung')
     ev=plan.get('ev') or {}
     if args.publish and ev.get('status') in ('ok','full') and settings.current().entity('ev_window_helper',required=False):
         # Display helper only; failure must never touch the battery plan.
@@ -522,14 +541,17 @@ async def run(args):
         try:
             last=json.loads(written.read_text()) if written.exists() else None
             if last!=ev['week']:
-                STAGE[0]='Fahrzeug-Ladefenster'
+                mark('Fahrzeug-Ladefenster')
                 plan['ev_publication']=await publish_ev_window(ev['week'])
                 written.write_text(json.dumps(ev['week'],indent=2))
             else:plan['ev_publication']={'verified':True,'unchanged':True}
         except Exception as exc:
             plan['ev_publication']={'verified':False,'error':type(exc).__name__}
-        STAGE[0]='Nacharbeit nach Veröffentlichung'
-    if not args.from_snapshot:
+        mark('Nacharbeit nach Veröffentlichung')
+    # The forecast archive keeps one issue per main run: the evaluation counts one per day, and each issue
+    # costs three extra optimisations now and four at scoring time. The hourly replan skips it.
+    if not args.from_snapshot and not replan:
+        mark('Prognose-Archiv')
         rows=[Interval(datetime.fromisoformat(r['start']),datetime.fromisoformat(r['end']),r['price_eur_kwh'],r['load_kwh'],r['pv_kwh']) for r in plan['plan']['intervals']]
         zero_params=Params(**{**plan['plan']['params'],'terminal_value_eur_kwh':0.,'terminal_value_curve':()})
         zero_candidate=optimize(rows,zero_params)
@@ -543,7 +565,7 @@ async def run(args):
             shadow_params=replace(zero_params,terminal_value_curve=tuple(map(tuple,curve)))
             shadow[label]=choose_operation(rows,shadow_params,optimize(rows,shadow_params),config)['plan']
         plan['multiday_issue_id']=archive_issue(price_path,snapshot,plan['multiday_forecast'],plan['plan'],zero_policy,**shadow)
-        plan['multiday_validation']=score_issues(price_path,dataset,snapshot['collected_at'])
+        plan['multiday_validation']=score_issues(price_path,dataset,snapshot['collected_at'],budget_s=0.)   # scored above, only read here
         model=plan['multiday_forecast']
         version=hashlib.sha256(json.dumps(model,sort_keys=True,allow_nan=False).encode()).hexdigest()
         model_path=BASE/'state/training/multiday_models'/f'{version}.json'
@@ -559,6 +581,12 @@ async def run(args):
             plan['forecast_scoring']=score_forecasts(audit_path,dataset,datetime.now(TZ))
             plan['forecast_issue_id']=archive_forecast(audit_path,plan,snapshot)
             plan['forecast_audit']=audit_summary(audit_path)
+    if not replan and not args.from_snapshot:
+        mark('Aufräumen')
+        try:
+            cleaned=housekeeping.daily(BASE)
+            if cleaned:print(f"Aufräumen: {cleaned['files_removed']} Dateien, {cleaned['rows_removed']} Datenbankzeilen entfernt.",file=sys.stderr)
+        except Exception as exc:print('Aufräumen fehlgeschlagen ('+type(exc).__name__+').',file=sys.stderr)
     plan['runtime_seconds']=time.monotonic()-started
     state=BASE/'state';state.mkdir(exist_ok=True)
     temp=state/'plan.new.json';temp.write_text(json.dumps(plan,indent=2,allow_nan=False));temp.replace(state/'plan.json')
@@ -604,6 +632,7 @@ def main():
         try:
             asyncio.run(run(args))
             if args.replan and failures.exists():failures.unlink()
+            print(timing_line(),file=sys.stderr)
             return 0
         except Exception as exc:
             # Only a failure DURING publication can leave half-written schedules; then fail closed.
@@ -613,6 +642,7 @@ def main():
             failure={'time':datetime.now(TZ).isoformat(),'error_class':type(exc).__name__}
             (BASE/'state/last_failure.json').write_text(json.dumps(failure,indent=2))
             where=failure_detail(exc)
+            print(timing_line(),file=sys.stderr)
             if args.replan and invalidated is None:
                 count=(json.loads(failures.read_text()).get('count',0) if failures.exists() else 0)+1
                 failures.write_text(json.dumps({'count':count,'last':failure},indent=2))

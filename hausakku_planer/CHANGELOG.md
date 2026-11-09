@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.1
+- **Weniger Rechenlast:** Die stündliche Nachplanung archiviert keine Mehrtages-Prognose mehr (drei Optimierungen weniger je Stunde) und bewertet nach der Veröffentlichung nicht ein zweites Mal nach. Archiviert wird nur noch in den zwei Hauptläufen, die Auswertung zählt ohnehin eine Prognose je Tag.
+- **Kein Datenmüll mehr:** Einmal am Tag im Hauptlauf räumt das Add-on auf: Roh-Snapshots nach 14 Tagen, versionierte Modelldateien bis auf die neuesten 20, alte Preis-/Wetter-/Strahlungs-Vorhersagen bis auf den letzten Stand je Zeitpunkt (nach 30 Tagen), wartende Prognosen bis auf eine je Tag, bei bewerteten Prognosen die gespeicherten Pläne, unbenutzte Rohdaten im Lern-Cache sowie alte Einträge der Prognose-Statistik. Montags werden die Datenbanken danach verdichtet. Der Snapshot-Import liest nicht mehr bei jedem Lauf alle Snapshots.
+- **Zeiten je Schritt im Protokoll:** Jeder Planer-Lauf schreibt, wie lange Datenabruf, Lernen, Nachbewertung, Optimierung, Veröffentlichung und Aufräumen gedauert haben.
+
 ## 0.13.0
 - **Hinweis in Home Assistant**, wenn etwas nicht stimmt: Planer-Läufe scheitern zweimal hintereinander (auch stille Nachplanungen), die Wochenbilanz ist fehlgeschlagen, der Plan läuft in weniger als 2 Stunden ab ohne Nachfolger oder ist abgelaufen, oder ein Zähler liefert bei eingeschalteter Steuerung keine Werte. Eine einzige Benachrichtigung („Hausakku-Planer“), die sich bei Änderungen aktualisiert und verschwindet, sobald alles wieder in Ordnung ist. Nur mit eingeschaltetem Veröffentlichen.
 - **„Prüfen“ erkennt ausfallende Zähler:** Es zählt die Stunden der letzten 3 Tage ohne Wert. Fehlt mehr als jede zehnte, gilt der Zähler als nicht in Ordnung.
