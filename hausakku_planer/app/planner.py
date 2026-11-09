@@ -19,7 +19,7 @@ from ha_client import connection
 import diagnostics,paths,settings
 import spot_prices
 from openmeteo import apply_radiation,archive_radiation,load_history,refresh_history
-from multiday import archive_weather,build_tail,scenario_rows,continuation_curve,archive_prices,read_prices,archive_issue,score_issues,seed_price_archive
+from multiday import archive_weather,build_tail,scenario_rows,continuation_curve,archive_prices,read_prices,archive_issue,score_issues,seed_price_archive,SCORE_BUDGET_S
 BASE=paths.DATA
 
 def load_config(base=None):
@@ -454,7 +454,13 @@ async def run(args):
         archive_weather(price_path,snapshot)
         archive_radiation(price_path,snapshot)
     learning_enabled=bool(config.get('forecast_learning_enabled',False))
-    if learning_enabled and not args.from_snapshot:
+    model_path=BASE/'state/training/model.json'
+    if learning_enabled and not args.from_snapshot and replan and model_path.exists():
+        # The hourly replan reuses the model of the last main run: refetching a year of statistics and
+        # refitting the models every hour is too much for a Raspberry Pi and changes little within a day.
+        try:artifact=json.loads(model_path.read_text())
+        except ValueError:artifact=None
+    if learning_enabled and not args.from_snapshot and artifact is None:
         try:dataset,artifact=await refresh_learning(snapshot,BASE/'state/training')
         except Exception as exc:
             # Fallback is intentional; never print transport exceptions/URLs.
@@ -462,7 +468,9 @@ async def run(args):
     if dataset is None:
         dataset_path=BASE/'state/training/annual_dataset.json'
         dataset=json.loads(dataset_path.read_text()) if dataset_path.exists() else snapshot_observations(snapshot)
-    evidence=score_issues(price_path,dataset,snapshot['collected_at']) if not args.from_snapshot else None
+    # Re-scoring archived forecasts is CPU-heavy on a Raspberry Pi: only the two main runs a day do it (time-boxed);
+    # the hourly replan just reads the stored outcomes.
+    evidence=score_issues(price_path,dataset,snapshot['collected_at'],budget_s=0. if replan else SCORE_BUDGET_S) if not args.from_snapshot else None
     radiation_history=None;history_path=BASE/'state/training/openmeteo_history.json'
     if config.get('pv_forecast_source')=='openmeteo_radiation':
         try:

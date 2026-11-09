@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.2
+- **Behoben: Planer-Läufe hingen nach dem Tausch eines Fahrzeug-Zählers.** Mit lückenlosen Daten wurden auf einen Schlag viele archivierte Prognosen nachbewertbar. Diese Nachbewertung rechnet je Prognose den Optimierer mehrfach und speicherte erst am Ende, ein abgebrochener Lauf fing also immer wieder von vorn an. Jetzt wird jedes Ergebnis sofort gespeichert und höchstens 2 Minuten je Hauptlauf bewertet; der Rest folgt in den nächsten Läufen.
+- Weniger Rechenlast auf dem Raspberry Pi: Die stündliche Nachplanung bewertet keine Prognosen nach und lädt den Lerndatensatz nicht neu, sondern nutzt das Modell des letzten Hauptlaufs (14:15 und 20:15).
+
 ## 0.12.1
 - Hängende Läufe lassen sich finden: Eine Minute vor dem Zeitlimit schreibt der Lauf ins Protokoll, wo er wartet (Schritt, Stacks der Tasks und Threads). Die Ausgabe ist ungepuffert, auch ein abgebrochener Lauf behält sie.
 - Bleibt eine Antwort von Home Assistant über den WebSocket 3 Minuten aus, ist das jetzt ein Fehler, der den Befehl nennt, statt eines Laufs, der bis zum Zeitlimit hängt.

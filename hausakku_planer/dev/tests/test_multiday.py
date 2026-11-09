@@ -208,6 +208,26 @@ class MultidayTests(unittest.TestCase):
             self.assertAlmostEqual(outcome['price_baseline_mae'],.1)
             self.assertEqual(score_issues(path,data,snapshot['collected_at'])['scored'],0)
 
+    def test_scoring_backlog_is_spread_over_runs_and_kept(self):
+        start=datetime(2026,9,1,12,tzinfo=TZ)
+        params=Params(4,1,2,'dc',energy_step_kwh=.25)
+        selected=optimize([Interval(start,start+timedelta(hours=1),.1,0,0)],params)
+        tail_start=start+timedelta(hours=1)
+        tail={'rows':[{'start':tail_start.isoformat(),'end':(tail_start+timedelta(hours=1)).isoformat(),
+              'price_eur_kwh':.2,'load_kwh':1.,'pv_kwh':0.}], 'baseline_price':.2,'candidate_prices':[.25]}
+        snapshot={'collected_at':(start-timedelta(hours=1)).isoformat(),'prices':[
+            {'start_time':(start+timedelta(minutes=15*i)).isoformat(),'price':.3} for i in range(8)]}
+        data={'hours':[{'start':start.timestamp(),'load_kwh':1.,'pv_kwh':0.},
+                       {'start':tail_start.timestamp(),'load_kwh':1.,'pv_kwh':0.}]}
+        later=(start+timedelta(hours=2)).isoformat()
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'audit.sqlite';archive_prices(path,snapshot)
+            archive_issue(path,snapshot,tail,selected,selected)
+            r=score_issues(path,data,later,budget_s=-1)       # budget used up: nothing scored, nothing lost
+            self.assertTrue(r['deferred']);self.assertEqual(r['scored'],0);self.assertEqual(r['pending'],1)
+            r=score_issues(path,data,later)
+            self.assertFalse(r['deferred']);self.assertEqual(r['scored'],1);self.assertEqual(r['pending'],0)
+
 class ShapedPriceTests(unittest.TestCase):
     """Daily shape + level anchored on the last complete known day."""
     issue=datetime(2026,11,10,20,15,tzinfo=TZ)

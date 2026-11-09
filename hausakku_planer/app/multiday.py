@@ -7,7 +7,7 @@ from dataclasses import replace,asdict
 from datetime import date,datetime,timedelta,timezone
 from statistics import median
 from pathlib import Path
-import json,math,sqlite3,hashlib
+import json,math,sqlite3,hashlib,time
 from forecast import TZ,estimate
 from optimizer import Interval,_flow,_interpolate,Params,optimize,_replay
 
@@ -449,15 +449,21 @@ def archive_issue(path,snapshot,tail,selected,baseline,candidate=None,baseline_t
     with _db(path) as db:db.execute('INSERT OR IGNORE INTO issues VALUES (?,?,?,NULL)',(key,_stamp(snapshot['collected_at']),encoded))
     return key
 
-def score_issues(path,dataset,as_of):
+SCORE_BUDGET_S=120.  # per main run: a backlog (e.g. after a meter gap is closed) is worked off over several runs
+
+def score_issues(path,dataset,as_of,budget_s=SCORE_BUDGET_S):
     """Only score fully observed future tails. Store paired forecast and policy costs.
     Selection is frozen to baseline until >=14 validation +14 later test issues
     (distinct issue dates, seven-day embargo) pass price AND decision-cost gates.
+    Each outcome is committed at once and scoring stops after `budget_s` seconds, so a large
+    backlog never holds up the plan; the rest is scored by the following runs.
     """
     now=_stamp(as_of);actual={r['start']:r for r in dataset.get('hours',[]) if r['start']+3600<=now}
     prices=read_prices(path,as_of);price_by={r['start']:r['price'] for r in prices}
+    deadline=time.monotonic()+budget_s;deferred=False
     with _db(path) as db:
-        for key,payload in db.execute('SELECT id,payload FROM issues WHERE outcome IS NULL').fetchall():
+        for key,payload in db.execute('SELECT id,payload FROM issues WHERE outcome IS NULL ORDER BY issued').fetchall():
+            if time.monotonic()>=deadline:deferred=True;break
             p=json.loads(payload);tail=p['tail'];rows=[];base_errors=[];candidate_errors=[]
             for i,r in enumerate(tail['rows']):
                 t=_stamp(r['start']);end=_stamp(r['end']);a=actual.get(t)
@@ -493,11 +499,12 @@ def score_issues(path,dataset,as_of):
                      'price_baseline_mae':sum(base_errors)/len(rows),'price_candidate_mae':sum(candidate_errors)/len(rows),
                      'decision_costs_eur':costs,'savings_vs_zero_terminal_policy_eur':costs['baseline']-costs['selected']}
             db.execute('UPDATE issues SET outcome=? WHERE id=?',(json.dumps(outcome),key))
+            db.commit()
         outcomes=db.execute('SELECT issued,outcome FROM issues WHERE outcome IS NOT NULL ORDER BY issued').fetchall()
         pending=db.execute('SELECT count(*) FROM issues WHERE outcome IS NULL').fetchone()[0]
     # Multiple intraday issues are not independent days.
     daily={datetime.fromtimestamp(t,TZ).date().isoformat():json.loads(o) for t,o in outcomes if json.loads(o)['available_after']<=now}
     assessment=assess_promotion(daily)
-    return {'scored':sum(json.loads(o)['available_after']<=now for _,o in outcomes),'pending':pending,'independent_days':len(daily),
+    return {'scored':sum(json.loads(o)['available_after']<=now for _,o in outcomes),'pending':pending,'deferred':deferred,'independent_days':len(daily),
             **assessment,
             'outcomes_by_day':daily}
