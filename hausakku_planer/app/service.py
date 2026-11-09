@@ -13,6 +13,9 @@ APP=Path(__file__).resolve().parent
 MAIN_TIMES=((14,15),(20,15))   # daily full run
 REPLAN_MINUTE=45               # quiet hourly replan
 WEEKLY_TIME=(0,8,0)            # weekday (0 = Monday), hour, minute: weekly balance
+# A run is stopped after this many seconds. Normal runs take one to three minutes; a hung run would otherwise
+# hold the scheduler lock for good, and no later plan, replan or balance could start.
+RUN_TIMEOUT={'main':900,'replan':900,'weekly':600}
 log=logging.getLogger('hausakku')
 
 def planner_args(kind,mode):
@@ -43,7 +46,23 @@ def read_runs(limit=50):
     if not f.exists():return []
     return [json.loads(l) for l in f.read_text().splitlines()[-limit:]][::-1]
 
-async def run_planner(kind,mode,trigger='zeit',command=None):
+async def run_process(cmd,timeout):
+    """Run a command, collecting its output. Past `timeout` seconds it is killed; what it printed so far is kept.
+    Returns (returncode or None when killed, stdout bytes, stderr bytes)."""
+    proc=await asyncio.create_subprocess_exec(*cmd,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,cwd=str(APP),env=os.environ.copy())
+    reads=[asyncio.ensure_future(proc.stdout.read()),asyncio.ensure_future(proc.stderr.read())]
+    try:
+        await asyncio.wait_for(proc.wait(),timeout)
+        killed=False
+    except asyncio.TimeoutError:
+        proc.kill();await proc.wait();killed=True
+    # After the process ends the pipes close; a leftover child holding them open must not block us again.
+    done,pending=await asyncio.wait(reads,timeout=5)
+    for task in pending:task.cancel()
+    out,err=(t.result() if t in done and t.exception() is None else b'' for t in reads)
+    return (None if killed else proc.returncode),out,err
+
+async def run_planner(kind,mode,trigger='zeit',command=None,timeout=None):
     """Run planner.py as its own process (keeps its lock and failure handling) and log the result."""
     missing=settings.current().missing('plan')
     started=datetime.now(TZ)
@@ -53,12 +72,16 @@ async def run_planner(kind,mode,trigger='zeit',command=None):
         log_run(entry);return entry
     script='weekly_report.py' if kind=='weekly' else 'planner.py'
     cmd=command or [sys.executable,str(APP/script),*planner_args(kind,mode)]
+    limit=timeout or RUN_TIMEOUT.get(kind,900)
     t0=time.monotonic()
-    proc=await asyncio.create_subprocess_exec(*cmd,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,cwd=str(APP),env=os.environ.copy())
-    out,err=await proc.communicate()
-    full=out.decode(errors='replace')
-    entry={'time':started.isoformat(),'kind':kind,'trigger':trigger,'mode':mode,'ok':proc.returncode==0,
-           'seconds':round(time.monotonic()-t0,1),'stdout':full[-3000:],'stderr':err.decode(errors='replace')[-1500:]}
+    code,out,err=await run_process(cmd,limit)
+    full=out.decode(errors='replace');errors=err.decode(errors='replace')
+    entry={'time':started.isoformat(),'kind':kind,'trigger':trigger,'mode':mode,'ok':code==0,
+           'seconds':round(time.monotonic()-t0,1),'stdout':full[-3000:],'stderr':errors[-1500:]}
+    if code is None:
+        entry['message']=f'Zeitlimit von {round(limit/60)} min überschritten, Lauf abgebrochen.'
+        entry['stderr']=(errors+'\n'+entry['message']).strip()[-1500:]
+        log.warning('Lauf %s nach %d s abgebrochen (Zeitlimit)',kind,limit)
     log_run(entry)
     if mode!='observe' and not command:await publish_report({**entry,'stdout':full})
     return entry
@@ -85,8 +108,41 @@ def bridge_attributes(entry,previous,plan=None):
     if soc:attrs['soc_plan']=soc
     return attrs
 
+def savings_summary(weekly_dir=None):
+    """The measured weekly balances added up: what the control saved in cash since the first full week,
+    and including the battery contents at each week's end. None before the first full week."""
+    weekly_dir=weekly_dir or paths.STATE/'weekly'      # written by weekly_report.py
+    weeks=[]
+    for f in sorted(weekly_dir.glob('*.json')) if weekly_dir.exists() else []:
+        try:w=json.loads(f.read_text())
+        except (OSError,ValueError):continue
+        try:full_week=(datetime.fromisoformat(w['period_end'])-datetime.fromisoformat(w['period_start'])).days==7
+        except (KeyError,TypeError,ValueError):continue
+        if full_week:weeks.append(w)   # shorter periods (a new installation) are reported once but not counted
+    if not weeks:return None
+    weeks.sort(key=lambda w:w['period_start'])
+    r=lambda v:round(float(v),2)
+    last=weeks[-1]
+    return {'cash_eur':r(sum(w['cash_saving_eur'] for w in weeks)),
+            'incl_inventory_eur':r(sum(w['saving_incl_inventory_eur'] for w in weeks)),
+            'weeks':len(weeks),'since':weeks[0]['period_start'],
+            'last_week':{'period_start':last['period_start'],'period_end':last['period_end'],'cash_eur':r(last['cash_saving_eur']),
+                         'incl_inventory_eur':r(last['saving_incl_inventory_eur']),'actual_cost_eur':r(last['actual_cost_eur']),
+                         'counterfactual_cost_eur':r(last['counterfactual_cost_eur'])},
+            'per_week':[{'start':w['period_start'][:10],'cash_eur':r(w['cash_saving_eur']),'incl_inventory_eur':r(w['saving_incl_inventory_eur'])} for w in weeks]}
+
+def savings_state(summary):
+    """State and attributes of the savings sensor: measured cash saving in EUR since the first full week."""
+    attrs={'unit_of_measurement':'EUR','device_class':'monetary','state_class':'total','icon':'mdi:piggy-bank-outline',
+           'friendly_name':'Hausakku gemessene Ersparnis',
+           'note':'Gemessen und nachgerechnet gegen Wechselrichter dauernd an, nie Netzladen; Summe der vollen Wochen.'}
+    if not summary:return 'unknown',attrs
+    attrs.update({k:summary[k] for k in ('incl_inventory_eur','weeks','since','last_week','per_week')})
+    return summary['cash_eur'],attrs
+
 async def publish_report(entry):
-    """Hand the run's output to Home Assistant as one sensor, so a summariser can read it without the add-on API."""
+    """Hand the run's output to Home Assistant as one sensor, so a summariser can read it without the add-on API.
+    The savings sensor is written alongside, so both come back with the next run after a Home Assistant restart."""
     if entry.get('skipped'):return
     f=paths.STATE/'bridge.json'
     previous=json.loads(f.read_text()) if f.exists() else {}
@@ -95,6 +151,8 @@ async def publish_report(entry):
     try:
         async with connection() as ha:
             await ha.call('ha_set_state',entity_id=ha_client.report_sensor(),state=entry['time'],attributes=attrs)
+            state,extra=savings_state(savings_summary())
+            await ha.call('ha_set_state',entity_id=ha_client.savings_sensor(),state=state,attributes=extra)
     except Exception as exc:
         log.warning('Bericht-Sensor nicht geschrieben (%s)',type(exc).__name__)
 
@@ -158,7 +216,7 @@ async def status(request):
     runs=read_runs(1)
     return web.json_response({'mode':settings.operating_mode(),
         'missing':[settings.label(r) for r in cfg.missing('plan')],
-        'running':sched.running,'plan':plan_summary(),
+        'running':sched.running,'plan':plan_summary(),'savings':savings_summary(),
         'last_run':{k:runs[0][k] for k in ('time','kind','ok','message') if k in runs[0]} if runs else None})
 
 async def runs(request):return web.json_response(read_runs(int(request.query.get('limit','50'))))

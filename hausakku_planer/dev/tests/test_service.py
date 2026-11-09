@@ -40,6 +40,54 @@ class RunTests(unittest.TestCase):
         bad=asyncio.run(service.run_planner('replan','observe',command=[sys.executable,'-c','import sys;print("boom",file=sys.stderr);sys.exit(1)']))
         self.assertFalse(bad['ok']);self.assertEqual([x['ok'] for x in service.read_runs()],[False,True])
 
+    def test_hung_run_is_stopped_and_keeps_what_it_printed(self):
+        hang=[sys.executable,'-u','-c','import sys,time;print("schritt 1");print("warte",file=sys.stderr);time.sleep(60)']
+        t0=__import__('time').monotonic()
+        r=asyncio.run(service.run_planner('main','observe',command=hang,timeout=1))
+        self.assertLess(__import__('time').monotonic()-t0,10)
+        self.assertFalse(r['ok']);self.assertIn('Zeitlimit',r['message'])
+        self.assertIn('schritt 1',r['stdout']);self.assertIn('warte',r['stderr']);self.assertIn('Zeitlimit',r['stderr'])
+        self.assertIn('Zeitlimit',service.read_runs()[0]['message'])
+
+    def test_every_run_kind_has_a_time_limit(self):
+        for kind in ('main','replan','weekly'):self.assertGreater(service.RUN_TIMEOUT[kind],300)
+
+class SavingsTests(unittest.TestCase):
+    def week(self,d,start,days=7,cash=1.,incl=2.):
+        from datetime import date,timedelta
+        s=date.fromisoformat(start);e=s+timedelta(days=days)
+        (d/f'{start}.json').write_text(json.dumps({'period_start':f'{s}T00:00:00+01:00','period_end':f'{e}T00:00:00+01:00',
+            'cash_saving_eur':cash,'saving_incl_inventory_eur':incl,'actual_cost_eur':10.,'counterfactual_cost_eur':10.+cash}))
+
+    def test_none_before_the_first_full_week(self):
+        d=__import__('pathlib').Path(tempfile.mkdtemp())
+        self.assertIsNone(service.savings_summary(d/'missing'))
+        self.week(d,'2026-10-29',days=4)            # a new installation's short first period is not counted
+        self.assertIsNone(service.savings_summary(d))
+        state,attrs=service.savings_state(None)
+        self.assertEqual(state,'unknown');self.assertEqual(attrs['unit_of_measurement'],'EUR')
+
+    def test_full_weeks_add_up_and_the_last_one_is_shown(self):
+        d=__import__('pathlib').Path(tempfile.mkdtemp())
+        self.week(d,'2026-11-02',cash=-1.884,incl=-1.214);self.week(d,'2026-10-26',cash=-0.38,incl=0.12)
+        self.week(d,'2026-10-22',days=4,cash=50.);(d/'broken.json').write_text('{')
+        s=service.savings_summary(d)
+        self.assertEqual(s['weeks'],2);self.assertEqual(s['cash_eur'],-2.26);self.assertEqual(s['incl_inventory_eur'],-1.09)
+        self.assertTrue(s['since'].startswith('2026-10-26'));self.assertTrue(s['last_week']['period_start'].startswith('2026-11-02'))
+        self.assertEqual(s['last_week']['cash_eur'],-1.88);self.assertEqual([w['start'] for w in s['per_week']],['2026-10-26','2026-11-02'])
+        state,attrs=service.savings_state(s)
+        self.assertEqual(state,-2.26);self.assertEqual(attrs['device_class'],'monetary');self.assertEqual(attrs['weeks'],2)
+
+    def test_savings_sensor_is_writable_like_the_report_and_only_when_publishing(self):
+        from ha_client import check_call,savings_sensor,WritesDisabled
+        settings.use({'helper_prefix':'hap'})
+        try:
+            self.assertEqual(savings_sensor(),'sensor.hap_ersparnis')
+            check_call('ha_set_state',{'entity_id':'sensor.hap_ersparnis'},mode='publish')
+            with self.assertRaises(WritesDisabled):check_call('ha_set_state',{'entity_id':'sensor.hap_ersparnis'},mode='observe')
+            with self.assertRaises(ValueError):check_call('ha_set_state',{'entity_id':'sensor.hap_anderes'},mode='publish')
+        finally:settings.use(None)
+
 class ServiceTests(AioHTTPTestCase):
     async def get_application(self):
         settings.use({});return service.make_app()

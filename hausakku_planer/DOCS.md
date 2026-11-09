@@ -51,6 +51,7 @@ Mit eingeschaltetem „Veröffentlichen“ legt das Add-on diese Helfer an, mit 
 | `input_boolean.hap_regler_uebernommen` | Merker der Steuerung |
 | `timer.hap_schaltsperre` | Schaltsperre |
 | `sensor.hap_bericht` | Bericht und Faktenblock der letzten Läufe (für Zusammenfassungen); im Attribut `soc_plan` der geplante Akkustand des veröffentlichten Plans (Start, Minuten und kWh je Intervallende) |
+| `sensor.hap_ersparnis` | Gemessene Ersparnis in EUR seit der ersten vollen Woche (Summe der Wochenbilanzen); Attribute: inklusive Akkustand, letzte Woche, alle Wochen |
 
 Das Add-on schreibt nur in diese Helfer und, wenn du es auslöst, in die Ressource der Dashboard-Karte (siehe unten). Gerätezustände oder Schalter fasst es nicht an.
 
@@ -125,6 +126,10 @@ Mit eingeschaltetem „Veröffentlichen“ liegt nach jedem Lauf ein Bericht in 
 
 Montags 08:00 rechnet das Add-on nach, was die Steuerung in der letzten Woche tatsächlich gebracht hat, gemessen an deinen Zählern und den Preisen, im Vergleich zu „Wechselrichter dauernd an“. Sie braucht Preise für die ganze Woche. Auf einer neuen Installation entsteht der Preisverlauf erst nach und nach, die Bilanz deckt dann den Zeitraum ab, für den es lückenlose Daten gibt (mindestens 24 Stunden).
 
+Sie braucht außerdem für jede Stunde einen Wert aller Zähler, auch der Fahrzeug-Zähler. Fehlen am Ende der Woche Stunden, etwa weil ein Zähler ausgefallen ist, bricht sie ab und nennt den Zähler. Nach dem Austausch des Zählers in den Einstellungen holt **„Wochenbilanz rechnen“** auf der Übersicht sie nach.
+
+Die Summe aller vollen Wochen steht als **gemessene Ersparnis** auf der Übersicht und in `sensor.<Präfix>_ersparnis`. Der Hauptwert ist die Kasse, also was du tatsächlich weniger (oder mehr) bezahlt hast. „Inklusive Akkustand“ rechnet zusätzlich den Unterschied im Akkuinhalt am Wochenende vorsichtig bewertet ein. Einzelne Wochen mit negativer Kasse sind normal, wenn Energie für teurere Tage aufgehoben wurde.
+
 ## Fehlersuche
 
 | Meldung oder Beobachtung | Ursache und Abhilfe |
@@ -135,6 +140,8 @@ Montags 08:00 rechnet das Add-on nach, was die Steuerung in der letzten Woche ta
 | Wächter zeigt `sicher_aus` | Ein Wert ist unbekannt oder unplausibel, beide Geräte sind aus. Die Automationsspur zeigt, welche. |
 | Preise fehlen | „Preise prüfen“ zeigt Zeitraum, Lücken und aktuellen Preis. Tibber liefert die Preise für morgen erst am Nachmittag. |
 | Plan abgelaufen | Das Add-on läuft nicht oder hat nach dem Ablaufzeitpunkt keinen Lauf geschafft. Dann gilt der Rückfall (nur Wechselrichter). |
+| Lauf „Zeitlimit überschritten“ | Ein Lauf hing und wurde beendet (Plan nach 15, Wochenbilanz nach 10 Minuten). Das Protokoll zeigt die Ausgabe bis dahin. Der nächste Lauf startet normal. |
+| Wochenbilanz „Messwert fehlt: ev …“ | Ein Fahrzeug-Zähler hat Lücken. Zähler in den Einstellungen tauschen, dann „Wochenbilanz rechnen“. |
 
 ## Datenschutz
 

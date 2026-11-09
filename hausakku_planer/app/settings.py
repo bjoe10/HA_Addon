@@ -107,7 +107,7 @@ class Settings:
         error=check_prefix(prefix,bool(self.data.get('adopt_legacy_helpers')))
         if error:raise ValueError(error)
         return {'charge':prefix+'_netzladen','serve':prefix+'_entladen','expiry':prefix+'_plan_gueltig_bis',
-                'status':prefix+'_plan_status','report':prefix+'_bericht','owner':prefix+'_regler_uebernommen','timer':prefix+'_schaltsperre','target':prefix+'_ziel_soc','permission':prefix+'_planer_freigabe'}
+                'status':prefix+'_plan_status','report':prefix+'_bericht','savings':prefix+'_ersparnis','owner':prefix+'_regler_uebernommen','timer':prefix+'_schaltsperre','target':prefix+'_ziel_soc','permission':prefix+'_planer_freigabe'}
 
     def location(self):
         loc=self.data['location']

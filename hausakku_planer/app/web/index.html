@@ -147,10 +147,23 @@ function bind(){
   main.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
   const stepgo=main.querySelector('#stepgo');
   if(stepgo)stepgo.addEventListener('click',()=>{if(stepgo.dataset.step==='run'){const r=main.querySelector('#runnow');if(r)r.click();else go('overview')}else go(stepgo.dataset.step)});
-  const run=main.querySelector('#runnow');
-  if(run)run.addEventListener('click',async()=>{run.disabled=true;run.textContent='Rechnet …';
-    try{await api('run',{method:'POST'})}catch(e){}
-    await waitForRun();render();});
+  [['#runnow','run'],['#runweekly','run?kind=weekly']].forEach(([sel,path])=>{
+    const b=main.querySelector(sel);
+    if(b)b.addEventListener('click',async()=>{main.querySelectorAll('#runnow,#runweekly').forEach(x=>x.disabled=true);b.textContent='Rechnet …';
+      try{await api(path,{method:'POST'})}catch(e){}
+      await waitForRun();render();});
+  });
+}
+
+/* The measured balance of all full weeks; the simulated value in the plan is a forecast, this one is not. */
+function savingsCard(){
+  const s=status.savings,eur=v=>(v>=0?'+':'')+num(v,2)+' €';
+  if(!s)return `<div class="card stat"><div class="l">Gemessene Ersparnis</div><div class="v">–</div>
+    <div class="l">nach der ersten vollen Woche (Wochenbilanz montags 08:00)</div></div>`;
+  const w=s.last_week;
+  return `<div class="card stat"><div class="l">Gemessene Ersparnis seit ${fmtDay.format(new Date(s.since))}</div>
+    <div class="v ${s.cash_eur<0?'err':''}">${eur(s.cash_eur)}</div>
+    <div class="l">${s.weeks} ${s.weeks===1?'Woche':'Wochen'} · inkl. Akkustand ${eur(s.incl_inventory_eur)} · letzte Woche ${eur(w.cash_eur)}</div></div>`;
 }
 
 /* ---------- Übersicht ---------- */
@@ -169,6 +182,7 @@ function overview(){
   let h=checklist();
   if(!p){
     h+=`<div class="card"><div class="empty">Noch kein Plan berechnet.<br>${status.missing.length?'Zuerst die Einrichtung abschließen.':'Der erste Lauf startet automatisch oder mit „Jetzt rechnen“.'}</div></div>`;
+    if(status.savings)h+=`<div class="grid">${savingsCard()}</div>`;
   }else{
     const now=p.now,next=p.next;
     h+=`<div class="card hero"><div><div class="mut small">Jetzt</div>
@@ -189,13 +203,16 @@ function overview(){
       <div class="card stat"><div class="l">Ziel-Ladestand Netzladen</div><div class="v">${p.target_soc?p.target_soc+' %':'kein Netzladen'}</div>
         <div class="l">höchste geplante Netzlade-Marke</div></div>
       <div class="card stat"><div class="l">Simulierte Ersparnis</div><div class="v">${p.savings.cash_eur==null?'–':(p.savings.cash_eur>=0?'+':'')+num(p.savings.cash_eur,2)+' €'}</div>
-        <div class="l">${esc(p.savings.note)}</div></div></div>`;
+        <div class="l">${esc(p.savings.note)}</div></div>
+      ${savingsCard()}</div>`;
     if(p.hints.length)h+=`<h2>Hinweise zur Datenqualität</h2>`+p.hints.map(x=>`<div class="hint">${esc(x.text)}</div>`).join('');
   }
   h+=`<h2>Betrieb</h2><div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between">
     <div><span class="chip ${status.mode==='observe'?'off':'serve'}">${esc(m[0])}</span>
     <span class="mut small" style="margin-left:6px">${esc(m[1])}</span></div>
-    <button class="btn" id="runnow" ${status.running?'disabled':''}>${status.running?'Rechnet …':'Jetzt rechnen'}</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn" id="runnow" ${status.running?'disabled':''}>${status.running&&status.running.kind!=='weekly'?'Rechnet …':'Jetzt rechnen'}</button>
+    <button class="btn" id="runweekly" ${status.running?'disabled':''} title="Rechnet die letzte volle Woche (Mo–So) nach">${status.running&&status.running.kind==='weekly'?'Rechnet …':'Wochenbilanz rechnen'}</button></div></div>
     <div class="mut small" style="margin-top:10px">${status.last_run?`Letzter Lauf: ${full(status.last_run.time)} · ${status.last_run.ok?'<span class="ok">erfolgreich</span>':'<span class="err">fehlgeschlagen</span>'}${status.last_run.message?' · '+esc(status.last_run.message):''}`:'Noch kein Lauf.'}
     · Veröffentlichen schaltest du unter Einstellungen ein oder aus.</div></div>`;
   return h;
@@ -304,7 +321,7 @@ async function logPage(){
   const runs=await api('runs?limit=60');
   const list=Array.isArray(runs)?runs:[];
   if(!list.length)return '<div class="card"><div class="empty">Noch keine Läufe aufgezeichnet.</div></div>';
-  const KIND={main:'Hauptlauf',replan:'Nachplanung'};
+  const KIND={main:'Hauptlauf',replan:'Nachplanung',weekly:'Wochenbilanz'};
   return `<h2>Läufe</h2><div class="card"><table><thead><tr><th>Zeit</th><th>Art</th><th>Ergebnis</th><th>Dauer</th></tr></thead><tbody>`+
     list.map(r=>`<tr><td>${full(r.time)}</td><td>${KIND[r.kind]||esc(r.kind)}<div class="mut small">${esc(r.trigger||'')}</div></td>
       <td>${r.skipped?'<span class="wn">übersprungen</span>':r.ok?'<span class="ok">erfolgreich</span>':'<span class="err">fehlgeschlagen</span>'}

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.0
+- **Gemessene Ersparnis** als Sensor `sensor.<Präfix>_ersparnis` (EUR): die Summe der Wochenbilanzen aller vollen Wochen gegenüber „Wechselrichter dauernd an, nie Netzladen“. In den Attributen stehen der Wert inklusive Akkustand, die letzte Woche und alle Wochen einzeln. Die Übersicht zeigt ihn als Kachel. Er wird mit jedem Lauf neu geschrieben, wie der Bericht-Sensor.
+- Knopf **„Wochenbilanz rechnen“** auf der Übersicht. Damit lässt sich eine fehlgeschlagene Bilanz nachholen, etwa nach dem Austausch eines Zählers. Das Protokoll nennt solche Läufe „Wochenbilanz“.
+- **Zeitlimit für Läufe** (Plan und Nachplanung 15 Minuten, Wochenbilanz 10 Minuten). Ein hängender Lauf wird beendet und als fehlgeschlagen protokolliert, mit der Ausgabe bis dahin. Vorher blockierte er alle folgenden Läufe, bis das Add-on neu gestartet wurde.
+
 ## 0.10.0
 - **Dashboard-Karte** im Add-on: die Tibber-Prices-Preiskurve mit Akku-Linie (gemessen und geplant), Phasenplan, Kacheln für Akku, PV, Wechselrichter, Netz und Bezug heute, dazu wahlweise Uhr mit Preiszeiträumen, Vollbild für ein Display und Nachtmodus. „Karte einrichten“ in den Einstellungen legt sie als Dashboard-Ressource an (oder übernimmt eine frühere Kopie) und trägt die Helfer, den Akku und die Kapazität ein; danach hält das Add-on genau diese Ressource bei Updates und Einstellungsänderungen aktuell. Dashboards ändert es nicht.
 

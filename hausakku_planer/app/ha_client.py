@@ -35,6 +35,10 @@ def report_sensor():
     """The one sensor the add-on publishes its reports to (for summarisers such as an assistant)."""
     return 'sensor.'+settings.current().helpers()['report']
 
+def savings_sensor():
+    """The sensor with the measured savings since the first full week (written next to the report)."""
+    return 'sensor.'+settings.current().helpers()['savings']
+
 def _require_writes(mode=None):
     if (mode or settings.operating_mode())=='observe':
         raise WritesDisabled('Betriebsstufe "Beobachten": es wird nichts in Home Assistant geschrieben')
@@ -54,7 +58,7 @@ def check_call(name,args,mode=None):
             _require_writes(mode);return
         raise ValueError('Hardware/service writes prohibited by planner client')
     if name=='ha_set_state':
-        if args.get('entity_id')==report_sensor():
+        if args.get('entity_id') in (report_sensor(),savings_sensor()):
             _require_writes(mode);return
     if name=='ha_config_set_helper':
         helper=args.get('helper_id','').split('.')[-1]
