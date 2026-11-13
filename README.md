@@ -9,6 +9,7 @@ https://github.com/bjoe10/HA_Addon
 | Add-on | Beschreibung |
 |---|---|
 | [Hausakku-Planer](hausakku_planer/README.md) | Plant Laden, Halten und Versorgen eines Heimspeichers nach dynamischen Strompreisen, mit Blueprint zur sicheren Ausführung |
+| [Lichtregie](lichtregie/README.md) | Musikgesteuerte Lichtshow für Moving Heads per Art-Net, nach Spotify-Titel, Tempo und Stimmung |
 | Immich Job Daemon, Coturn TURN Server | siehe jeweiliger Ordner |
 
 ## Blueprints

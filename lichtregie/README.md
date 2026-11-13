@@ -1,10 +1,13 @@
 # Lichtregie
 
-Musikgesteuerte Lichtshow für das Wohnzimmer, als Home-Assistant-Add-on auf dem Raspberry Pi 5 geplant.
-Zwei Moving Heads werden per Art-Net direkt angesteuert, Lampen und Ambilight über Home Assistant.
+Musikgesteuerte Lichtshow für zwei Moving Heads als Home-Assistant-Add-on. Die Köpfe werden per Art-Net
+direkt angesteuert; Titel, Tempo und Stimmung kommen aus Spotify (über HA) und der FreqBlog Music API.
 
-Status: in Entwicklung, noch kein Add-on. Konzept und Stand stehen in [KONZEPT.md](KONZEPT.md).
+- Anleitung: [DOCS.md](DOCS.md)
+- Show-Design: [SHOW.md](SHOW.md), Konzept und Messwerte: [KONZEPT.md](KONZEPT.md)
+- Werkzeuge für Kalibrierung und Tests: `dev/` (lokal starten mit `dev/run_local.sh`)
 
 ## Tempo-Daten
 
-Das Tempo der gerade laufenden Titel soll aus der Datenbank von [GetSongBPM](https://getsongbpm.com) kommen.
+Tempo und Stimmung der Titel kommen von der [FreqBlog Music API](https://freqblog.com/music-api.html).
+Ursprünglich war [GetSongBPM](https://getsongbpm.com) als Quelle vorgesehen.

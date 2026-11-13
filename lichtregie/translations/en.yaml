@@ -1,0 +1,7 @@
+configuration:
+  spotify_player:
+    name: Spotify player
+    description: Entity of the Spotify media player in HA, e.g. media_player.spotify_name. Provides title and position.
+  freqblog_key:
+    name: FreqBlog API key
+    description: Key for the FreqBlog Music API (tempo and mood of tracks).

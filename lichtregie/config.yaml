@@ -1,0 +1,24 @@
+name: Lichtregie
+version: "0.1.0"
+slug: lichtregie
+description: Musikgesteuerte Lichtshow für Moving Heads per Art-Net, nach Spotify-Titel, Tempo und Stimmung.
+url: https://github.com/bjoe10/HA_Addon
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+homeassistant_api: true
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:spotlight-beam
+panel_title: Lichtregie
+map:
+  - homeassistant_config:ro
+options:
+  spotify_player: ""
+  freqblog_key: ""
+schema:
+  spotify_player: str
+  freqblog_key: password
