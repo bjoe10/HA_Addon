@@ -20,3 +20,6 @@ configuration:
   airplay_name:
     name: AirPlay-Name
     description: Name, unter dem der Empfänger in Music Assistant erscheint.
+  laser_schalter:
+    name: Laser-Steckdose
+    description: Schalter der Steckdose des Lasers, z. B. switch.rgb_laser. Optional.

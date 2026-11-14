@@ -80,4 +80,6 @@ assert heads[2][2]["speed"] == 20, "fehlender Kanal kommt aus dem Rückfall"
 assert source == {1: "configuration.yaml", 2: "configuration.yaml"}, source
 heads, source = config.heads_from_text(None)
 assert source == {1: "Standardwerte", 2: "Standardwerte"}
-print("config: Node-Erkennung ok")
+laser, src = config.laser_from_text(SAMPLE)
+assert laser[0] == "10.0.0.195" and laser[2]["mode"] == 23 and laser[2]["dots"] == 32 and src == "configuration.yaml", laser
+print("config: Node-Erkennung ok (Köpfe und Laser)")

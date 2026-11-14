@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Laser-Testwerkzeug: Karte in der Oberfläche mit allen 10 Laserkanälen, „Party-Standard laden“, Steckdose
+  an/aus (Option `laser_schalter`) und Schutzgrenzen für hoch/runter und links/rechts, die auf jeden
+  gesendeten Wert wirken. Laser-Node und Kanäle aus der `configuration.yaml`.
+- Senden an den Laser ist nach jedem Neustart aus; solange es aus ist, bleibt der Laser bei HA.
+- Noch nicht in der Show: erst messen und Grenzen festlegen.
+
 ## 0.3.2
 
 - Mit eingerastetem Audio-Takt kräftigere Effekte: Pulse fallen auf 25 % statt 50 %, konstante Szenen pulsieren

@@ -117,13 +117,15 @@ BEAT = {"stop": None, "info": "aus", "szene": "", "start": None}
 SETTINGS = {"strobe": True, "nebel": False, "offset": 0.0, "vorlauf": 0.4, "tempo": 2.0,
             "anschub": True, "vorsteuerung": 0.45, "lampen": True,
             "audio": True, "audio_versatz": 80.0, "takttest": False,
-            "lampen_decke": 40, "lampen_vitrine": 100}
+            "lampen_decke": 40, "lampen_vitrine": 100,
+            "laser": False, "laser_ud_min": 0, "laser_ud_max": 255, "laser_lr_min": 0, "laser_lr_max": 255}
 SETTINGS_FILE = config.DATA / "settings.json"
 try:   # Schalter aus der Web-App überdauern einen Neustart
     SETTINGS.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
 except (OSError, ValueError):
     pass
 SETTINGS["takttest"] = False   # Takt-Test startet nie von selbst
+SETTINGS["laser"] = False      # Laser sendet nach einem Neustart nie von selbst
 
 
 def save_settings():
@@ -179,6 +181,38 @@ def with_kick(k, pan, tilt):
     lead_pan = max(-VOR_MAX_PAN, min(VOR_MAX_PAN, tau * vp))
     lead_tilt = max(-VOR_MAX_TILT, min(VOR_MAX_TILT, tau * vt))
     return _clamp16(pan + lead_pan), _clamp16(tilt + lead_tilt)
+
+
+# --- Laser: Testwerkzeug (Kanäle von Hand) mit Schutzgrenzen für die Lage des Musters ---------------
+LASER_KEYS = ["mode", "shape", "rotate", "mirror_h", "mirror_v", "up_down", "left_right", "size", "color", "dots"]
+LASER_STATE = {k: 0 for k in LASER_KEYS}
+LASER_PRESET = {"mode": 15, "shape": 125, "rotate": 178, "mirror_h": 0, "mirror_v": 0, "up_down": 8,
+                "left_right": 64, "size": 3, "color": 191, "dots": 0}   # HA-Szene „Laser Party standard“
+LASER_BUF = bytearray(512)
+LASER_LOCK = threading.Lock()
+
+
+def laser_limits(values):
+    """Schutzgrenzen: hoch/runter und links/rechts nie außerhalb des freigegebenen Bereichs."""
+    out = dict(values)
+    for key, lo, hi in (("up_down", "laser_ud_min", "laser_ud_max"),
+                        ("left_right", "laser_lr_min", "laser_lr_max")):
+        out[key] = max(SETTINGS[lo], min(SETTINGS[hi], int(out[key])))
+    return out
+
+
+def laser_apply(values):
+    with LASER_LOCK:
+        LASER_STATE.update({k: max(0, min(255, int(v))) for k, v in values.items() if k in LASER_STATE})
+        safe = laser_limits(LASER_STATE)
+        for key, ch in config.LASER[2].items():
+            LASER_BUF[ch - 1] = safe[key]
+
+
+def laser_snapshot():
+    with LASER_LOCK:
+        return {"werte": dict(LASER_STATE), "gesendet": laser_limits(LASER_STATE),
+                "steckdose": bool(config.LASER_SWITCH)}
 
 
 def show_loop(prof, t0, stop):
@@ -373,6 +407,10 @@ def sender(stop):
             with head.lock:
                 data = bytes(head.buf)
             sock.sendto(artdmx(config.UNIVERSE[k], data, seq), (NODES[k], ART_PORT))
+        if SETTINGS["laser"]:     # nur senden, wenn freigegeben; sonst behält HA den Laser
+            with LASER_LOCK:
+                ldata = bytes(LASER_BUF)
+            sock.sendto(artdmx(config.LASER[1], ldata, seq), (config.LASER[0], ART_PORT))
         seq = (seq + 1) % 256 or 1
         time.sleep(1.0 / FPS)
     sock.close()
@@ -437,6 +475,18 @@ HTML = """<!doctype html>
  <input id="bpm" placeholder="leer lassen" style="width:100%;font-size:16px;padding:8px;border-radius:8px;border:0;background:#2a2a2d;color:#eee;box-sizing:border-box">
  <div class="row"><button class="primary" id="start">Start</button><button class="danger" id="stop">Stopp</button></div>
  <p class="coords" id="beatinfo">aus</p>
+</div>
+
+<div class="card">
+ <h2>Laser (Test)</h2>
+ <p class="hint">Achtung: Laserlicht nie in Augen richten. Zuerst die Schutzgrenzen für hoch/runter und
+  links/rechts so einstellen, dass das Muster nur über Kopfhöhe an Decke und Wand landet.</p>
+ <div class="row"><button id="lSend">Senden</button><button id="lPower">Steckdose an</button></div>
+ <button id="lPreset">Party-Standard laden</button>
+ <p class="coords" id="lmsg"></p>
+ <div id="lsliders"></div>
+ <h2 style="margin-top:14px">Schutzgrenzen</h2>
+ <div id="llimits"></div>
 </div>
 
 <div id="heads"></div>
@@ -785,13 +835,67 @@ setInterval(() => {
 setInterval(() => {
   fetch('api/state').then(r => r.json()).then(s => {
     state = s; showState();
-    if (s.settings) { settings = s.settings; showSettings(); }
+    if (s.settings) { settings = s.settings; showSettings(); showLaserSettings(); }
+    if (s.laser) showLaser(s.laser);
     if (s.info) $('beatinfo').textContent = s.info + ' · erkannt: ' + s.erkannt + ' · Überwachung ' + (s.ueberwachung ? 'an' : 'aus');
   }).catch(() => {});
 }, 2000);
 
+// --- Laser-Karte -------------------------------------------------------------------------------------
+const LASER = [['mode', 'Modus'], ['shape', 'Form'], ['rotate', 'Rotation'], ['mirror_h', 'Spiegel waagerecht'],
+  ['mirror_v', 'Spiegel senkrecht'], ['up_down', 'Hoch/runter'], ['left_right', 'Links/rechts'], ['size', 'Größe'],
+  ['color', 'Farbe'], ['dots', 'Punkte-Geschwindigkeit']];
+const LIMITS = [['laser_ud_min', 'Hoch/runter min'], ['laser_ud_max', 'Hoch/runter max'],
+  ['laser_lr_min', 'Links/rechts min'], ['laser_lr_max', 'Links/rechts max']];
+let laserPower = false;
+function laserPost(body) {
+  fetch('api/laser', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
+    .then(r => r.json()).then(showLaser);
+}
+function buildLaser() {
+  $('lsliders').innerHTML = LASER.map(([k, n]) => `<label>${n} <span class="val" id="lzv_${k}"></span>
+    <input type="range" min="0" max="255" id="lz_${k}"></label>`).join('');
+  $('llimits').innerHTML = LIMITS.map(([k, n]) => `<label>${n} <span class="val" id="lgv_${k}"></span>
+    <input type="range" min="0" max="255" id="lg_${k}"></label>`).join('');
+  for (const [k] of LASER) {
+    $('lz_' + k).addEventListener('input', () => throttled('lz' + k, () => laserPost({values: {[k]: +$('lz_' + k).value}})));
+  }
+  for (const [k] of LIMITS) {
+    $('lg_' + k).addEventListener('input', () => { $('lgv_' + k).textContent = $('lg_' + k).value; });
+    $('lg_' + k).addEventListener('change', () => setSetting({[k]: +$('lg_' + k).value}));
+  }
+  $('lSend').addEventListener('click', () => setSetting({laser: !settings.laser}));
+  $('lPreset').addEventListener('click', () => laserPost({preset: true}));
+  $('lPower').addEventListener('click', () => {
+    laserPower = !laserPower;
+    fetch('api/laser_power', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({on: laserPower})}).then(r => r.json()).then(d => {
+        $('lmsg').textContent = d.ok ? (laserPower ? 'Steckdose an, Laser braucht ca. 20 s' : 'Steckdose aus')
+                                     : 'Keine Steckdose eingestellt (Add-on-Option laser_schalter)';
+        $('lPower').textContent = laserPower ? 'Steckdose aus' : 'Steckdose an';
+      });
+  });
+}
+function showLaser(l) {
+  if (!l) return;
+  for (const [k] of LASER) {
+    if (document.activeElement !== $('lz_' + k)) $('lz_' + k).value = l.werte[k];
+    const sent = l.gesendet[k];
+    $('lzv_' + k).textContent = l.werte[k] + (sent !== l.werte[k] ? ` → ${sent} (Grenze)` : '');
+  }
+}
+function showLaserSettings() {
+  $('lSend').textContent = 'Senden ' + (settings.laser ? 'an' : 'aus');
+  $('lSend').className = settings.laser ? 'danger' : '';
+  for (const [k] of LIMITS) {
+    if (document.activeElement !== $('lg_' + k)) $('lg_' + k).value = settings[k];
+    $('lgv_' + k).textContent = settings[k];
+  }
+}
+
 buildHeads();
 presets();
+buildLaser();
 resize();
 fetch('api/state').then(r => r.json()).then(s => { state = s; showState(); });
 </script>
@@ -828,6 +932,7 @@ class Handler(BaseHTTPRequestHandler):
             data["ueberwachung"] = WATCH["stop"] is not None
             data["szene"] = BEAT["szene"]
             data["settings"] = SETTINGS
+            data["laser"] = laser_snapshot()
             self._send(200, "application/json", json.dumps(data).encode("utf-8"))
         elif self.path == "/api/spots":
             self._send(200, "application/json",
@@ -877,7 +982,7 @@ class Handler(BaseHTTPRequestHandler):
             start_watch(title, artist)
             return self._send(200, "application/json", json.dumps({"info": BEAT["info"]}).encode("utf-8"))
         elif self.path == "/api/settings":
-            for key in ("strobe", "nebel", "anschub", "lampen", "audio", "takttest"):
+            for key in ("strobe", "nebel", "anschub", "lampen", "audio", "takttest", "laser"):
                 if key in body:
                     SETTINGS[key] = bool(body[key])
             if "offset" in body:
@@ -885,6 +990,10 @@ class Handler(BaseHTTPRequestHandler):
             for key in ("lampen_decke", "lampen_vitrine"):
                 if key in body:
                     SETTINGS[key] = max(0, min(150, int(body[key])))
+            for key in ("laser_ud_min", "laser_ud_max", "laser_lr_min", "laser_lr_max"):
+                if key in body:
+                    SETTINGS[key] = max(0, min(255, int(body[key])))
+            laser_apply({})   # neue Grenzen sofort anwenden
             if "audio_versatz" in body:
                 SETTINGS["audio_versatz"] = max(-500.0, min(500.0, float(body["audio_versatz"])))
             if "vorsteuerung" in body:
@@ -896,6 +1005,15 @@ class Handler(BaseHTTPRequestHandler):
                 start_beat(*BEAT["start"])
             save_settings()
             return self._send(200, "application/json", json.dumps(SETTINGS).encode("utf-8"))
+        elif self.path == "/api/laser":
+            if body.get("preset"):
+                laser_apply(LASER_PRESET)
+            laser_apply(body.get("values", {}))
+            return self._send(200, "application/json", json.dumps(laser_snapshot()).encode("utf-8"))
+        elif self.path == "/api/laser_power":
+            ok = bool(config.LASER_SWITCH) and ha_call(
+                "switch", "turn_on" if body.get("on") else "turn_off", {"entity_id": config.LASER_SWITCH})
+            return self._send(200, "application/json", json.dumps({"ok": ok}).encode("utf-8"))
         elif self.path == "/api/stop":
             stop_all()
             return self._send(200, "application/json", json.dumps({"info": BEAT["info"]}).encode("utf-8"))

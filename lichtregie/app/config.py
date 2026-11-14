@@ -132,3 +132,25 @@ AUDIO_PIPE = os.environ.get("LICHTREGIE_AUDIO_PIPE", "").strip()   # leer = ohne
 
 # Erlaubte Absender (Add-on: nur der Ingress-Proxy von HA); leer = alle (lokal auf dem Mac)
 ALLOWED_CLIENTS = {c.strip() for c in os.environ.get("LICHTREGIE_ALLOWED_CLIENTS", "").split(",") if c.strip()}
+
+
+# --- Laser ------------------------------------------------------------------------------------------
+LASER_NAMES = {"mode": "laser_mode", "shape": "laser_shape", "rotate": "laser_rotate",
+               "mirror_h": "laser_mirror_hori", "mirror_v": "laser_mirror_vert", "up_down": "laser_up_down",
+               "left_right": "laser_left_right", "size": "laser_size", "color": "laser_color",
+               "dots": "laser_speed_dots"}
+LASER_DEFAULT = ("192.168.178.195", 1, {"mode": 23, "shape": 24, "rotate": 25, "mirror_h": 26, "mirror_v": 27,
+                                        "up_down": 28, "left_right": 29, "size": 30, "color": 31, "dots": 32})
+
+
+def laser_from_text(text):
+    """Laser-Node und Kanäle aus der configuration.yaml (Namen Laser_mode … Laser_speed_dots)."""
+    for node in parse_artnet(text) if text else []:
+        ch = {key: node["devices"][name] for key, name in LASER_NAMES.items() if name in node["devices"]}
+        if "mode" in ch and node["host"]:
+            return (node["host"], node["universe"], {**LASER_DEFAULT[2], **ch}), "configuration.yaml"
+    return LASER_DEFAULT, "Standardwerte"
+
+
+LASER, LASER_SOURCE = laser_from_text(_read_ha_config())
+LASER_SWITCH = os.environ.get("LICHTREGIE_LASER_SWITCH", "").strip()   # Steckdose des Lasers, z. B. switch.…

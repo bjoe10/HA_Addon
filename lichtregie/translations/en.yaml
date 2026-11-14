@@ -20,3 +20,6 @@ configuration:
   airplay_name:
     name: AirPlay name
     description: Name of the receiver as shown in Music Assistant.
+  laser_schalter:
+    name: Laser power switch
+    description: Switch entity of the laser's power outlet, e.g. switch.rgb_laser. Optional.
