@@ -7,6 +7,7 @@ Die Show liest den Spotify-Titel aus HA, holt Tempo und Stimmung und steuert die
 Einstellungen und Nodes: config.py.
 """
 import json
+import math
 import socket
 import threading
 import time
@@ -16,6 +17,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import config
 import show
+try:            # numpy fehlt lokal ggf.; dann ohne Audioanalyse
+    import audio
+except ImportError:
+    audio = None
 from artnet import ART_PORT, FPS, Head, artdmx
 from geometry import pan_tilt
 from tempo import tempo
@@ -28,6 +33,7 @@ COLOR_CH = {k: config.LAYOUT[k]["color"] for k in HEADS}    # DMX-Kanäle aus co
 GOBO_CH = {k: config.LAYOUT[k]["gobo"] for k in HEADS}
 STROBE_CH = {k: config.LAYOUT[k]["strobe"] for k in HEADS}
 STATE_LOCK = threading.Lock()
+AUDIO = audio.Analyzer() if (audio is not None and config.AUDIO_PIPE) else None
 # Letzter Zielpunkt aus dem Bild, in Raumkoordinaten (ohne Spiegelung), für „Punkt merken“
 LAST_TARGET = {"value": None}
 CALIB_FILE = config.DATA / "kalibrierpunkte.jsonl"
@@ -109,7 +115,8 @@ LIVE = {"live": None, "at": 0.0}
 BEAT = {"stop": None, "info": "aus", "szene": "", "start": None}
 # Einstellungen aus der Web-App: Strobe an/aus, Nebel an/aus, Phasen-Versatz in Schlägen, Vorlauf in Sekunden
 SETTINGS = {"strobe": True, "nebel": False, "offset": 0.0, "vorlauf": 0.4, "tempo": 2.0,
-            "anschub": True, "vorsteuerung": 0.45, "lampen": True}
+            "anschub": True, "vorsteuerung": 0.45, "lampen": True,
+            "audio": True, "audio_versatz": 0.0}
 SETTINGS_FILE = config.DATA / "settings.json"
 try:   # Schalter aus der Web-App überdauern einen Neustart
     SETTINGS.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
@@ -183,19 +190,30 @@ def show_loop(prof, t0, stop):
         pos = song_position()
         sec = pos if pos is not None else (time.time() - t0)
         b = sec * bpm / 60.0 + SETTINGS["offset"]
+        # Live-Audio: die genaue Schlagphase kommt aus der Analyse, der Liedabschnitt weiter aus HA
+        live = None
+        now = time.time()
+        if AUDIO is not None and SETTINGS["audio"] and AUDIO.signal(now):
+            live = AUDIO.live(now, bpm)            # Pegel, Break, Drop
+            if AUDIO.phase_ok(now):                # Schlagphase, sobald das Raster eingerastet ist
+                frac = AUDIO.phase(now + SETTINGS["audio_versatz"] / 1000.0)
+                b = math.floor(b - frac + 0.5) + frac
         b_move = b + SETTINGS["vorlauf"] * bpm / 60.0   # Bewegung vorziehen, damit sie auf dem Schlag ankommt
-        out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"])
+        out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"],
+                               live=live)
         for k, v in out.items():
             x, y, z = v["ziel"]
             # Das Modell in ziel.py ist in x gespiegelt, deshalb 5 - x
             pan, tilt = pan_tilt(k, (5.0 - x, y, z), current_pan=_LAST_GOAL.get(k, (STATE[k]["pan"],))[0])
             pan, tilt = with_kick(k, pan, tilt)
+            if live and v["hell"] > 0:   # Live-Pegel hebt und senkt die Helligkeit leicht
+                v = dict(v, hell=max(show.MIN_DIM, int(v["hell"] * (0.75 + 0.25 * live["level"]))))
             if blackout:
                 v = dict(v, hell=0, strobe=0)
             apply(k, pan, tilt, True, v["farbe"], v["gobo"], v["strobe"], v["hell"])
             SPOTS[str(k)] = {"x": x, "y": y, "z": z, "hell": v["hell"], "farbe": v["farbe"]}
-        BEAT["szene"] = f"Takt {int(b // 4) + 1} · {info}"
-        LAMP.update(prof=prof, b=b, at=time.time())   # Lampen-Ebene liest hier mit
+        BEAT["szene"] = f"Takt {int(b // 4) + 1} · {info}" + (" · Audio" if live else "")
+        LAMP.update(prof=prof, b=b, at=time.time(), live=live)   # Lampen-Ebene liest hier mit
         stop.wait(1.0 / FPS)
 
 
@@ -231,7 +249,13 @@ def lamp_loop():
             if LAMP["snapshot"]:
                 ha_call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}", "transition": 2})
                 LAMP["snapshot"] = False
+                LAMP["again"] = time.time() + 5.0
+            elif LAMP.get("again") and time.time() > LAMP["again"]:
+                # zweiter Aufruf: Yeelights verschlucken gelegentlich einen Befehl
+                ha_call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}"})
+                LAMP["again"] = None
             continue
+        LAMP["again"] = None
         if not LAMP["snapshot"]:
             LAMP["snapshot"] = ha_call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": entities})
             if not LAMP["snapshot"]:
@@ -239,7 +263,7 @@ def lamp_loop():
             if config.LAMPEN_AUS:
                 ha_call("light", "turn_off", {"entity_id": config.LAMPEN_AUS, "transition": 2})
             LAMP["last"] = None
-        want = show.lamps(LAMP["prof"], LAMP["b"])
+        want = show.lamps(LAMP["prof"], LAMP["b"], LAMP.get("live"))
         key = (want["grund"], want["akzent"])
         if key == LAMP["last"]:
             continue
@@ -267,6 +291,8 @@ def start_beat(title, artist, info, track_id=None, duration=None):
     BEAT["stop"] = stop
     BEAT["start"] = (title, artist, info, track_id, duration)
     BEAT["info"] = f"{title} – {artist}: {prof['bpm']:.1f} BPM, {show.describe(prof)}"
+    if AUDIO is not None:
+        AUDIO.set_bpm_hint(prof["bpm"])
     threading.Thread(target=show_loop, args=(prof, time.time(), stop), daemon=True).start()
 
 
@@ -379,7 +405,10 @@ HTML = """<!doctype html>
  <div class="row"><button id="tStrobe">Strobe</button><button id="tNebel">Nebel</button></div>
  <div class="row"><button id="tempo1">Bewegung ×1</button><button id="tempo2">Bewegung ×2</button></div>
  <div class="row"><button id="tKick">Anschub</button><button id="tVor">Vorsteuerung</button></div>
- <div class="row"><button id="tLamp">Lampen</button></div>
+ <div class="row"><button id="tLamp">Lampen</button><button id="tAudio">Audio</button></div>
+ <p class="coords" id="audiostat">Audio: –</p>
+ <label>Audio-Versatz <span class="val" id="avv">0 ms</span>
+  <input type="range" id="av" min="-300" max="300" step="10" value="0"></label>
  <p class="coords" id="szene">–</p>
  <label>Titel</label>
  <input id="ttl" placeholder="wird aus HA gelesen" style="width:100%;font-size:16px;padding:8px;border-radius:8px;border:0;background:#2a2a2d;color:#eee;box-sizing:border-box">
@@ -678,6 +707,10 @@ function showSettings() {
   $('tNebel').className = settings.nebel ? 'primary' : '';
   $('tVor').textContent = 'Vorsteuerung ' + (settings.vorsteuerung ? settings.vorsteuerung + ' s' : 'aus');
   $('tVor').className = settings.vorsteuerung ? 'primary' : '';
+  $('tAudio').textContent = 'Audio ' + (settings.audio ? 'an' : 'aus');
+  $('tAudio').className = settings.audio ? 'primary' : '';
+  if (document.activeElement !== $('av')) $('av').value = settings.audio_versatz || 0;
+  $('avv').textContent = (settings.audio_versatz || 0) + ' ms';
   $('tLamp').textContent = 'Lampen ' + (settings.lampen ? 'an' : 'aus');
   $('tLamp').className = settings.lampen ? 'primary' : '';
   $('tKick').textContent = 'Anschub ' + (settings.anschub ? 'an' : 'aus');
@@ -687,6 +720,9 @@ function showSettings() {
 }
 $('tKick').addEventListener('click', () => setSetting({anschub: !settings.anschub}));
 $('tLamp').addEventListener('click', () => setSetting({lampen: !settings.lampen}));
+$('tAudio').addEventListener('click', () => setSetting({audio: !settings.audio}));
+$('av').addEventListener('change', () => setSetting({audio_versatz: +$('av').value}));
+$('av').addEventListener('input', () => { $('avv').textContent = $('av').value + ' ms'; });
 const VOR = [0, 0.2, 0.3, 0.45];
 $('tVor').addEventListener('click', () => {
   const i = VOR.indexOf(settings.vorsteuerung);
@@ -705,6 +741,11 @@ $('tNebel').addEventListener('click', () => setSetting({nebel: !settings.nebel})
 setInterval(() => {
   fetch('api/spots').then(r => r.json()).then(d => {
     spots = d.spots || {};
+    const a = d.audio;
+    $('audiostat').textContent = !a ? 'Audio: nicht eingerichtet'
+      : a.an ? `Audio: ${a.takt ? 'Takt eingerastet' : 'sucht Takt'} · ${a.bpm || '–'} BPM · Sicherheit ${Math.round(a.sicher * 100)} % · Pegel ${Math.round(a.pegel * 100)} %`
+               + (a.break ? ' · Break' : '') + (a.drop ? ' · DROP' : '')
+      : 'Audio: kein Signal (Lichtregie in der AirPlay-Gruppe in MA?)';
     $('szene').textContent = d.szene || '–';
     drawRoom();
   }).catch(() => {});
@@ -736,7 +777,16 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _allowed(self):
+        """Im Add-on (Host-Netzwerk) nur Anfragen über den HA-Ingress-Proxy annehmen."""
+        if config.ALLOWED_CLIENTS and self.client_address[0] not in config.ALLOWED_CLIENTS:
+            self._send(403, "text/plain", b"nur ueber Home Assistant")
+            return False
+        return True
+
     def do_GET(self):
+        if not self._allowed():
+            return
         if self.path in ("/", "/index.html"):
             self._send(200, "text/html; charset=utf-8", HTML.encode("utf-8"))
         elif self.path == "/api/state":
@@ -751,11 +801,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "application/json", json.dumps(data).encode("utf-8"))
         elif self.path == "/api/spots":
             self._send(200, "application/json",
-                       json.dumps({"spots": SPOTS, "szene": BEAT["szene"]}).encode("utf-8"))
+                       json.dumps({"spots": SPOTS, "szene": BEAT["szene"],
+                                   "audio": AUDIO.status() if AUDIO is not None else None}).encode("utf-8"))
         else:
             self._send(404, "text/plain", b"nicht gefunden")
 
     def do_POST(self):
+        if not self._allowed():
+            return
         length = int(self.headers.get("Content-Length", 0))
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
@@ -794,11 +847,13 @@ class Handler(BaseHTTPRequestHandler):
             start_watch(title, artist)
             return self._send(200, "application/json", json.dumps({"info": BEAT["info"]}).encode("utf-8"))
         elif self.path == "/api/settings":
-            for key in ("strobe", "nebel", "anschub", "lampen"):
+            for key in ("strobe", "nebel", "anschub", "lampen", "audio"):
                 if key in body:
                     SETTINGS[key] = bool(body[key])
             if "offset" in body:
                 SETTINGS["offset"] = float(body["offset"])
+            if "audio_versatz" in body:
+                SETTINGS["audio_versatz"] = max(-500.0, min(500.0, float(body["audio_versatz"])))
             if "vorsteuerung" in body:
                 SETTINGS["vorsteuerung"] = max(0.0, min(1.0, float(body["vorsteuerung"])))
             if "tempo" in body:
@@ -825,6 +880,9 @@ def main():
     stop = threading.Event()
     threading.Thread(target=sender, args=(stop,), daemon=True).start()
     threading.Thread(target=lamp_loop, daemon=True).start()
+    if AUDIO is not None:
+        threading.Thread(target=audio.reader, args=(AUDIO, config.AUDIO_PIPE), daemon=True).start()
+    print(f"Audioanalyse: {'an, Pipe ' + config.AUDIO_PIPE if AUDIO is not None else 'aus'}", flush=True)
     print(f"Lampen: Grundfarbe {config.LAMPEN_GRUND or '-'}, Akzent {config.LAMPEN_AKZENT or '-'}, "
           f"aus während der Show {config.LAMPEN_AUS or '-'}", flush=True)
     for k in HEADS:

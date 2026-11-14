@@ -14,3 +14,9 @@ configuration:
   lampen_aus:
     name: Off during the show
     description: Lights switched off during the show, e.g. main light. Their previous state is restored afterwards.
+  airplay:
+    name: AirPlay receiver
+    description: Starts an AirPlay receiver for live audio analysis. Group it with the speaker in Music Assistant.
+  airplay_name:
+    name: AirPlay name
+    description: Name of the receiver as shown in Music Assistant.

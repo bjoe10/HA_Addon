@@ -378,8 +378,9 @@ INTRO = {"shape": "kreis", "surface": "decke", "cu": 2.5, "cv": 3.0, "su": 0.5, 
 
 
 # --- Was zu einem Zeitpunkt läuft ------------------------------------------------------------------
-def look(prof, b):
-    """Abschnitt, Szene und Abwandlungen zum Zeitpunkt b (Schläge seit Liedanfang)."""
+def look(prof, b, live=None):
+    """Abschnitt, Szene und Abwandlungen zum Zeitpunkt b (Schläge seit Liedanfang).
+    live = Live-Audio (Break/Drop aus der Analyse); hat Vorrang vor der geschätzten Phrasenstruktur."""
     total = prof["beats_total"]
     ph = int(b // PHRASE)
     in_ph = b % PHRASE
@@ -393,6 +394,15 @@ def look(prof, b):
         st.update(teil="Outro", scene=dict(INTRO, shape="fokus", surface="quer", per=64, rel="gleich",
                                             gobo="offen"),
                   motiv=True, scale=max(0.3, (total - b) / PHRASE))
+        return st
+    if live and live.get("drop"):                  # echter Drop aus dem Audio: sofort Höhepunkt, Blitz
+        st.update(teil="Drop", scene=prof["refrain"], farbe="split",
+                  gobo="zittern3" if prof["stage"] != "ruhig" else "zittern1",
+                  strobe=live.get("drop_beats", 99.0) < 1.0)
+        return st
+    if live and live.get("break"):                 # echter Break: ruhig, langsamer, atmen
+        st.update(teil="Break", scene=prof["scenes"][prof["order"][(ph - 1) % len(prof["order"])]],
+                  dim="atmen", tempo=0.5, scale=0.85)
         return st
     peaks = prof["stage"] != "ruhig"
     loud = prof["stage"] == "druckvoll"
@@ -468,17 +478,17 @@ def _wheels(prof, st, b, k):
 
 
 # --- Ein Bild ---------------------------------------------------------------------------------------
-def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0):
+def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None):
     """Ein Bild für beide Köpfe. b = Taktposition jetzt, b_move = Taktposition für die Bewegung
     (vorgezogen um die Laufzeit des Kopfes). tempo = Faktor für die Bahnen (2 = doppelt so schnell).
     Rückgabe: {kopf: {ziel, hell, farbe, gobo, strobe}}, Info-Text."""
     b_move = b if b_move is None else b_move
-    st = look(prof, b)
+    st = look(prof, b, live)
     scene = st["scene"]
-    # Radwechsel im Dunkeln: letzter Schlag vor einer neuen Phrase
+    # Radwechsel im Dunkeln: letzter Schlag vor einer neuen Phrase (nicht während Drop/Break aus dem Audio)
     dark = False
     wheels = {k: _wheels(prof, st, b, k) for k in (1, 2)}
-    if b % PHRASE >= PHRASE - 1:
+    if b % PHRASE >= PHRASE - 1 and st["teil"] not in ("Drop", "Break"):
         nb = (int(b // PHRASE) + 1) * PHRASE
         nst = look(prof, nb)
         nxt = {k: _wheels(prof, nst, nb, k) for k in (1, 2)}
@@ -528,13 +538,14 @@ if __name__ == "__main__":
 # --- Lampen (über HA, langsame Ebene) --------------------------------------------------------------
 RGB = {0: (255, 255, 255), 17: (255, 0, 0), 22: (0, 255, 0), 36: (0, 0, 255), 44: (255, 190, 0),
        54: (255, 90, 0), 64: (110, 210, 255), 73: (170, 0, 255)}
-LAMP_PCT = {"Intro": 20, "Motiv": 20, "Szene": 20, "Aufbau": 35, "Höhepunkt": 60, "Atempause": 10}
+LAMP_PCT = {"Intro": 20, "Motiv": 20, "Szene": 20, "Aufbau": 35, "Höhepunkt": 60, "Atempause": 10,
+            "Drop": 70, "Break": 10}
 
 
-def lamps(prof, b):
+def lamps(prof, b, live=None):
     """Farben und Helligkeit der Lampen: Grundfarbe (Ambilight) und Akzent (Schränke), pro Phrase getauscht.
     Ändert sich nur bei Phrasenwechsel, Aufbau, Höhepunkt, Atempause und im Outro (in 5-%-Stufen)."""
-    st = look(prof, b)
+    st = look(prof, b, live)
     base, acc = WHEEL[prof["base"]], WHEEL[prof["accent"]]
     grund, akzent = (acc, base) if int(b // PHRASE) % 2 == 1 else (base, acc)
     teil = st["teil"]
@@ -544,6 +555,6 @@ def lamps(prof, b):
         pct = LAMP_PCT.get(teil, 20)
     if prof["stage"] == "ruhig":
         pct = max(5, int(pct * 0.8))
-    if teil == "Höhepunkt":
+    if teil in ("Höhepunkt", "Drop"):
         grund = akzent = acc
     return {"grund": (RGB[grund], pct), "akzent": (RGB[akzent], pct), "teil": teil}

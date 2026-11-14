@@ -29,12 +29,25 @@ festes Thema, dasselbe Lied sieht also jedes Mal gleich aus.
    Show zurück.
 5. „Lichtregie“ in der Seitenleiste öffnen, Musik über Spotify starten, **Start** drücken.
 
+## Live-Audio über Music Assistant (empfohlen)
+
+Mit Audio rastet die Show auf den echten Schlag ein und erkennt Breaks und Drops live.
+
+1. In der Add-on-Konfiguration **AirPlay-Empfänger** eingeschaltet lassen (Name standardmäßig „Lichtregie“).
+2. In **Music Assistant** erscheint ein AirPlay-Player „Lichtregie“. Ihn mit dem Lautsprecher (ebenfalls über
+   AirPlay) zu einer **Sync-Gruppe** zusammenfassen und die Musik auf die Gruppe spielen, z. B. über das
+   Spotify-Connect-Plugin von Music Assistant.
+3. In der Oberfläche zeigt „Audio: Takt eingerastet“, dass es funktioniert. Wirken die Pulse leicht vor oder
+   hinter dem Schlag, mit **Audio-Versatz** nachstellen.
+
+Ohne Audio (z. B. Spotify direkt auf den Lautsprecher) läuft die Show mit Tempo aus der Datenbank weiter.
+
 ## Oberfläche
 
 - **Raum antippen:** Das Bild zeigt den Raum aus Sicht der Kopfwand. Antippen richtet beide Köpfe auf den Punkt
   auf Boden, Wand oder Decke. Während der Show erscheinen dort die Spots als Vorschau.
 - **Show:** Start/Stopp, Schalter für Strobe, Nebel (mehr Strahl-Effekte), Bewegung ×1/×2, Anschub und
-  Vorsteuerung, Lampen. Die Schalter bleiben über einen Neustart erhalten.
+  Vorsteuerung, Lampen, Audio, Audio-Versatz. Die Schalter bleiben über einen Neustart erhalten.
 - **Kopf 1/2:** Pan, Tilt, Helligkeit, Farbe, Gobo und Strobe einzeln, mit Namen der Farben und Muster.
 
 Der Titelwechsel wird alle 2 Sekunden geprüft. Neue Titel kennt FreqBlog manchmal noch nicht; dann startet die

@@ -125,3 +125,10 @@ def _entity_list(name):
 LAMPEN_GRUND = _entity_list("LICHTREGIE_LAMPEN_GRUND")   # Grundfarbe, z. B. Ambilight-Ringe
 LAMPEN_AKZENT = _entity_list("LICHTREGIE_LAMPEN_AKZENT") # Akzentfarbe, z. B. Vitrinen
 LAMPEN_AUS = _entity_list("LICHTREGIE_LAMPEN_AUS")       # während der Show aus, z. B. Hauptlicht
+
+
+# --- Live-Audio vom AirPlay-Empfänger ---------------------------------------------------------------
+AUDIO_PIPE = os.environ.get("LICHTREGIE_AUDIO_PIPE", "").strip()   # leer = ohne Audioanalyse
+
+# Erlaubte Absender (Add-on: nur der Ingress-Proxy von HA); leer = alle (lokal auf dem Mac)
+ALLOWED_CLIENTS = {c.strip() for c in os.environ.get("LICHTREGIE_ALLOWED_CLIENTS", "").split(",") if c.strip()}
