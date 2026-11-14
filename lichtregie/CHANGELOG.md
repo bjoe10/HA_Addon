@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.2
+
+- Mit eingerastetem Audio-Takt kräftigere Effekte: Pulse fallen auf 25 % statt 50 %, konstante Szenen pulsieren
+  bei mittleren und druckvollen Liedern, Strobe auf jeder „1“ der ersten vier Takte von Höhepunkt und Drop,
+  Strobe-Wirbel im letzten Takt des Aufbaus. Ohne Audio bleibt es bei den weichen Effekten.
+- Audio-Versatz standardmäßig 80 ms (am Gerät gemessen).
+- Regler „Lampen Decke“ und „Lampen Vitrinen“ (0–150 %) für die Helligkeit der beiden Lampengruppen,
+  Standard Decke 40 %, Vitrinen 100 %.
+
 ## 0.3.1
 
 - Takt-Test zum Einstellen des Audio-Versatzes: beide Köpfe weiß auf die TV-Wand, kurzer voller Blitz auf

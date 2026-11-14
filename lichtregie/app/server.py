@@ -116,7 +116,8 @@ BEAT = {"stop": None, "info": "aus", "szene": "", "start": None}
 # Einstellungen aus der Web-App: Strobe an/aus, Nebel an/aus, Phasen-Versatz in Schlägen, Vorlauf in Sekunden
 SETTINGS = {"strobe": True, "nebel": False, "offset": 0.0, "vorlauf": 0.4, "tempo": 2.0,
             "anschub": True, "vorsteuerung": 0.45, "lampen": True,
-            "audio": True, "audio_versatz": 0.0, "takttest": False}
+            "audio": True, "audio_versatz": 80.0, "takttest": False,
+            "lampen_decke": 40, "lampen_vitrine": 100}
 SETTINGS_FILE = config.DATA / "settings.json"
 try:   # Schalter aus der Web-App überdauern einen Neustart
     SETTINGS.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
@@ -193,15 +194,17 @@ def show_loop(prof, t0, stop):
         b = sec * bpm / 60.0 + SETTINGS["offset"]
         # Live-Audio: die genaue Schlagphase kommt aus der Analyse, der Liedabschnitt weiter aus HA
         live = None
+        locked = False
         now = time.time()
         if AUDIO is not None and SETTINGS["audio"] and AUDIO.signal(now):
             live = AUDIO.live(now, bpm)            # Pegel, Break, Drop
             if AUDIO.phase_ok(now):                # Schlagphase, sobald das Raster eingerastet ist
                 frac = AUDIO.phase(now + SETTINGS["audio_versatz"] / 1000.0)
                 b = math.floor(b - frac + 0.5) + frac
+                locked = True
         b_move = b + SETTINGS["vorlauf"] * bpm / 60.0   # Bewegung vorziehen, damit sie auf dem Schlag ankommt
         out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"],
-                               live=live)
+                               live=live, locked=locked)
         if SETTINGS["takttest"]:
             # Takt-Test zum Einstellen des Audio-Versatzes: weiß auf TV-Wand-Mitte, kurzer Blitz auf jedem Schlag
             flash = (b % 1.0) < 0.15
@@ -271,6 +274,10 @@ def lamp_loop():
                 ha_call("light", "turn_off", {"entity_id": config.LAMPEN_AUS, "transition": 2})
             LAMP["last"] = None
         want = show.lamps(LAMP["prof"], LAMP["b"], LAMP.get("live"))
+        # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
+        for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine")):
+            rgb, pct = want[group]
+            want[group] = (rgb, max(1, round(pct * SETTINGS[setting] / 100)))
         key = (want["grund"], want["akzent"])
         if key == LAMP["last"]:
             continue
@@ -414,6 +421,10 @@ HTML = """<!doctype html>
  <div class="row"><button id="tKick">Anschub</button><button id="tVor">Vorsteuerung</button></div>
  <div class="row"><button id="tLamp">Lampen</button><button id="tAudio">Audio</button></div>
  <div class="row"><button id="tTest">Takt-Test</button></div>
+ <label>Lampen Decke <span class="val" id="ldv"></span>
+  <input type="range" id="ld" min="0" max="150" step="5"></label>
+ <label>Lampen Vitrinen <span class="val" id="lvv"></span>
+  <input type="range" id="lv" min="0" max="150" step="5"></label>
  <p class="coords" id="audiostat">Audio: –</p>
  <label>Audio-Versatz <span class="val" id="avv">0 ms</span>
   <input type="range" id="av" min="-300" max="300" step="10" value="0"></label>
@@ -715,6 +726,10 @@ function showSettings() {
   $('tNebel').className = settings.nebel ? 'primary' : '';
   $('tVor').textContent = 'Vorsteuerung ' + (settings.vorsteuerung ? settings.vorsteuerung + ' s' : 'aus');
   $('tVor').className = settings.vorsteuerung ? 'primary' : '';
+  for (const [id, key] of [['ld', 'lampen_decke'], ['lv', 'lampen_vitrine']]) {
+    if (document.activeElement !== $(id)) $(id).value = settings[key];
+    $(id + 'v').textContent = settings[key] + ' %';
+  }
   $('tTest').textContent = 'Takt-Test ' + (settings.takttest ? 'an' : 'aus');
   $('tTest').className = settings.takttest ? 'primary' : '';
   $('tAudio').textContent = 'Audio ' + (settings.audio ? 'an' : 'aus');
@@ -732,6 +747,10 @@ $('tKick').addEventListener('click', () => setSetting({anschub: !settings.anschu
 $('tLamp').addEventListener('click', () => setSetting({lampen: !settings.lampen}));
 $('tAudio').addEventListener('click', () => setSetting({audio: !settings.audio}));
 $('tTest').addEventListener('click', () => setSetting({takttest: !settings.takttest}));
+for (const [id, key] of [['ld', 'lampen_decke'], ['lv', 'lampen_vitrine']]) {
+  $(id).addEventListener('input', () => { $(id + 'v').textContent = $(id).value + ' %'; });
+  $(id).addEventListener('change', () => setSetting({[key]: +$(id).value}));
+}
 $('av').addEventListener('change', () => setSetting({audio_versatz: +$('av').value}));
 $('av').addEventListener('input', () => { $('avv').textContent = $('av').value + ' ms'; });
 const VOR = [0, 0.2, 0.3, 0.45];
@@ -863,6 +882,9 @@ class Handler(BaseHTTPRequestHandler):
                     SETTINGS[key] = bool(body[key])
             if "offset" in body:
                 SETTINGS["offset"] = float(body["offset"])
+            for key in ("lampen_decke", "lampen_vitrine"):
+                if key in body:
+                    SETTINGS[key] = max(0, min(150, int(body[key])))
             if "audio_versatz" in body:
                 SETTINGS["audio_versatz"] = max(-500.0, min(500.0, float(body["audio_versatz"])))
             if "vorsteuerung" in body:

@@ -276,6 +276,10 @@ Atempause danach. Testlauf über 360 Lieder: 1175 verschiedene Kombinationen, Wa
 **Noch offen:** Phasen-Abgleich (Tap/Versatz-Regler), „Thema neu würfeln/behalten“, Feinabstimmung der Bahnen
 nach Sichtung, Tanzbarkeit und Lautheit noch ungenutzt.
 
+**Live-Audio (ab 0.3.0):** AirPlay-Empfänger im Add-on, in Music Assistant mit dem Phantom gruppiert.
+Gemessen am Gerät: Audio-Versatz **80 ms** (Licht 80 ms vor der analysierten Phase), danach sitzen die
+Blitze auf dem Kick.
+
 ## 10. Reihenfolge der Umsetzung
 
 1. Messungen aus Abschnitt 8 (Rad, Strobe, Dimmer, Glätte).

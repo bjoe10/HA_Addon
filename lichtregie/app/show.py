@@ -228,26 +228,28 @@ def _decay(frac, floor):
     return max(floor, 1.0 - frac * 1.6)
 
 
-def dimmer(pattern, b, k):
+def dimmer(pattern, b, k, deep=False):
     """Die Köpfe sind lichtschwach: Grundpegel hoch, Pulse fallen nur kurz ab.
-    Abdunkeln ist ein eigener Effekt (tief, blink), nicht der Normalfall."""
+    Abdunkeln ist ein eigener Effekt (tief, blink), nicht der Normalfall.
+    deep = Takt aus dem Audio eingerastet: Pulse sitzen genau, deshalb kräftiger (tiefer abfallen)."""
+    f = 0.25 if deep else 0.5
     if pattern == "atmen":
         return 0.8 + 0.2 * (0.5 - 0.5 * math.cos(2 * math.pi * b / 8))
     if pattern == "konstant":
         return 1.0
     if pattern == "halbzeit":
-        return _decay((b / 2) % 1.0, 0.5)
+        return _decay((b / 2) % 1.0, f)
     if pattern == "puls":
-        return _decay(b % 1.0, 0.5)
+        return _decay(b % 1.0, f)
     if pattern == "gegenpuls":
-        return _decay((b + (0.5 if k == 2 else 0.0)) % 1.0, 0.5)
+        return _decay((b + (0.5 if k == 2 else 0.0)) % 1.0, f)
     if pattern == "doppel":
-        return _decay((2 * b) % 1.0, 0.55)
+        return _decay((2 * b) % 1.0, f + 0.05)
     if pattern == "offbeat":
-        return _decay((b + 0.5) % 1.0, 0.5)
+        return _decay((b + 0.5) % 1.0, f)
     if pattern == "wechsel":      # Köpfe abwechselnd auf den Schlägen
         on = (int(b) % 2 == 0) == (k == 1)
-        return _decay(b % 1.0, 0.5) if on else 0.45
+        return _decay(b % 1.0, f) if on else f - 0.05
     if pattern == "tief":         # voll hell, am Ende jedes Takts kurz abdunkeln
         return 0.25 if (b % BAR) >= BAR - 0.5 else 1.0
     if pattern == "blink":        # 2 Schläge an, 2 Schläge aus (seltener Effekt)
@@ -478,7 +480,7 @@ def _wheels(prof, st, b, k):
 
 
 # --- Ein Bild ---------------------------------------------------------------------------------------
-def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None):
+def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=False):
     """Ein Bild für beide Köpfe. b = Taktposition jetzt, b_move = Taktposition für die Bewegung
     (vorgezogen um die Laufzeit des Kopfes). tempo = Faktor für die Bahnen (2 = doppelt so schnell).
     Rückgabe: {kopf: {ziel, hell, farbe, gobo, strobe}}, Info-Text."""
@@ -507,15 +509,25 @@ def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None):
     else:
         targets = relate(st["rel"] or scene["rel"], fn, b_move, per, cycle_of(scene, per))
     pattern = st["dim"] or scene["dim"]
+    strobe = st["strobe"]
+    if locked:
+        # Takt aus dem Audio eingerastet: die Effekte, die genau sitzen müssen, aufdrehen
+        if pattern == "konstant" and prof["stage"] != "ruhig":
+            pattern = "puls" if prof["stage"] == "druckvoll" else "halbzeit"
+        in_ph = b % PHRASE
+        if st["teil"] in ("Höhepunkt", "Drop") and prof["stage"] == "druckvoll" and in_ph < 4 * BAR:
+            strobe = strobe or (b % BAR) < 0.5                # halber Schlag Strobe auf jeder „1“
+        if st["teil"] == "Aufbau" and in_ph >= PHRASE - BAR:
+            strobe = strobe or (b % 1.0) < 0.25               # Wirbel im letzten Takt vor dem Höhepunkt
     out = {}
     for k in (1, 2):
         farbe, gobo = wheels[k]
-        level = 0.0 if dark else dimmer(pattern, b, k) * st["scale"]
+        level = 0.0 if dark else dimmer(pattern, b, k, deep=locked) * st["scale"]
         if farbe != 0 and level > 0:   # Farbfilter schlucken Licht: Absenkungen bei Farbe abschwächen
-            level = 1.0 - (1.0 - level) * 0.7
+            level = 1.0 - (1.0 - level) * (0.9 if locked else 0.7)
         hell = 0 if level <= 0 else int(MIN_DIM + (255 - MIN_DIM) * min(1.0, level))
         out[k] = {"ziel": targets[k], "hell": hell, "farbe": farbe, "gobo": gobo,
-                  "strobe": STROBE if (st["strobe"] and strobe_on and not dark) else 0}
+                  "strobe": STROBE if (strobe and strobe_on and not dark) else 0}
     info = (f"{st['teil']}: {scene_name(scene)} · {st['rel'] or scene['rel']} · {pattern}"
             + (f" · {st['var']}" if st["var"] else ""))
     return out, info
