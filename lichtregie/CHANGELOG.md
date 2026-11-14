@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0
+
+- Laser in der Show: jedes Lied bekommt ein Laser-Thema (Hauptform, Nebenform, Gag-Symbol, drei Laser-Szenen).
+  Farbe aus dem Liedthema, Mischfarben auf Höhepunkt und Drop, Drehung und Münz-Kippen im Takt, Größen-Puls
+  auf dem Schlag (kräftiger mit eingerastetem Audio), Position in den Schutzgrenzen, gestrichelt im Break,
+  Countdown „3, 2, 1“ vor dem Höhepunkt. Beim Stopp geht der Laser aus.
+- Laser-Kanäle am Gerät vermessen (siehe SHOW.md); Standardgrenzen hoch/runter 42–86, links/rechts 39–90.
+- Formnamen in der Laser-Karte.
+
 ## 0.4.0
 
 - Laser-Testwerkzeug: Karte in der Oberfläche mit allen 10 Laserkanälen, „Party-Standard laden“, Steckdose

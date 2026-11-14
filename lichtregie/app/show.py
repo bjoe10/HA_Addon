@@ -361,13 +361,15 @@ def profile(track_id, info, duration=None, nebel=False):
     order = [perm[i] for i in [0, 1, 0, 2, 3, 1, 4, 2]]
     refrain = make_scene(rng, "druckvoll" if stage != "ruhig" else "ruhig",
                          rng.choice(["boden", "wand", "quer"]), nebel)
-    return {
+    prof = {
         "seed": seed, "bpm": bpm, "stage": stage,
         "beats_total": duration * bpm / 60.0 if duration else None,
         "base": base, "accent": accent, "gobo": gobo, "gobo2": gobo2,
         "motif": rng.choice(ANCHORS),
         "scenes": scenes, "order": order, "refrain": refrain,
     }
+    prof["laser"] = laser_theme(rng, stage)   # nach allen anderen Zufallswerten: Kopf-Themen bleiben gleich
+    return prof
 
 
 def describe(prof):
@@ -570,3 +572,100 @@ def lamps(prof, b, live=None):
     if teil in ("Höhepunkt", "Drop"):
         grund = akzent = acc
     return {"grund": (RGB[grund], pct), "akzent": (RGB[akzent], pct), "teil": teil}
+
+
+# --- Laser (gemessen, siehe SHOW.md) ----------------------------------------------------------------
+L_MODE = 65            # Handbetrieb (0 = aus)
+L_UP = 93              # Rotation, bei der die Symbole aufrecht stehen
+L_TURN = 126           # Rotation 0–125 = eine volle Drehung (ebenso die Spiegel-Zyklen)
+L_SIZE_MAX = 62        # Größe: 0 groß … 62 klein
+L_SHAPES = {
+    "linie": [13, 17, 21, 48, 52, 59, 64, 176, 181],
+    "flaeche": [0, 8, 27, 34, 37, 136, 142, 148, 162, 167, 187, 222],
+    "welle": [67, 73, 108],
+    "stern": [102, 156, 172, 191, 212],
+    "symbol": [43, 79, 87, 122, 132, 152, 201, 207, 231, 238],
+}
+L_COUNTDOWN = [92, 113, 116]                    # 3, 2, 1
+L_COLOR = {0: 0, 17: 112, 22: 93, 36: 75, 44: 93, 54: 112, 64: 64, 73: 121}   # Kopffarbe → Laserfarbe
+L_MIX = [0, 21, 30, 35, 47, 57]                 # Mischungen für Höhepunkt und Drop
+L_ROTS = {"ruhig": ["aufrecht", "langsam", "langsam"], "mittel": ["aufrecht", "langsam", "takt", "wackeln"],
+          "druckvoll": ["takt", "wackeln", "schlag", "langsam"]}
+L_FLIPS = {"ruhig": ["aus"], "mittel": ["aus", "aus", "h", "v"], "druckvoll": ["aus", "h", "v", "h"]}
+L_POS = {"ruhig": ["mitte", "acht"], "mittel": ["mitte", "acht", "sprung"],
+         "druckvoll": ["acht", "sprung", "sprung", "mitte"]}
+L_SIZE = {"ruhig": (30, 45), "mittel": (18, 35), "druckvoll": (8, 28)}
+
+
+def laser_theme(rng, stage):
+    """Laser-Thema je Lied: Hauptform, Nebenform, Gag-Symbol und drei Laser-Szenen."""
+    scenes = [{"shape": rng.choice(["haupt", "haupt", "neben"]), "rot": rng.choice(L_ROTS[stage]),
+               "flip": rng.choice(L_FLIPS[stage]), "pos": rng.choice(L_POS[stage]),
+               "size": rng.randint(*L_SIZE[stage]), "dots": rng.choice(["normal", "normal", "gestrichelt"])}
+              for _ in range(3)]
+    return {"haupt": rng.choice(L_SHAPES["flaeche"] + L_SHAPES["stern"]),
+            "neben": rng.choice(L_SHAPES["linie"] + L_SHAPES["welle"]),
+            "gag": rng.choice(L_SHAPES["symbol"]), "mix": rng.choice(L_MIX), "scenes": scenes}
+
+
+def laser_frame(prof, b, live=None, locked=False):
+    """Laser-Werte für einen Zeitpunkt. Position als (x, y) von -1 bis 1; der Server bildet sie auf die
+    Schutzgrenzen ab. Alle anderen Werte sind DMX-Werte in den gemessenen Bereichen."""
+    st = look(prof, b, live)
+    teil = st["teil"]
+    lt = prof["laser"]
+    ph = int(b // PHRASE)
+    in_ph = b % PHRASE
+    ls = lt["scenes"][prof["order"][(ph - 1) % len(prof["order"])] % len(lt["scenes"])]
+    if teil == "Intro":
+        ls = {"shape": "haupt", "rot": "langsam", "flip": "aus", "pos": "mitte", "size": 40, "dots": "normal"}
+    elif teil == "Outro":
+        ls = {"shape": "haupt", "rot": "langsam", "flip": "aus", "pos": "mitte", "size": 50, "dots": "gestrichelt"}
+    elif teil == "Break":
+        ls = dict(ls, rot="langsam", flip="aus", pos="mitte", size=42, dots="gestrichelt")
+    elif teil in ("Drop", "Höhepunkt"):
+        ls = dict(ls, shape="haupt", rot="schlag" if prof["stage"] == "druckvoll" else "takt",
+                  flip="h", pos="sprung", size=10, dots="normal")
+    shape = lt[ls["shape"]]
+    if teil == "Motiv" and ph % 2 == 1:
+        shape = lt["gag"]                          # jede zweite Phrase beginnt mit dem Gag-Symbol
+    rot_mode = ls["rot"]
+    pos_mode = ls["pos"]
+    if teil == "Aufbau" and in_ph >= PHRASE - 3:   # Countdown 3, 2, 1 vor dem Höhepunkt
+        shape = L_COUNTDOWN[min(2, int(in_ph - (PHRASE - 3)))]
+        rot_mode, pos_mode = "aufrecht", "mitte"
+    # Farbe aus dem Liedthema, Mischfarbe auf Höhepunkt und Drop
+    if teil in ("Höhepunkt", "Drop"):
+        color = lt["mix"]
+    else:
+        color = L_COLOR.get(_color(prof, st["farbe"] or st["scene"]["farbe"], b, 1), 0)
+    # Drehung (eigener Winkel, 0–125 = eine Runde)
+    turns = {"aufrecht": 0.0, "langsam": b / 8, "takt": b / 4, "schlag": b if locked else b / 2}
+    if rot_mode == "wackeln":
+        rot = L_UP + 12 * math.sin(2 * math.pi * b / 2)
+    else:
+        rot = L_UP + turns[rot_mode] * L_TURN
+    rotate = int(round(rot)) % L_TURN
+    # Münz-Kippen über die Spiegel, ein Zyklus pro Takt
+    cycle = int(((b / BAR) % 1.0) * L_TURN)
+    mirror_h = cycle if ls["flip"] == "h" else 0
+    mirror_v = cycle if ls["flip"] == "v" else 0
+    # Größe: Puls auf dem Schlag (groß), mit eingerastetem Takt kräftiger; sonst langsames Atmen
+    base = ls["size"]
+    if prof["stage"] != "ruhig" and teil not in ("Break", "Intro", "Outro"):
+        frac = b % 1.0
+        depth = 1.0 if locked else 0.5
+        size = base * (1.0 - depth * max(0.0, 1.0 - frac * 2.5))
+    else:
+        size = base + 6 * math.sin(2 * math.pi * b / 8)
+    size = int(max(0, min(L_SIZE_MAX, round(size))))
+    # Position
+    if pos_mode == "acht":
+        x, y = 0.8 * math.sin(2 * math.pi * b / 16), 0.6 * math.sin(4 * math.pi * b / 16)
+    elif pos_mode == "sprung":
+        x, y = [(-0.7, -0.5), (0.7, -0.5), (0.7, 0.5), (-0.7, 0.5)][int(b // BAR) % 4]
+    else:
+        x, y = 0.0, 0.0
+    dots = 0 if ls["dots"] == "normal" else (150 if teil != "Break" else 210)
+    return {"mode": L_MODE, "shape": shape, "rotate": rotate, "mirror_h": mirror_h, "mirror_v": mirror_v,
+            "size": size, "color": color, "dots": dots, "pos": (x, y), "teil": teil}

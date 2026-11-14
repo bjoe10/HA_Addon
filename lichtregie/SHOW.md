@@ -280,6 +280,39 @@ nach Sichtung, Tanzbarkeit und Lautheit noch ungenutzt.
 Gemessen am Gerät: Audio-Versatz **80 ms** (Licht 80 ms vor der analysierten Phase), danach sitzen die
 Blitze auf dem Kick.
 
+## Laser (gemessen)
+
+- **Modus (Kanal 23):** 0 = aus, 70 = Handbetrieb (Form nach Kanal „Form“), darüber Auto-Programme (nicht genutzt).
+- **Form (Kanal 24), Startwerte:** 0 Quadrat, 8 Kreis, 13 senkrechter Strich, 17 waagerechter Strich,
+  21 Diagonale (links oben → rechts unten), 27 Halbkreis unten, 34 Halbkreis links, 37 Dreieck, 43 V-Form,
+  48 zwei senkrechte Striche, 52 zwei waagerechte Striche, 59 senkrechter Strich mit Lücke,
+  64 waagerechter Strich mit Lücke, 67 Welle, 73 invertierte Welle, 79 Musiknote, 82 Kreis rechts oben,
+  87 Tannenbaum, 92 Zahl 3, 96 „<“, 102 Stern, 108 senkrechte Welle, 113 Zahl 2, 116 Zahl 1, 122 Herz,
+  128 Punkte in den Ecken, 132 Apfel, 136 gestrichelter Kreis, 142 zwei Kreise, 148 Doppelkreis,
+  152 Fluxkompensator, 156 Plus, 162 Kreis mit Quadrat, 167 Doppeldreieck, 172 Striche-Swirl,
+  176 drei Striche im Dreieck, 181 drei versetzte senkrechte Striche, 187 Fünfeck, 191 Fadenkreuz,
+  196 D-Pad, 201 Pfeil nach oben, 207 Unendlich, 212 Wurfstern, 216 seltsames Dreieck,
+  222 Quadrat auf der Spitze, 226 Dreieck mit Pfeil, 231 Sims-Kristall, 238 Fliege.
+- Die Formen liegen ohne Rotation auf der Seite; aufrecht bei Rotation 93 (siehe unten).
+- **Farbe (Kanal 31), Startwerte:** 0 mehrfarbig, 21 eisblau+lila, 30 eisblau+grün, 35 andere Farbverteilung,
+  47 eisblau+grün+rot, 57 grün+rot+lila, 64 eisblau, 75 blau, 93 grün, 112 rot, 121 lila, darüber Auto-Programme.
+  Zuordnung zu den Kopffarben: eisblau→64, blau→75, grün→93, rot→112, lila→121, gelb→grün, orange→rot,
+  weiß→mehrfarbig; Mischungen für Höhepunkt und Drop.
+- **Rotation (Kanal 25):** 0–125 fester Winkel, eine ganze Drehung im Uhrzeigersinn (ca. 2,9° pro Schritt;
+  33 ≈ aufrecht), darüber Auto-Programme. Drehung im Takt deshalb selbst über den Winkel steuern.
+- **Größe (Kanal 30):** 0 = am größten, 62 = am kleinsten, darüber Auto-Programme. Puls auf dem Schlag möglich.
+- **Hoch/runter (Kanal 28):** 42 = ganz unten, 86 = ganz oben (gewählt, damit das Muster sichtbar bleibt);
+  als Schutzgrenze eingestellt.
+- **Links/rechts (Kanal 29):** 39 = ganz links, 90 = ganz rechts; als Schutzgrenze eingestellt.
+- **Spiegel waagerecht (Kanal 26):** 0–125 ein voller Zyklus „Münzdrehung“ um die senkrechte Achse
+  (zusammenziehen, gespiegelt, zurück). Im Takt animierbar wie die Rotation.
+- **Spiegel senkrecht (Kanal 27):** dasselbe um die waagerechte Achse (Kippen), 0–125 ein voller Zyklus.
+- **Punkte (Kanal 32):** 0–121 Punktgeschwindigkeit (0 schnell, 121 langsam), 129–255 gestrichelt
+  (129 schnell, 255 langsam).
+- **Aufrecht:** Die Symbole stehen bei Rotation 93 richtig (Spiegel beide 0). Modus 65 wirkt ebenfalls als
+  Handbetrieb.
+- Idee: „3, 2, 1“ (Formen 92, 113, 116) als Countdown in den letzten drei Schlägen vor einem Höhepunkt.
+
 ## 10. Reihenfolge der Umsetzung
 
 1. Messungen aus Abschnitt 8 (Rad, Strobe, Dimmer, Glätte).

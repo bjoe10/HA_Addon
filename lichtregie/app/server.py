@@ -118,7 +118,7 @@ SETTINGS = {"strobe": True, "nebel": False, "offset": 0.0, "vorlauf": 0.4, "temp
             "anschub": True, "vorsteuerung": 0.45, "lampen": True,
             "audio": True, "audio_versatz": 80.0, "takttest": False,
             "lampen_decke": 40, "lampen_vitrine": 100,
-            "laser": False, "laser_ud_min": 0, "laser_ud_max": 255, "laser_lr_min": 0, "laser_lr_max": 255}
+            "laser": False, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90}
 SETTINGS_FILE = config.DATA / "settings.json"
 try:   # Schalter aus der Web-App überdauern einen Neustart
     SETTINGS.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
@@ -256,6 +256,14 @@ def show_loop(prof, t0, stop):
                 v = dict(v, hell=0, strobe=0)
             apply(k, pan, tilt, True, v["farbe"], v["gobo"], v["strobe"], v["hell"])
             SPOTS[str(k)] = {"x": x, "y": y, "z": z, "hell": v["hell"], "farbe": v["farbe"]}
+        if SETTINGS["laser"] and not SETTINGS["takttest"]:
+            lf = show.laser_frame(prof, b, live, locked)
+            x, y = lf.pop("pos")
+            lf.pop("teil")
+            # Position von -1…1 auf die Schutzgrenzen abbilden (y = 1 oben, x = 1 rechts)
+            lf["up_down"] = SETTINGS["laser_ud_min"] + (y + 1) / 2 * (SETTINGS["laser_ud_max"] - SETTINGS["laser_ud_min"])
+            lf["left_right"] = SETTINGS["laser_lr_min"] + (x + 1) / 2 * (SETTINGS["laser_lr_max"] - SETTINGS["laser_lr_min"])
+            laser_apply(lf)
         BEAT["szene"] = f"Takt {int(b // 4) + 1} · {info}" + (" · Audio" if live else "")
         LAMP.update(prof=prof, b=b, at=time.time(), live=live)   # Lampen-Ebene liest hier mit
         stop.wait(1.0 / FPS)
@@ -351,6 +359,7 @@ def halt_beat():
         time.sleep(0.05)
         for k in HEADS:          # kein Strobe nach dem Stopp
             apply(k, strobe=0)
+        laser_apply({"mode": 0})  # Laser aus, wenn die Show endet
     SPOTS.clear()
     BEAT["szene"] = ""
 
@@ -478,9 +487,9 @@ HTML = """<!doctype html>
 </div>
 
 <div class="card">
- <h2>Laser (Test)</h2>
- <p class="hint">Achtung: Laserlicht nie in Augen richten. Zuerst die Schutzgrenzen für hoch/runter und
-  links/rechts so einstellen, dass das Muster nur über Kopfhöhe an Decke und Wand landet.</p>
+ <h2>Laser</h2>
+ <p class="hint">„Senden an“: Läuft die Show, steuert sie den Laser (Form, Farbe, Drehung, Größe, Position im
+  Bereich der Grenzen). Ohne Show stellst du die Kanäle hier von Hand. „Senden aus“: Der Laser bleibt bei HA.</p>
  <div class="row"><button id="lSend">Senden</button><button id="lPower">Steckdose an</button></div>
  <button id="lPreset">Party-Standard laden</button>
  <p class="coords" id="lmsg"></p>
@@ -845,6 +854,23 @@ setInterval(() => {
 const LASER = [['mode', 'Modus'], ['shape', 'Form'], ['rotate', 'Rotation'], ['mirror_h', 'Spiegel waagerecht'],
   ['mirror_v', 'Spiegel senkrecht'], ['up_down', 'Hoch/runter'], ['left_right', 'Links/rechts'], ['size', 'Größe'],
   ['color', 'Farbe'], ['dots', 'Punkte-Geschwindigkeit']];
+const LSHAPES = [[0, 'Quadrat'], [8, 'Kreis'], [13, 'senkrechter Strich'], [17, 'waagerechter Strich'],
+  [21, 'Diagonale'], [27, 'Halbkreis unten'], [34, 'Halbkreis links'], [37, 'Dreieck'], [43, 'V-Form'],
+  [48, 'zwei senkrechte Striche'], [52, 'zwei waagerechte Striche'], [59, 'senkrecht mit Lücke'],
+  [64, 'waagerecht mit Lücke'], [67, 'Welle'], [73, 'invertierte Welle'], [79, 'Musiknote'],
+  [82, 'Kreis rechts oben'], [87, 'Tannenbaum'], [92, 'Zahl 3'], [96, '<'], [102, 'Stern'],
+  [108, 'senkrechte Welle'], [113, 'Zahl 2'], [116, 'Zahl 1'], [122, 'Herz'], [128, 'Punkte in den Ecken'],
+  [132, 'Apfel'], [136, 'gestrichelter Kreis'], [142, 'zwei Kreise'], [148, 'Doppelkreis'],
+  [152, 'Fluxkompensator'], [156, 'Plus'], [162, 'Kreis mit Quadrat'], [167, 'Doppeldreieck'],
+  [172, 'Striche-Swirl'], [176, 'drei Striche'], [181, 'drei versetzte Striche'], [187, 'Fünfeck'],
+  [191, 'Fadenkreuz'], [196, 'D-Pad'], [201, 'Pfeil'], [207, 'Unendlich'], [212, 'Wurfstern'],
+  [216, 'seltsames Dreieck'], [222, 'Quadrat auf Spitze'], [226, 'Dreieck mit Pfeil'], [231, 'Sims-Kristall'],
+  [238, 'Fliege']];
+function laserShapeName(v) {
+  let n = '';
+  for (const [st, name] of LSHAPES) if (v >= st) n = name;
+  return n;
+}
 const LIMITS = [['laser_ud_min', 'Hoch/runter min'], ['laser_ud_max', 'Hoch/runter max'],
   ['laser_lr_min', 'Links/rechts min'], ['laser_lr_max', 'Links/rechts max']];
 let laserPower = false;
@@ -881,7 +907,8 @@ function showLaser(l) {
   for (const [k] of LASER) {
     if (document.activeElement !== $('lz_' + k)) $('lz_' + k).value = l.werte[k];
     const sent = l.gesendet[k];
-    $('lzv_' + k).textContent = l.werte[k] + (sent !== l.werte[k] ? ` → ${sent} (Grenze)` : '');
+    $('lzv_' + k).textContent = l.werte[k] + (k === 'shape' ? ' · ' + laserShapeName(l.werte[k]) : '')
+      + (sent !== l.werte[k] ? ` → ${sent} (Grenze)` : '');
   }
 }
 function showLaserSettings() {
