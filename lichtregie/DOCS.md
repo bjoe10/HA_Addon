@@ -37,8 +37,9 @@ Mit Audio rastet die Show auf den echten Schlag ein und erkennt Breaks und Drops
 2. In **Music Assistant** erscheint ein AirPlay-Player „Lichtregie“. Ihn mit dem Lautsprecher (ebenfalls über
    AirPlay) zu einer **Sync-Gruppe** zusammenfassen und die Musik auf die Gruppe spielen, z. B. über das
    Spotify-Connect-Plugin von Music Assistant.
-3. In der Oberfläche zeigt „Audio: Takt eingerastet“, dass es funktioniert. Wirken die Pulse leicht vor oder
-   hinter dem Schlag, mit **Audio-Versatz** nachstellen.
+3. In der Oberfläche zeigt „Audio: Takt eingerastet“, dass es funktioniert. Zum Abgleich **Takt-Test** einschalten:
+   Die Köpfe blitzen auf jedem Schlag. Kommt der Blitz vor dem Kick, Audio-Versatz nach links (minus),
+   kommt er danach, nach rechts (plus). Danach Takt-Test wieder aus.
 
 Ohne Audio (z. B. Spotify direkt auf den Lautsprecher) läuft die Show mit Tempo aus der Datenbank weiter.
 

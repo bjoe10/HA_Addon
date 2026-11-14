@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Takt-Test zum Einstellen des Audio-Versatzes: beide Köpfe weiß auf die TV-Wand, kurzer voller Blitz auf
+  jedem Schlag, sonst fast dunkel.
+
 ## 0.3.0
 
 - Live-Audioanalyse: AirPlay-Empfänger im Add-on (shairport-sync). In Music Assistant mit dem Lautsprecher

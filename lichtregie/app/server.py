@@ -116,12 +116,13 @@ BEAT = {"stop": None, "info": "aus", "szene": "", "start": None}
 # Einstellungen aus der Web-App: Strobe an/aus, Nebel an/aus, Phasen-Versatz in Schlägen, Vorlauf in Sekunden
 SETTINGS = {"strobe": True, "nebel": False, "offset": 0.0, "vorlauf": 0.4, "tempo": 2.0,
             "anschub": True, "vorsteuerung": 0.45, "lampen": True,
-            "audio": True, "audio_versatz": 0.0}
+            "audio": True, "audio_versatz": 0.0, "takttest": False}
 SETTINGS_FILE = config.DATA / "settings.json"
 try:   # Schalter aus der Web-App überdauern einen Neustart
     SETTINGS.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
 except (OSError, ValueError):
     pass
+SETTINGS["takttest"] = False   # Takt-Test startet nie von selbst
 
 
 def save_settings():
@@ -201,6 +202,12 @@ def show_loop(prof, t0, stop):
         b_move = b + SETTINGS["vorlauf"] * bpm / 60.0   # Bewegung vorziehen, damit sie auf dem Schlag ankommt
         out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"],
                                live=live)
+        if SETTINGS["takttest"]:
+            # Takt-Test zum Einstellen des Audio-Versatzes: weiß auf TV-Wand-Mitte, kurzer Blitz auf jedem Schlag
+            flash = (b % 1.0) < 0.15
+            out = {k: {"ziel": (2.5, 0.0, 1.6), "hell": 255 if flash else show.MIN_DIM, "farbe": 0, "gobo": 0,
+                       "strobe": 0} for k in (1, 2)}
+            info, live = "Takt-Test", None
         for k, v in out.items():
             x, y, z = v["ziel"]
             # Das Modell in ziel.py ist in x gespiegelt, deshalb 5 - x
@@ -406,6 +413,7 @@ HTML = """<!doctype html>
  <div class="row"><button id="tempo1">Bewegung ×1</button><button id="tempo2">Bewegung ×2</button></div>
  <div class="row"><button id="tKick">Anschub</button><button id="tVor">Vorsteuerung</button></div>
  <div class="row"><button id="tLamp">Lampen</button><button id="tAudio">Audio</button></div>
+ <div class="row"><button id="tTest">Takt-Test</button></div>
  <p class="coords" id="audiostat">Audio: –</p>
  <label>Audio-Versatz <span class="val" id="avv">0 ms</span>
   <input type="range" id="av" min="-300" max="300" step="10" value="0"></label>
@@ -707,6 +715,8 @@ function showSettings() {
   $('tNebel').className = settings.nebel ? 'primary' : '';
   $('tVor').textContent = 'Vorsteuerung ' + (settings.vorsteuerung ? settings.vorsteuerung + ' s' : 'aus');
   $('tVor').className = settings.vorsteuerung ? 'primary' : '';
+  $('tTest').textContent = 'Takt-Test ' + (settings.takttest ? 'an' : 'aus');
+  $('tTest').className = settings.takttest ? 'primary' : '';
   $('tAudio').textContent = 'Audio ' + (settings.audio ? 'an' : 'aus');
   $('tAudio').className = settings.audio ? 'primary' : '';
   if (document.activeElement !== $('av')) $('av').value = settings.audio_versatz || 0;
@@ -721,6 +731,7 @@ function showSettings() {
 $('tKick').addEventListener('click', () => setSetting({anschub: !settings.anschub}));
 $('tLamp').addEventListener('click', () => setSetting({lampen: !settings.lampen}));
 $('tAudio').addEventListener('click', () => setSetting({audio: !settings.audio}));
+$('tTest').addEventListener('click', () => setSetting({takttest: !settings.takttest}));
 $('av').addEventListener('change', () => setSetting({audio_versatz: +$('av').value}));
 $('av').addEventListener('input', () => { $('avv').textContent = $('av').value + ' ms'; });
 const VOR = [0, 0.2, 0.3, 0.45];
@@ -847,7 +858,7 @@ class Handler(BaseHTTPRequestHandler):
             start_watch(title, artist)
             return self._send(200, "application/json", json.dumps({"info": BEAT["info"]}).encode("utf-8"))
         elif self.path == "/api/settings":
-            for key in ("strobe", "nebel", "anschub", "lampen", "audio"):
+            for key in ("strobe", "nebel", "anschub", "lampen", "audio", "takttest"):
                 if key in body:
                     SETTINGS[key] = bool(body[key])
             if "offset" in body:
