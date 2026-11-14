@@ -154,3 +154,4 @@ def laser_from_text(text):
 
 LASER, LASER_SOURCE = laser_from_text(_read_ha_config())
 LASER_SWITCH = os.environ.get("LICHTREGIE_LASER_SWITCH", "").strip()   # Steckdose des Lasers, z. B. switch.…
+AIRPLAY_NAME = os.environ.get("LICHTREGIE_AIRPLAY_NAME", "").strip() or "Lichtregie"   # Name des Empfängers in MA

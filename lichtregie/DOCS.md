@@ -51,6 +51,10 @@ Ohne Audio (z. B. Spotify direkt auf den Lautsprecher) läuft die Show mit Tempo
   Vorsteuerung, Lampen, Lampen-Vorlauf, Audio, Audio-Versatz. Die Schalter bleiben über einen Neustart erhalten.
 - **Kopf 1/2:** Pan, Tilt, Helligkeit, Farbe, Gobo und Strobe einzeln, mit Namen der Farben und Muster.
 
+Kommt bei laufender Show und spielendem Spotify 15 s lang kein Ton am AirPlay-Empfänger an, warnt die
+Oberfläche oben in Rot und HA zeigt eine Benachrichtigung. Meist fehlt der Empfänger nach einem Neustart des
+Add-ons in der Sync-Gruppe von Music Assistant: dort wieder aufnehmen und das Lied neu starten.
+
 Der Titelwechsel wird alle 2 Sekunden geprüft. Neue Titel kennt FreqBlog manchmal noch nicht; dann startet die
 Show ein paar Sekunden später von selbst.
 

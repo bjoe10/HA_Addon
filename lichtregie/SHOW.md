@@ -190,7 +190,9 @@ Titelwechsel ─▶ Blackout 1 Schlag ─▶ Intro ─▶ Hauptteil (Phrasen) �
 - **Hauptteil:** alle 8 Takte (bei langen Liedern 16) eine neue Szene aus dem Pool der Stufe.
   Regeln: nie zweimal dieselbe Szene, Fläche wechseln (TV-Wand → Decke → Boden), alle 32 Takte ein Höhepunkt
   bei druckvollen Liedern.
-- **Outro** (letzte 8 Takte): Spots laufen zu einem gemeinsamen Punkt (TV-Mitte oben), werden langsamer, Atmen.
+- **Outro** (ab 0.6.1 nur die letzten 2 Takte, bis 60 % gedimmt; bis 12 Takte vorher, wenn das Audio ein
+  Auslaufen ohne Kick zeigt): Spots laufen zu einem gemeinsamen Punkt, werden langsamer. Setzt das nächste
+  Lied gleich voll ein, entfällt das ruhige Intro.
 - **Übergang:** Blackout, Rad auf die neue Grundfarbe, neues Intro.
 - **Pause:** Spots bleiben stehen und atmen leise. Nach einigen Minuten Pause ausblenden.
 
@@ -284,7 +286,8 @@ Blitze auf dem Kick.
 (Phase aus der Analyse), HA liefert nur die Grobposition. Anker: Drop → nächste Phrasengrenze (±12 Schläge),
 erkannter Klangwechsel → Phrasengrenze, wenn höchstens 3 Schläge daneben. Synthetischer Test
 (`dev/test_beatcount.py`, HA 5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
-Lampen wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen. Laser je Lied: aus / nur Höhepunkte /
+Lampen wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen.
+Puls ab 0.6.1 mit Audio: kurz vor dem Schlag dunkel, auf dem Kick voll (Kontrast statt Hochdimmen). Laser je Lied: aus / nur Höhepunkte /
 jede zweite Phrase / durchgehend (Anteil an der Liedzeit ca. 0 / 28 / 58 / 100 %). Ruhepunkt hoch/runter 76 (über dem TV), Bahnen nur
 zwischen 66 und 86.
 

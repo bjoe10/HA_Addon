@@ -228,11 +228,29 @@ def _decay(frac, floor):
     return max(floor, 1.0 - frac * 1.6)
 
 
+def _dip(frac, floor, width):
+    """Kurz vor dem Schlag abdunkeln, auf dem Schlag schlagartig voll: Der Kick wirkt durch den Kontrast.
+    width = Anteil des Schlags, der dunkel ist (Abfall in den ersten 30 % davon)."""
+    start = 1.0 - width
+    if frac < start:
+        return 1.0
+    x = (frac - start) / width
+    return 1.0 - (1.0 - floor) * min(1.0, x / 0.3)
+
+
 def dimmer(pattern, b, k, deep=False):
     """Die Köpfe sind lichtschwach: Grundpegel hoch, Pulse fallen nur kurz ab.
     Abdunkeln ist ein eigener Effekt (tief, blink), nicht der Normalfall.
     deep = Takt aus dem Audio eingerastet: Pulse sitzen genau, deshalb kräftiger (tiefer abfallen)."""
     f = 0.25 if deep else 0.5
+    low = 0.0 if deep else 0.4      # Abdunkeln vor dem Schlag: mit genauer Phase ganz dunkel
+    if pattern == "vorher":       # vor jedem Schlag dunkel, auf dem Kick voll
+        return _dip(b % 1.0, low, 0.3)
+    if pattern == "vorher_halb":  # nur vor jedem zweiten Schlag (ruhigere Lieder)
+        return _dip((b / 2) % 1.0, low, 0.15)
+    if pattern == "vorher_wechsel":   # Köpfe abwechselnd: einer dunkelt vor dem Schlag ab, der andere bleibt
+        on = (int(b + 0.5) % 2 == 0) == (k == 1)
+        return _dip(b % 1.0, low, 0.3) if on else 1.0
     if pattern == "atmen":
         return 0.8 + 0.2 * (0.5 - 0.5 * math.cos(2 * math.pi * b / 8))
     if pattern == "konstant":
@@ -255,6 +273,10 @@ def dimmer(pattern, b, k, deep=False):
     if pattern == "blink":        # 2 Schläge an, 2 Schläge aus (seltener Effekt)
         return 1.0 if int(b // 2) % 2 == 0 else 0.0
     return 1.0
+
+
+# Mit eingerastetem Takt: diese Muster pulsen auf jedem Schlag durch Abdunkeln davor
+DIP_LIVE = {"puls": "vorher", "halbzeit": "vorher", "wechsel": "vorher_wechsel"}
 
 
 # --- Szenen-Generator -----------------------------------------------------------------------------
@@ -389,6 +411,10 @@ INTRO = {"shape": "kreis", "surface": "decke", "cu": 2.5, "cv": 3.0, "su": 0.5, 
 
 
 # --- Was zu einem Zeitpunkt läuft ------------------------------------------------------------------
+OUTRO_BEATS = 8          # letzte 2 Takte: Spots laufen zusammen
+OUTRO_LIVE_BEATS = 48    # bis 12 Takte vor Schluss, wenn die Musik hörbar ausläuft
+
+
 def look(prof, b, live=None):
     """Abschnitt, Szene und Abwandlungen zum Zeitpunkt b (Schläge seit Liedanfang).
     live = Live-Audio (Break/Drop aus der Analyse); hat Vorrang vor der geschätzten Phrasenstruktur."""
@@ -398,13 +424,23 @@ def look(prof, b, live=None):
     st = {"teil": "Szene", "scene": None, "motiv": False, "scale": 1.0, "tempo": 1.0,
           "dim": None, "rel": None, "farbe": None, "gobo": None, "strobe": False, "var": "",
           "umkehr": None}
-    if b < PHRASE:
+    # Ruhiges Intro nur, wenn das Lied auch ruhig beginnt; setzt die Musik gleich voll ein (Live-Audio), geht
+    # die Show sofort los
+    full_start = live is not None and not live.get("break") and live.get("level", 0.0) > 0.5
+    if b < PHRASE and not full_start:
         st.update(teil="Intro", scene=INTRO, scale=0.85 + 0.15 * (b / PHRASE))
         return st
-    if total and total - b < PHRASE:
+    # Outro: Die Show läuft bis kurz vor Schluss voll weiter. Nur die letzten 2 Takte laufen die Spots zusammen;
+    # früher (bis 12 Takte vorher) nur, wenn das Audio zeigt, dass die Musik ausläuft (Break ohne Kick)
+    left = total - b if total else None
+    if left is not None and (left < OUTRO_BEATS or (left < OUTRO_LIVE_BEATS and live and live.get("break"))):
+        if left < OUTRO_BEATS:
+            scale = 0.6 + 0.4 * max(0.0, left) / OUTRO_BEATS
+        else:
+            scale = 0.4 + 0.6 * live.get("level", 1.0)
         st.update(teil="Outro", scene=dict(INTRO, shape="fokus", surface="quer", per=64, rel="gleich",
                                             gobo="offen"),
-                  motiv=True, scale=max(0.3, (total - b) / PHRASE))
+                  motiv=True, scale=scale)
         return st
     if live and live.get("drop"):                  # echter Drop aus dem Audio: sofort Höhepunkt, Blitz
         st.update(teil="Drop", scene=prof["refrain"], farbe="split",
@@ -520,9 +556,11 @@ def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=Fal
     pattern = st["dim"] or scene["dim"]
     strobe = st["strobe"]
     if locked:
-        # Takt aus dem Audio eingerastet: die Effekte, die genau sitzen müssen, aufdrehen
-        if pattern == "konstant" and prof["stage"] != "ruhig":
-            pattern = "puls" if prof["stage"] == "druckvoll" else "halbzeit"
+        # Takt aus dem Audio eingerastet: die Effekte, die genau sitzen müssen, aufdrehen. Statt auf dem Kick
+        # hochzudimmen, wird kurz vorher abgedunkelt (kräftiger Kontrast genau auf dem Schlag)
+        if pattern == "konstant":
+            pattern = "vorher_halb" if prof["stage"] == "ruhig" else "vorher"
+        pattern = DIP_LIVE.get(pattern, pattern)
         in_ph = b % PHRASE
         if st["teil"] in ("Höhepunkt", "Drop") and prof["stage"] == "druckvoll" and in_ph < 4 * BAR:
             strobe = strobe or (b % BAR) < 0.5                # halber Schlag Strobe auf jeder „1“

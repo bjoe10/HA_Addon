@@ -349,6 +349,41 @@ def lamp_loop():
                                              "brightness_pct": pct, "transition": 0.5})
 
 
+AUDIO_WARN = {"since": None, "text": "", "notified": False}
+AUDIO_WARN_SEC = 15.0      # so lange kein Ton, während Spotify spielt, bis gewarnt wird
+NOTIFY_ID = "lichtregie_audio"
+
+
+def audio_watch_loop():
+    """Warnt, wenn Spotify spielt und die Show läuft, aber am AirPlay-Empfänger kein Ton ankommt
+    (z. B. „Lichtregie“ nach einem Neustart nicht mehr in der Sync-Gruppe von Music Assistant).
+    Warnung in der Oberfläche und als HA-Benachrichtigung; verschwindet, sobald wieder Ton kommt."""
+    while True:
+        time.sleep(2.0)
+        now = time.time()
+        live = LIVE.get("live") or {}
+        expect = (AUDIO is not None and SETTINGS["audio"] and BEAT["stop"] is not None
+                  and live.get("playing") and now - LIVE["at"] < 30)
+        if not expect or AUDIO.signal(now):
+            if AUDIO_WARN["notified"]:
+                ha_call("persistent_notification", "dismiss", {"notification_id": NOTIFY_ID})
+                print("Audio kommt wieder an", flush=True)
+            AUDIO_WARN.update(since=None, text="", notified=False)
+            continue
+        AUDIO_WARN["since"] = AUDIO_WARN["since"] or now
+        quiet = now - AUDIO_WARN["since"]
+        if quiet < AUDIO_WARN_SEC:
+            continue
+        AUDIO_WARN["text"] = (f"Kein Audio seit {int(quiet)} s, obwohl Spotify spielt. „{config.AIRPLAY_NAME}“ "
+                              f"in Music Assistant in die Sync-Gruppe aufnehmen und das Lied neu starten.")
+        if not AUDIO_WARN["notified"]:
+            AUDIO_WARN["notified"] = ha_call("persistent_notification", "create", {
+                "notification_id": NOTIFY_ID, "title": "Lichtregie: kein Audio",
+                "message": AUDIO_WARN["text"].replace(f"seit {int(quiet)} s", "")
+                           + " Bis dahin läuft die Show nur nach der Spotify-Position."})
+            print("Warnung: kein Audio am AirPlay-Empfänger", flush=True)
+
+
 def song_position():
     """Geschätzte Position im Lied in Sekunden, oder None wenn nicht spielt."""
     live = LIVE.get("live")
@@ -393,9 +428,21 @@ def stop_all():
 WATCH = {"stop": None}
 
 
+def audio_tempo(since):
+    """Tempo aus der Audioanalyse, wenn ein Lied bei FreqBlog fehlt: frühestens 8 s nach dem Liedwechsel
+    (Zeit zum Neu-Einrasten ohne Vorgabe) und nur bei sicherem Takt."""
+    if AUDIO is None or not SETTINGS["audio"] or time.time() - since < 8:
+        return None
+    st = AUDIO.status()
+    if st["takt"] and st["bpm"] and st["sicher"] >= 0.5:
+        return {"bpm": st["bpm"], "quelle": "Audio"}
+    return None
+
+
 def watch_loop(stop, current):
     """Prüft alle 5 s den Titel in HA. Bei einem neuen Titel wird das Tempo geholt und der Takt neu gestartet.
     Pausiert die Musik, läuft der Takt weiter (kein Flackern)."""
+    miss = {"at": 0.0, "since": 0.0}
     while not stop.wait(2):
         live = now_playing()
         if not live:
@@ -404,8 +451,15 @@ def watch_loop(stop, current):
         key = (live["title"], live["artist"])
         if key == current:
             # Gleicher Titel, aber der Takt ist nicht (mehr) aktiv: neu starten
-            if BEAT["stop"] is None and live.get("playing"):
-                found = tempo(live["title"], live["artist"])
+            # (auch, wenn noch die Show des vorigen Liedes läuft, weil das Tempo gefehlt hat)
+            stale = BEAT["start"] is not None and tuple(BEAT["start"][:2]) != key
+            if (BEAT["stop"] is None or stale) and live.get("playing"):
+                found = None
+                if time.time() - miss["at"] > 20:      # FreqBlog nicht im 2-s-Takt fragen
+                    miss["at"] = time.time()
+                    found = tempo(live["title"], live["artist"])
+                if not (found and found.get("bpm")):
+                    found = audio_tempo(miss["since"])
                 if found and found.get("bpm"):
                     start_beat(live["title"], live["artist"], found, live.get("id"), live.get("duration"))
             continue
@@ -414,8 +468,14 @@ def watch_loop(stop, current):
         if found and found.get("bpm"):
             start_beat(live["title"], live["artist"], found, live.get("id"), live.get("duration"))
         else:
-            halt_beat()
-            BEAT["info"] = f"{live['title']}: kein Tempo gefunden"
+            # Tempo unbekannt: nicht dunkel stehen bleiben. Die Show läuft mit dem alten Lied weiter, bis das
+            # Audio das neue Tempo gefunden hat (ohne Vorgabe), dann startet sie damit
+            miss.update(at=time.time(), since=time.time())
+            if AUDIO is not None:
+                AUDIO.set_bpm_hint(None)
+            BEAT["info"] = f"{live['title']}: kein Tempo bei FreqBlog, warte auf das Audio …"
+            if AUDIO is None or not SETTINGS["audio"]:
+                halt_beat()
 
 
 def start_watch(title, artist):
@@ -468,8 +528,10 @@ HTML = """<!doctype html>
  .row{display:flex;gap:10px}
  #room{display:block;width:100%;background:#0c0c0e;border-radius:12px;touch-action:none;user-select:none}
  .hint,.coords{font-size:13px;color:#aaa;margin:8px 0}
+ .warn{background:#8a1c1c;color:#fff;border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:15px}
 </style></head><body>
 <h1>Moving Heads</h1>
+<p class="warn" id="warnung" hidden></p>
 
 <div class="card">
  <h2>Raum antippen</h2>
@@ -860,6 +922,8 @@ setInterval(() => {
                + (a.break ? ' · Break' : '') + (a.drop ? ' · DROP' : '')
       : 'Audio: kein Signal (Lichtregie in der AirPlay-Gruppe in MA?)';
     $('szene').textContent = d.szene || '–';
+    $('warnung').hidden = !d.warnung;
+    $('warnung').textContent = '⚠ ' + (d.warnung || '');
     drawRoom();
   }).catch(() => {});
 }, 200);
@@ -989,7 +1053,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/spots":
             self._send(200, "application/json",
                        json.dumps({"spots": SPOTS, "szene": BEAT["szene"],
-                                   "audio": AUDIO.status() if AUDIO is not None else None}).encode("utf-8"))
+                                   "audio": AUDIO.status() if AUDIO is not None else None,
+                                   "warnung": AUDIO_WARN["text"]}).encode("utf-8"))
         else:
             self._send(404, "text/plain", b"nicht gefunden")
 
@@ -1086,6 +1151,7 @@ def main():
     threading.Thread(target=sender, args=(stop,), daemon=True).start()
     threading.Thread(target=lamp_loop, daemon=True).start()
     if AUDIO is not None:
+        threading.Thread(target=audio_watch_loop, daemon=True).start()
         threading.Thread(target=audio.reader, args=(AUDIO, config.AUDIO_PIPE), daemon=True).start()
     print(f"Audioanalyse: {'an, Pipe ' + config.AUDIO_PIPE if AUDIO is not None else 'aus'}", flush=True)
     print(f"Lampen: Grundfarbe {config.LAMPEN_GRUND or '-'}, Akzent {config.LAMPEN_AKZENT or '-'}, "

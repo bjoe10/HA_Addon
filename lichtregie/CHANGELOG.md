@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.1
+
+- Warnung, wenn kein Audio ankommt: Spielt Spotify und läuft die Show, aber am AirPlay-Empfänger kommt
+  15 s lang kein Ton an, erscheint ein roter Hinweis oben in der Oberfläche und eine HA-Benachrichtigung
+  („Lichtregie: kein Audio“). Beides verschwindet, sobald wieder Ton kommt. Häufigste Ursache: der
+  Empfänger ist nach einem Neustart des Add-ons nicht mehr in der Sync-Gruppe von Music Assistant.
+- Liedübergänge: Die Show läuft bis kurz vor Schluss voll weiter. Das Outro (Spots laufen zusammen) kommt nur
+  in den letzten 2 Takten und dimmt höchstens auf 60 %; früher (bis 12 Takte vorher) nur, wenn das Audio zeigt,
+  dass die Musik ausläuft. Bisher wurde schon 8 Takte vor Ende auf 30 % heruntergefahren.
+- Setzt das nächste Lied gleich voll ein (Live-Audio), entfällt das ruhige Intro.
+- Kennt FreqBlog ein Lied nicht, bleibt die Show nicht mehr dunkel stehen: Sie läuft weiter, bis das Audio
+  das Tempo sicher erkannt hat (frühestens nach 8 s), und startet dann damit. FreqBlog wird dabei nur noch
+  alle 20 s erneut gefragt.
+- Puls durch Abdunkeln: Mit eingerastetem Audio-Takt dunkeln die Köpfe kurz vor jedem Schlag ganz ab (letztes
+  Drittel des Schlags) und sind auf dem Kick schlagartig voll da, statt auf dem Kick hoch- und danach
+  abzudimmen. Neue Muster `vorher`, `vorher_halb` (jeder 2. Schlag), `vorher_wechsel` (Köpfe abwechselnd).
+  „puls“, „halbzeit“ und „konstant“ werden mit Audio dazu; ruhige Lieder pulsen leicht auf jedem 2. Schlag.
+  Mittel/druckvoll pulsen damit in rund zwei Dritteln der Zeit auf dem Takt. Ohne Audio bleibt es wie bisher.
+
 ## 0.6.0
 
 - Takt- und Phrasen-Sync: Mit eingerastetem Audio zählt die Lichtregie die Schläge selbst weiter
