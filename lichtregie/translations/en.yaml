@@ -5,3 +5,12 @@ configuration:
   freqblog_key:
     name: FreqBlog API key
     description: Key for the FreqBlog Music API (tempo and mood of tracks).
+  lampen_grund:
+    name: Lamps base colour
+    description: Lights in the base colour of the track, e.g. ambilight rings of ceiling lamps.
+  lampen_akzent:
+    name: Lamps accent colour
+    description: Lights in the accent colour, e.g. cabinets. Base and accent swap every phrase.
+  lampen_aus:
+    name: Off during the show
+    description: Lights switched off during the show, e.g. main light. Their previous state is restored afterwards.

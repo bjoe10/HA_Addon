@@ -7,5 +7,8 @@ export LICHTREGIE_HA_API=http://supervisor/core/api
 export LICHTREGIE_HA_CONFIG=/homeassistant:/config
 export LICHTREGIE_PLAYER="$(bashio::config 'spotify_player')"
 export LICHTREGIE_FREQBLOG_KEY="$(bashio::config 'freqblog_key')"
+export LICHTREGIE_LAMPEN_GRUND="$(bashio::config 'lampen_grund')"
+export LICHTREGIE_LAMPEN_AKZENT="$(bashio::config 'lampen_akzent')"
+export LICHTREGIE_LAMPEN_AUS="$(bashio::config 'lampen_aus')"
 cd /app
 exec python3 -u server.py

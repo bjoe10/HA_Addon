@@ -2,7 +2,7 @@
 
 Ein Home-Assistant-Add-on auf dem Raspberry Pi 5, das die Lichtshow im Wohnzimmer
 musikgesteuert macht: beide Moving Heads zielen auf echte Punkte im Raum, der Laser
-folgt der Musik, RGB-Lampen und LED-Streifen hinter dem TV laufen mit.
+folgt der Musik, die Ambilight-Ringe der Deckenlampen und die Vitrinen laufen mit.
 
 Status: **Konzept, noch kein Code.** Offene Fragen stehen ganz unten.
 
@@ -16,7 +16,8 @@ Status: **Konzept, noch kein Code.** Offene Fragen stehen ganz unten.
 | Moving Head 2 | `light.pan2`, `light.tilt2`, `light.color2`, `light.strobe2`, `light.grobo2` | Bestätigt durch die Party-Automationen |
 | Laser (RGB) | `light.laser_color`, `laser_left_right`, `laser_mirror_hori/vert`, `laser_mode`, `laser_rotate`, `laser_shape`, `laser_size` | `light.laser_color` hat `dmx_channels: [31]` |
 | RGB-Laser an/aus | `script.rgb_laser_on/off`, `number.rgb_laser_countdown` | |
-| Wohnzimmer-Ambilight (LED-Streifen hinter TV) | `light.wohnzimmer_1_ambilight`, `light.wohnzimmer_2_ambilight` | Haben den Effekt „Strobe color“, also vermutlich adressierbarer Streifen (WLED o. ä.), siehe Frage 4 |
+| Wohnzimmer-Ambilight (farbiger Ring der zwei Yeelight-Deckenlampen) | `light.wohnzimmer_1_ambilight`, `light.wohnzimmer_2_ambilight`; Hauptlicht `light.wohnzimmer_1`, `light.wohnzimmer_2` | Ring farbig, Hauptlicht weiß |
+| Vitrinen | `light.schrank_1`, `light.schrank_2`, `light.schrank_3` | farbig |
 | Astronaut-Licht | `input_boolean.astronaut` | wird vom Party-Modus mitgeschaltet |
 | Anwesenheit | `input_boolean.anwesenheit_wohnzimmer` | taugt als Startbedingung |
 | Party-Automationen (Blueprint `Twanne/party_lights.yaml`) | Ziele: `light.pan`, `light.pan2`, `light.tilt`, `light.tilt2`, `light.strobe`, `light.strobe2`, `light.grobo`, `light.grobo2`, `light.color`, `light.color2`, `light.laser_mode`, `light.laser_shape` | Zufallsbewegung, gesteuert über `input_boolean.light_random_loop` |
@@ -186,18 +187,17 @@ bzw. bei der manuellen Steuerung. Falls er später dazukommt, dann nur über vor
   zeigen. Die Zonen werden als Raumquader definiert. Der Laser bekommt nur Ziele an Decke oder
   Wand über Kopfhöhe. Das prüft das Add-on vor jedem Frame.
 
-## 7. Lampen (RGB und LED-Streifen)
+## 7. Lampen (Ambilight und Vitrinen)
 
-- Die Lampen laufen als **Stimmungsebene**, nicht im Beat. Zigbee oder WLAN-Lampen schaffen
-  ein paar Updates pro Sekunde; das reicht für Farbverlauf und Helligkeit.
-- Der LED-Streifen hinter dem TV ist das Ambilight, zwei **Yeelight**-Geräte
-  (`light.wohnzimmer_1_ambilight`, `light.wohnzimmer_2_ambilight`, Bereich Wohnzimmer). Sie laufen
-  über die Yeelight-Integration und werden über HA gesteuert, wie alle Lampen.
-- **Steuerung über HA, auch für die Lampen:** Die Hersteller sind gemischt (Yeelight, Zigbee,
-  Art-Net-Dimmer), daher gehen alle Lampen über HA-Services. Das reicht für Stimmung und Takt im
-  Sekundenbereich. Der Beat-Takt bleibt bei den Köpfen, die direkt per Art-Net laufen.
-- Option: Ambilight-Effekt am TV-Streifen, aus dem Farbmittel des Bildes. Das ist nicht Teil der
-  ersten Version.
+- Die Lampen laufen als **Stimmungsebene**, nicht im Beat, über HA-Services (umgesetzt ab 0.2.0).
+- **Ambilight** = farbiger Ring der zwei Yeelight-Deckenlampen (`light.wohnzimmer_1_ambilight`,
+  `light.wohnzimmer_2_ambilight`): Grundfarbe des Liedes. Das weiße Hauptlicht (`light.wohnzimmer_1/_2`)
+  ist während der Show aus.
+- **Vitrinen** (`light.schrank_1` bis `_3`, farbig): Akzentfarbe. Grund und Akzent tauschen pro Phrase.
+- Helligkeit: normal 20 %, Aufbau 35 %, Höhepunkt 60 % (beide in Akzentfarbe), Atempause 10 %, Outro ausblendend.
+- Wechsel nur bei Phrasen- und Abschnittswechseln (18–24 pro Lied), weit unter dem Yeelight-Limit
+  von ca. 60 Befehlen pro Minute.
+- Vorher wird der Zustand als HA-Szene gesichert und nach der Show wiederhergestellt.
 
 ## 8. Modi
 

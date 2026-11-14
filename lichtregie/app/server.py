@@ -109,7 +109,7 @@ LIVE = {"live": None, "at": 0.0}
 BEAT = {"stop": None, "info": "aus", "szene": "", "start": None}
 # Einstellungen aus der Web-App: Strobe an/aus, Nebel an/aus, Phasen-Versatz in Schlägen, Vorlauf in Sekunden
 SETTINGS = {"strobe": True, "nebel": False, "offset": 0.0, "vorlauf": 0.4, "tempo": 2.0,
-            "anschub": True, "vorsteuerung": 0.45}
+            "anschub": True, "vorsteuerung": 0.45, "lampen": True}
 SETTINGS_FILE = config.DATA / "settings.json"
 try:   # Schalter aus der Web-App überdauern einen Neustart
     SETTINGS.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
@@ -195,7 +195,60 @@ def show_loop(prof, t0, stop):
             apply(k, pan, tilt, True, v["farbe"], v["gobo"], v["strobe"], v["hell"])
             SPOTS[str(k)] = {"x": x, "y": y, "z": z, "hell": v["hell"], "farbe": v["farbe"]}
         BEAT["szene"] = f"Takt {int(b // 4) + 1} · {info}"
+        LAMP.update(prof=prof, b=b, at=time.time())   # Lampen-Ebene liest hier mit
         stop.wait(1.0 / FPS)
+
+
+# --- Lampen über HA: langsame Ebene, folgt dem Song-Thema -----------------------------------------
+LAMP = {"prof": None, "b": 0.0, "at": 0.0, "last": None, "snapshot": False}
+SCENE_ID = "lichtregie_vorher"
+
+
+def ha_call(domain, service, data):
+    req = urllib.request.Request(
+        f"{config.HA_API}/services/{domain}/{service}", data=json.dumps(data).encode("utf-8"), method="POST",
+        headers={"Authorization": f"Bearer {config.ha_token()}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read()
+        return True
+    except Exception as err:
+        print(f"HA-Aufruf {domain}.{service} fehlgeschlagen: {err}", flush=True)
+        return False
+
+
+def lamp_loop():
+    """Alle 0,5 s: Läuft eine Show, werden die Lampen nach dem Song-Thema gesetzt, nur bei Änderung
+    (etwa einmal pro Phrase, unter dem Befehlslimit von Yeelight). Vorher wird ihr Zustand als HA-Szene
+    gesichert und das Hauptlicht ausgeschaltet; 3 s nach dem Ende der Show kommt der alte Zustand zurück."""
+    entities = config.LAMPEN_GRUND + config.LAMPEN_AKZENT + config.LAMPEN_AUS
+    while True:
+        time.sleep(0.5)
+        if not entities:
+            continue
+        active = SETTINGS["lampen"] and LAMP["prof"] is not None and time.time() - LAMP["at"] < 3.0
+        if not active:
+            if LAMP["snapshot"]:
+                ha_call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}", "transition": 2})
+                LAMP["snapshot"] = False
+            continue
+        if not LAMP["snapshot"]:
+            LAMP["snapshot"] = ha_call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": entities})
+            if not LAMP["snapshot"]:
+                continue
+            if config.LAMPEN_AUS:
+                ha_call("light", "turn_off", {"entity_id": config.LAMPEN_AUS, "transition": 2})
+            LAMP["last"] = None
+        want = show.lamps(LAMP["prof"], LAMP["b"])
+        key = (want["grund"], want["akzent"])
+        if key == LAMP["last"]:
+            continue
+        LAMP["last"] = key
+        for group, ents in (("grund", config.LAMPEN_GRUND), ("akzent", config.LAMPEN_AKZENT)):
+            if ents:
+                rgb, pct = want[group]
+                ha_call("light", "turn_on", {"entity_id": ents, "rgb_color": list(rgb),
+                                             "brightness_pct": pct, "transition": 1})
 
 
 def song_position():
@@ -326,6 +379,7 @@ HTML = """<!doctype html>
  <div class="row"><button id="tStrobe">Strobe</button><button id="tNebel">Nebel</button></div>
  <div class="row"><button id="tempo1">Bewegung ×1</button><button id="tempo2">Bewegung ×2</button></div>
  <div class="row"><button id="tKick">Anschub</button><button id="tVor">Vorsteuerung</button></div>
+ <div class="row"><button id="tLamp">Lampen</button></div>
  <p class="coords" id="szene">–</p>
  <label>Titel</label>
  <input id="ttl" placeholder="wird aus HA gelesen" style="width:100%;font-size:16px;padding:8px;border-radius:8px;border:0;background:#2a2a2d;color:#eee;box-sizing:border-box">
@@ -624,12 +678,15 @@ function showSettings() {
   $('tNebel').className = settings.nebel ? 'primary' : '';
   $('tVor').textContent = 'Vorsteuerung ' + (settings.vorsteuerung ? settings.vorsteuerung + ' s' : 'aus');
   $('tVor').className = settings.vorsteuerung ? 'primary' : '';
+  $('tLamp').textContent = 'Lampen ' + (settings.lampen ? 'an' : 'aus');
+  $('tLamp').className = settings.lampen ? 'primary' : '';
   $('tKick').textContent = 'Anschub ' + (settings.anschub ? 'an' : 'aus');
   $('tKick').className = settings.anschub ? 'primary' : '';
   $('tempo1').className = settings.tempo === 1 ? 'primary' : '';
   $('tempo2').className = settings.tempo === 2 ? 'primary' : '';
 }
 $('tKick').addEventListener('click', () => setSetting({anschub: !settings.anschub}));
+$('tLamp').addEventListener('click', () => setSetting({lampen: !settings.lampen}));
 const VOR = [0, 0.2, 0.3, 0.45];
 $('tVor').addEventListener('click', () => {
   const i = VOR.indexOf(settings.vorsteuerung);
@@ -737,7 +794,7 @@ class Handler(BaseHTTPRequestHandler):
             start_watch(title, artist)
             return self._send(200, "application/json", json.dumps({"info": BEAT["info"]}).encode("utf-8"))
         elif self.path == "/api/settings":
-            for key in ("strobe", "nebel", "anschub"):
+            for key in ("strobe", "nebel", "anschub", "lampen"):
                 if key in body:
                     SETTINGS[key] = bool(body[key])
             if "offset" in body:
@@ -767,6 +824,9 @@ def main():
         apply(k, 32768, 32768, True)
     stop = threading.Event()
     threading.Thread(target=sender, args=(stop,), daemon=True).start()
+    threading.Thread(target=lamp_loop, daemon=True).start()
+    print(f"Lampen: Grundfarbe {config.LAMPEN_GRUND or '-'}, Akzent {config.LAMPEN_AKZENT or '-'}, "
+          f"aus während der Show {config.LAMPEN_AUS or '-'}", flush=True)
     for k in HEADS:
         print(f"Kopf {k}: Node {NODES[k]}, Universe {config.UNIVERSE[k]}, Kanäle {config.LAYOUT[k]} "
               f"({config.HEADS_SOURCE[k]})", flush=True)
@@ -780,6 +840,8 @@ def main():
         pass
     finally:
         stop_all()
+        if LAMP["snapshot"]:   # Lampen beim Beenden zurück auf den Zustand vor der Show
+            ha_call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}"})
         for k in HEADS:
             apply(k, on=False)
         time.sleep(0.5)

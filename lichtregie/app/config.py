@@ -113,3 +113,15 @@ HEADS, HEADS_SOURCE = heads_from_text(_read_ha_config())
 NODES = {k: v[0] for k, v in HEADS.items()}
 UNIVERSE = {k: v[1] for k, v in HEADS.items()}
 LAYOUT = {k: v[2] for k, v in HEADS.items()}
+
+
+# --- Lampen über HA ---------------------------------------------------------------------------------
+def _entity_list(name):
+    """Entitäten aus einer Umgebungsvariable: durch Zeilenumbruch, Komma oder Leerzeichen getrennt."""
+    raw = os.environ.get(name, "")
+    return [e for e in re.split(r"[\s,\[\]\"']+", raw) if e.startswith("light.")]
+
+
+LAMPEN_GRUND = _entity_list("LICHTREGIE_LAMPEN_GRUND")   # Grundfarbe, z. B. Ambilight-Ringe
+LAMPEN_AKZENT = _entity_list("LICHTREGIE_LAMPEN_AKZENT") # Akzentfarbe, z. B. Vitrinen
+LAMPEN_AUS = _entity_list("LICHTREGIE_LAMPEN_AUS")       # während der Show aus, z. B. Hauptlicht

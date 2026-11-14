@@ -523,3 +523,27 @@ if __name__ == "__main__":
         p = out[1]["ziel"]
         print(f"b={b:5.0f}  {info:60s} K1 ({p[0]:.1f},{p[1]:.1f},{p[2]:.1f}) hell {out[1]['hell']:3d} "
               f"farbe {out[1]['farbe']:3d} gobo {out[1]['gobo']:3d} strobe {out[1]['strobe']}")
+
+
+# --- Lampen (über HA, langsame Ebene) --------------------------------------------------------------
+RGB = {0: (255, 255, 255), 17: (255, 0, 0), 22: (0, 255, 0), 36: (0, 0, 255), 44: (255, 190, 0),
+       54: (255, 90, 0), 64: (110, 210, 255), 73: (170, 0, 255)}
+LAMP_PCT = {"Intro": 20, "Motiv": 20, "Szene": 20, "Aufbau": 35, "Höhepunkt": 60, "Atempause": 10}
+
+
+def lamps(prof, b):
+    """Farben und Helligkeit der Lampen: Grundfarbe (Ambilight) und Akzent (Schränke), pro Phrase getauscht.
+    Ändert sich nur bei Phrasenwechsel, Aufbau, Höhepunkt, Atempause und im Outro (in 5-%-Stufen)."""
+    st = look(prof, b)
+    base, acc = WHEEL[prof["base"]], WHEEL[prof["accent"]]
+    grund, akzent = (acc, base) if int(b // PHRASE) % 2 == 1 else (base, acc)
+    teil = st["teil"]
+    if teil == "Outro":
+        pct = max(5, int(20 * st["scale"] / 5) * 5)
+    else:
+        pct = LAMP_PCT.get(teil, 20)
+    if prof["stage"] == "ruhig":
+        pct = max(5, int(pct * 0.8))
+    if teil == "Höhepunkt":
+        grund = akzent = acc
+    return {"grund": (RGB[grund], pct), "akzent": (RGB[akzent], pct), "teil": teil}

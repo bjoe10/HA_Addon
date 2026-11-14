@@ -24,14 +24,17 @@ festes Thema, dasselbe Lied sieht also jedes Mal gleich aus.
    (`Kopf 1: Node …, Kanäle … (configuration.yaml)`).
 3. Die Köpfe einschalten (Steckdosen) und **alte Party-Automationen ausschalten**, die dieselben Kanäle steuern.
    Solange die Lichtregie sendet, darf HA die Köpfe nicht gleichzeitig steuern.
-4. „Lichtregie“ in der Seitenleiste öffnen, Musik über Spotify starten, **Start** drücken.
+4. Optional die **Lampen** eintragen (Listen von `light.`-Entitäten): Grundfarbe, Akzentfarbe und
+   „Während der Show aus“. Sie laufen langsam mit (Wechsel etwa alle 15 s), ihr alter Zustand kommt nach der
+   Show zurück.
+5. „Lichtregie“ in der Seitenleiste öffnen, Musik über Spotify starten, **Start** drücken.
 
 ## Oberfläche
 
 - **Raum antippen:** Das Bild zeigt den Raum aus Sicht der Kopfwand. Antippen richtet beide Köpfe auf den Punkt
   auf Boden, Wand oder Decke. Während der Show erscheinen dort die Spots als Vorschau.
 - **Show:** Start/Stopp, Schalter für Strobe, Nebel (mehr Strahl-Effekte), Bewegung ×1/×2, Anschub und
-  Vorsteuerung. Die Schalter bleiben über einen Neustart erhalten.
+  Vorsteuerung, Lampen. Die Schalter bleiben über einen Neustart erhalten.
 - **Kopf 1/2:** Pan, Tilt, Helligkeit, Farbe, Gobo und Strobe einzeln, mit Namen der Farben und Muster.
 
 Der Titelwechsel wird alle 2 Sekunden geprüft. Neue Titel kennt FreqBlog manchmal noch nicht; dann startet die
