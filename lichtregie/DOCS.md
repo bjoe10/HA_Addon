@@ -48,7 +48,7 @@ Ohne Audio (z. B. Spotify direkt auf den Lautsprecher) läuft die Show mit Tempo
 - **Raum antippen:** Das Bild zeigt den Raum aus Sicht der Kopfwand. Antippen richtet beide Köpfe auf den Punkt
   auf Boden, Wand oder Decke. Während der Show erscheinen dort die Spots als Vorschau.
 - **Show:** Start/Stopp, Schalter für Strobe, Nebel (mehr Strahl-Effekte), Bewegung ×1/×2, Anschub und
-  Vorsteuerung, Lampen, Audio, Audio-Versatz. Die Schalter bleiben über einen Neustart erhalten.
+  Vorsteuerung, Lampen, Lampen-Vorlauf, Audio, Audio-Versatz. Die Schalter bleiben über einen Neustart erhalten.
 - **Kopf 1/2:** Pan, Tilt, Helligkeit, Farbe, Gobo und Strobe einzeln, mit Namen der Farben und Muster.
 
 Der Titelwechsel wird alle 2 Sekunden geprüft. Neue Titel kennt FreqBlog manchmal noch nicht; dann startet die

@@ -32,6 +32,13 @@ class Analyzer:
         self.win = np.hanning(N).astype(np.float32)
         freqs = np.fft.rfftfreq(N, 1.0 / RATE)
         self.bass_bins = (freqs >= 40) & (freqs < 150)
+        edges = np.geomspace(60, 8000, 9)                     # 8 Bänder für den Klangvergleich
+        self.timbre_bins = [(freqs >= lo) & (freqs < hi) for lo, hi in zip(edges[:-1], edges[1:])]
+        self.feats = deque(maxlen=int(8.0 / HOP_SEC))         # Klangmerkmale je Hop, 8 s
+        self.nov_hist = deque(maxlen=60)                       # Neuheitswerte (alle 0,5 s), 30 s
+        self.nov_last = deque(maxlen=3)
+        self.change_at = 0.0
+        self._last_nov = 0.0
         self.broad_bins = (freqs >= 150) & (freqs < 8000)
         self.pending = np.zeros(0, dtype=np.float32)
         self.prev_log_bass = 0.0
@@ -105,6 +112,10 @@ class Analyzer:
         self.env.append(onset)
         self._levels(rms, e_bass, t)
         self._peak_pick(onset, t)
+        self.feats.append(np.log1p(np.array([np.mean(mag[m] ** 2) for m in self.timbre_bins], dtype=np.float32)))
+        if t - self._last_nov > 0.5:
+            self._last_nov = t
+            self._novelty(t)
         if t - self._last_tempo > 1.0:
             self._last_tempo = t
             self._tempo()
@@ -141,6 +152,23 @@ class Analyzer:
             self.last_onset = tb
             self.onset_times.append(tb - ONSET_LAG)
             self._pll(tb - ONSET_LAG)
+
+    def _novelty(self, t):
+        """Phrasenwechsel: Klang der letzten 2 s gegen die 6 s davor. Eine deutliche Spitze markiert einen
+        Wechsel; die Grenze liegt dann etwa 2 s zurück (wenn das kurze Fenster ganz im neuen Teil liegt)."""
+        n_short = int(2.0 / HOP_SEC)
+        if len(self.feats) < self.feats.maxlen:
+            return
+        f = np.array(self.feats)
+        short, long = f[-n_short:].mean(axis=0), f[:-n_short].mean(axis=0)
+        nov = float(np.linalg.norm(short - long) / (np.linalg.norm(long) + 1e-6))
+        self.nov_last.append((nov, t))
+        if len(self.nov_hist) >= 20 and len(self.nov_last) == 3:
+            (a, _), (b, tb), (c, _) = self.nov_last
+            hist = np.array(self.nov_hist)
+            if b > a and b >= c and b > hist.mean() + 2.0 * hist.std() and tb - 2.0 - self.change_at > 6.0:
+                self.change_at = tb - 2.0
+        self.nov_hist.append(nov)
 
     def _tempo(self):
         """Ohne Vorgabe: Tempo aus der Autokorrelation der Onset-Kurve (70–180 BPM, Vorliebe um 120)."""
@@ -239,6 +267,7 @@ class Analyzer:
                 "pegel": round(min(1.0, self.level / self.level_peak), 2) if on else 0.0,
                 "bass": round(min(1.0, self.bass / self.bass_peak), 2) if on else 0.0,
                 "break": self.break_on, "drop": now - self.drop_at < 8.0,
+                "wechsel": now - self.change_at < 8.0,
             }
 
 

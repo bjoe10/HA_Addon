@@ -280,6 +280,14 @@ nach Sichtung, Tanzbarkeit und Lautheit noch ungenutzt.
 Gemessen am Gerät: Audio-Versatz **80 ms** (Licht 80 ms vor der analysierten Phase), danach sitzen die
 Blitze auf dem Kick.
 
+**Takt- und Phrasen-Sync (ab 0.6.0):** Mit eingerastetem Audio zählt `beatcount.py` die Schläge selbst
+(Phase aus der Analyse), HA liefert nur die Grobposition. Anker: Drop → nächste Phrasengrenze (±12 Schläge),
+erkannter Klangwechsel → Phrasengrenze, wenn höchstens 3 Schläge daneben. Synthetischer Test
+(`dev/test_beatcount.py`, HA 5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
+Lampen wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen. Laser je Lied: aus / nur Höhepunkte /
+jede zweite Phrase / durchgehend (Anteil an der Liedzeit ca. 0 / 28 / 58 / 100 %). Ruhepunkt hoch/runter 76 (über dem TV), Bahnen nur
+zwischen 66 und 86.
+
 ## Laser (gemessen)
 
 - **Modus (Kanal 23):** 0 = aus, 70 = Handbetrieb (Form nach Kanal „Form“), darüber Auto-Programme (nicht genutzt).

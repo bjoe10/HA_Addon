@@ -369,12 +369,19 @@ def profile(track_id, info, duration=None, nebel=False):
         "scenes": scenes, "order": order, "refrain": refrain,
     }
     prof["laser"] = laser_theme(rng, stage)   # nach allen anderen Zufallswerten: Kopf-Themen bleiben gleich
+    # Lampen wechseln alle 8 oder 16 Takte (ruhige Lieder eher seltener); eigener Zufall, Themen bleiben gleich
+    lrng = random.Random(seed ^ 0x1A3)
+    prof["lamp_beats"] = 64 if lrng.random() < (0.7 if stage == "ruhig" else 0.35) else 32
+    # Laser-Rolle je Lied: passt nicht zu jedem Lied und soll nicht dauernd laufen
+    prof["laser_role"] = lrng.choices(list(L_ROLES), weights=[w[stage] for w in L_ROLES.values()])[0]
     return prof
 
 
 def describe(prof):
     return (f"{prof['stage']}, Farben {WHEEL_NAMES[prof['base']]}/{WHEEL_NAMES[prof['accent']]}, "
-            f"Gobos {GOBO_NAMES[prof['gobo']]}/{GOBO_NAMES[prof['gobo2']]}")
+            f"Gobos {GOBO_NAMES[prof['gobo']]}/{GOBO_NAMES[prof['gobo2']]}, "
+            f"Lampen alle {prof.get('lamp_beats', 32) // 4} Takte, "
+            f"Laser {L_ROLE_NAMES[prof.get('laser_role', 'voll')]}")
 
 
 INTRO = {"shape": "kreis", "surface": "decke", "cu": 2.5, "cv": 3.0, "su": 0.5, "sv": 0.5, "ph": 0.0,
@@ -557,11 +564,12 @@ LAMP_PCT = {"Intro": 20, "Motiv": 20, "Szene": 20, "Aufbau": 35, "Höhepunkt": 6
 
 
 def lamps(prof, b, live=None):
-    """Farben und Helligkeit der Lampen: Grundfarbe (Ambilight) und Akzent (Schränke), pro Phrase getauscht.
+    """Farben und Helligkeit der Lampen: Grundfarbe (Ambilight) und Akzent (Schränke), alle 8 oder 16 Takte
+    getauscht (prof["lamp_beats"]).
     Ändert sich nur bei Phrasenwechsel, Aufbau, Höhepunkt, Atempause und im Outro (in 5-%-Stufen)."""
     st = look(prof, b, live)
     base, acc = WHEEL[prof["base"]], WHEEL[prof["accent"]]
-    grund, akzent = (acc, base) if int(b // PHRASE) % 2 == 1 else (base, acc)
+    grund, akzent = (acc, base) if int(b // prof.get("lamp_beats", PHRASE)) % 2 == 1 else (base, acc)
     teil = st["teil"]
     if teil == "Outro":
         pct = max(5, int(20 * st["scale"] / 5) * 5)
@@ -595,6 +603,26 @@ L_FLIPS = {"ruhig": ["aus"], "mittel": ["aus", "aus", "h", "v"], "druckvoll": ["
 L_POS = {"ruhig": ["mitte", "acht"], "mittel": ["mitte", "acht", "sprung"],
          "druckvoll": ["acht", "sprung", "sprung", "mitte"]}
 L_SIZE = {"ruhig": (30, 45), "mittel": (18, 35), "druckvoll": (8, 28)}
+# Rolle des Lasers je Lied mit Gewicht nach Stimmung: aus / nur Höhepunkte / jede zweite Phrase / durchgehend
+L_ROLES = {"aus": {"ruhig": 6, "mittel": 25, "druckvoll": 10},
+           "akzent": {"ruhig": 3, "mittel": 35, "druckvoll": 35},
+           "phrasen": {"ruhig": 1, "mittel": 30, "druckvoll": 30},
+           "voll": {"ruhig": 0, "mittel": 10, "druckvoll": 25}}
+L_ROLE_NAMES = {"aus": "aus", "akzent": "nur Höhepunkte", "phrasen": "jede zweite Phrase", "voll": "durchgehend"}
+
+
+def laser_on(prof, teil, b):
+    """Ob der Laser in diesem Moment mitspielt (nach der Laser-Rolle des Liedes)."""
+    role = prof.get("laser_role", "voll")
+    in_ph = b % PHRASE
+    big = teil in ("Höhepunkt", "Drop") or (teil == "Aufbau" and in_ph >= PHRASE / 2)
+    if role == "aus":
+        return False
+    if role == "akzent":
+        return big
+    if role == "phrasen":
+        return big or (teil in ("Motiv", "Szene") and int(b // PHRASE) % 2 == 0)
+    return True
 
 
 def laser_theme(rng, stage):
@@ -613,6 +641,8 @@ def laser_frame(prof, b, live=None, locked=False):
     Schutzgrenzen ab. Alle anderen Werte sind DMX-Werte in den gemessenen Bereichen."""
     st = look(prof, b, live)
     teil = st["teil"]
+    if not laser_on(prof, teil, b):
+        return {"mode": 0, "pos": (0.0, 0.0), "teil": teil}
     lt = prof["laser"]
     ph = int(b // PHRASE)
     in_ph = b % PHRASE

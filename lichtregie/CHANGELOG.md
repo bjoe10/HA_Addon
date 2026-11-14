@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0
+
+- Takt- und Phrasen-Sync: Mit eingerastetem Audio zählt die Lichtregie die Schläge selbst weiter
+  (`beatcount.py`); Sprünge der Spotify-Position schlagen nicht mehr durch, nur dauerhafte grobe Abweichungen
+  (über 6 Schläge, länger als 8 s) werden übernommen.
+- Drop als Anker: Ein erkannter Drop wird auf die nächste Phrasengrenze (32 Schläge) gelegt, höchstens ±12
+  Schläge Verschiebung.
+- Phrasenwechsel-Erkennung in der Audioanalyse (Klangvergleich der letzten 2 s mit den 6 s davor in 8
+  Frequenzbändern); liegt ein Wechsel bis zu 3 Schläge neben der erwarteten Grenze, wird nachgezogen.
+- Szenen-Zeile zeigt Takt.Schlag und kurz jede Korrektur.
+- Lampen wechseln je Lied alle 8 oder 16 Takte (ruhige Lieder eher 16), mit einstellbarem Vorlauf
+  (Standard 0,8 s) wegen der Reaktionszeit der Yeelights; Übergang 0,5 s.
+- Laser-Rolle je Lied: aus, nur Höhepunkte (Aufbau, Höhepunkt, Drop), jede zweite Phrase oder durchgehend,
+  gewichtet nach Stimmung (ruhige Lieder meist ohne Laser).
+- Laser-Ruhepunkt in der Show über dem TV (Hoch/runter 76 statt Wandmitte 64), Bahnen bleiben über dem TV;
+  einstellbar mit „Show-Mitte hoch/runter“ in der Laser-Karte (unter die Mitte gestellt: Bahnen unter dem TV).
+
 ## 0.5.0
 
 - Laser in der Show: jedes Lied bekommt ein Laser-Thema (Hauptform, Nebenform, Gag-Symbol, drei Laser-Szenen).

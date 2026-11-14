@@ -7,7 +7,6 @@ Die Show liest den Spotify-Titel aus HA, holt Tempo und Stimmung und steuert die
 Einstellungen und Nodes: config.py.
 """
 import json
-import math
 import socket
 import threading
 import time
@@ -22,6 +21,7 @@ try:            # numpy fehlt lokal ggf.; dann ohne Audioanalyse
 except ImportError:
     audio = None
 from artnet import ART_PORT, FPS, Head, artdmx
+from beatcount import BeatCounter
 from geometry import pan_tilt
 from tempo import tempo
 
@@ -117,8 +117,9 @@ BEAT = {"stop": None, "info": "aus", "szene": "", "start": None}
 SETTINGS = {"strobe": True, "nebel": False, "offset": 0.0, "vorlauf": 0.4, "tempo": 2.0,
             "anschub": True, "vorsteuerung": 0.45, "lampen": True,
             "audio": True, "audio_versatz": 80.0, "takttest": False,
-            "lampen_decke": 40, "lampen_vitrine": 100,
-            "laser": False, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90}
+            "lampen_decke": 40, "lampen_vitrine": 100, "lampen_vorlauf": 0.8,
+            "laser": False, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90,
+            "laser_ud_mitte": 76}   # Ruhepunkt des Lasers über dem TV (dort sieht man ihn schlecht)
 SETTINGS_FILE = config.DATA / "settings.json"
 try:   # Schalter aus der Web-App überdauern einen Neustart
     SETTINGS.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
@@ -220,6 +221,9 @@ def show_loop(prof, t0, stop):
     ohne Position (pausiert) an der Zeit seit dem Start."""
     bpm = prof["bpm"]
     started = time.time()
+    counter = BeatCounter()      # eigene Schlagzählung je Lied
+    if AUDIO is not None:        # Ereignisse aus dem vorigen Lied nicht als Anker nehmen
+        counter.seen_drop, counter.seen_change = AUDIO.drop_at, AUDIO.change_at
     while not stop.is_set():
         # Liedwechsel: die ersten 0,6 s dunkel, damit Farb- und Goborad unsichtbar auf das neue Thema laufen
         blackout = time.time() - started < 0.6
@@ -232,10 +236,14 @@ def show_loop(prof, t0, stop):
         now = time.time()
         if AUDIO is not None and SETTINGS["audio"] and AUDIO.signal(now):
             live = AUDIO.live(now, bpm)            # Pegel, Break, Drop
+            frac = None
             if AUDIO.phase_ok(now):                # Schlagphase, sobald das Raster eingerastet ist
                 frac = AUDIO.phase(now + SETTINGS["audio_versatz"] / 1000.0)
-                b = math.floor(b - frac + 0.5) + frac
                 locked = True
+            # Eigene Zählung: Phase aus dem Audio, Takt/Phrase über Drop und Phrasenwechsel ausgerichtet
+            b = counter.update(now, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm)
+        else:
+            b = counter.update(now, b)
         b_move = b + SETTINGS["vorlauf"] * bpm / 60.0   # Bewegung vorziehen, damit sie auf dem Schlag ankommt
         out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"],
                                live=live, locked=locked)
@@ -261,10 +269,17 @@ def show_loop(prof, t0, stop):
             x, y = lf.pop("pos")
             lf.pop("teil")
             # Position von -1…1 auf die Schutzgrenzen abbilden (y = 1 oben, x = 1 rechts)
-            lf["up_down"] = SETTINGS["laser_ud_min"] + (y + 1) / 2 * (SETTINGS["laser_ud_max"] - SETTINGS["laser_ud_min"])
+            # Hoch/runter um den Ruhepunkt, nur so weit, wie er von beiden Grenzen entfernt ist: Bahnen
+            # bleiben dann ganz über (oder unter) dem TV in der Wandmitte
+            lo, hi = SETTINGS["laser_ud_min"], SETTINGS["laser_ud_max"]
+            mid = max(lo, min(hi, SETTINGS["laser_ud_mitte"]))
+            lf["up_down"] = mid + y * max(4, min(mid - lo, hi - mid))
             lf["left_right"] = SETTINGS["laser_lr_min"] + (x + 1) / 2 * (SETTINGS["laser_lr_max"] - SETTINGS["laser_lr_min"])
             laser_apply(lf)
-        BEAT["szene"] = f"Takt {int(b // 4) + 1} · {info}" + (" · Audio" if live else "")
+        szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
+        if counter.events and now - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
+            szene += f" · {counter.events[-1][1]}"
+        BEAT["szene"] = szene
         LAMP.update(prof=prof, b=b, at=time.time(), live=live)   # Lampen-Ebene liest hier mit
         stop.wait(1.0 / FPS)
 
@@ -293,7 +308,7 @@ def lamp_loop():
     gesichert und das Hauptlicht ausgeschaltet; 3 s nach dem Ende der Show kommt der alte Zustand zurück."""
     entities = config.LAMPEN_GRUND + config.LAMPEN_AKZENT + config.LAMPEN_AUS
     while True:
-        time.sleep(0.5)
+        time.sleep(0.25)
         if not entities:
             continue
         active = SETTINGS["lampen"] and LAMP["prof"] is not None and time.time() - LAMP["at"] < 3.0
@@ -315,7 +330,10 @@ def lamp_loop():
             if config.LAMPEN_AUS:
                 ha_call("light", "turn_off", {"entity_id": config.LAMPEN_AUS, "transition": 2})
             LAMP["last"] = None
-        want = show.lamps(LAMP["prof"], LAMP["b"], LAMP.get("live"))
+        # Vorlauf: Yeelights reagieren mit Verzögerung, deshalb die Lage etwas vorausrechnen
+        bps = LAMP["prof"]["bpm"] / 60.0
+        b_lamp = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["lampen_vorlauf"]) * bps
+        want = show.lamps(LAMP["prof"], b_lamp, LAMP.get("live"))
         # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
         for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine")):
             rgb, pct = want[group]
@@ -328,7 +346,7 @@ def lamp_loop():
             if ents:
                 rgb, pct = want[group]
                 ha_call("light", "turn_on", {"entity_id": ents, "rgb_color": list(rgb),
-                                             "brightness_pct": pct, "transition": 1})
+                                             "brightness_pct": pct, "transition": 0.5})
 
 
 def song_position():
@@ -472,6 +490,8 @@ HTML = """<!doctype html>
   <input type="range" id="ld" min="0" max="150" step="5"></label>
  <label>Lampen Vitrinen <span class="val" id="lvv"></span>
   <input type="range" id="lv" min="0" max="150" step="5"></label>
+ <label>Lampen-Vorlauf <span class="val" id="lvlv"></span>
+  <input type="range" id="lvl" min="0" max="2" step="0.1"></label>
  <p class="coords" id="audiostat">Audio: –</p>
  <label>Audio-Versatz <span class="val" id="avv">0 ms</span>
   <input type="range" id="av" min="-300" max="300" step="10" value="0"></label>
@@ -789,6 +809,8 @@ function showSettings() {
     if (document.activeElement !== $(id)) $(id).value = settings[key];
     $(id + 'v').textContent = settings[key] + ' %';
   }
+  if (document.activeElement !== $('lvl')) $('lvl').value = settings.lampen_vorlauf;
+  $('lvlv').textContent = settings.lampen_vorlauf + ' s';
   $('tTest').textContent = 'Takt-Test ' + (settings.takttest ? 'an' : 'aus');
   $('tTest').className = settings.takttest ? 'primary' : '';
   $('tAudio').textContent = 'Audio ' + (settings.audio ? 'an' : 'aus');
@@ -810,6 +832,8 @@ for (const [id, key] of [['ld', 'lampen_decke'], ['lv', 'lampen_vitrine']]) {
   $(id).addEventListener('input', () => { $(id + 'v').textContent = $(id).value + ' %'; });
   $(id).addEventListener('change', () => setSetting({[key]: +$(id).value}));
 }
+$('lvl').addEventListener('input', () => { $('lvlv').textContent = $('lvl').value + ' s'; });
+$('lvl').addEventListener('change', () => setSetting({lampen_vorlauf: +$('lvl').value}));
 $('av').addEventListener('change', () => setSetting({audio_versatz: +$('av').value}));
 $('av').addEventListener('input', () => { $('avv').textContent = $('av').value + ' ms'; });
 const VOR = [0, 0.2, 0.3, 0.45];
@@ -872,7 +896,8 @@ function laserShapeName(v) {
   return n;
 }
 const LIMITS = [['laser_ud_min', 'Hoch/runter min'], ['laser_ud_max', 'Hoch/runter max'],
-  ['laser_lr_min', 'Links/rechts min'], ['laser_lr_max', 'Links/rechts max']];
+  ['laser_lr_min', 'Links/rechts min'], ['laser_lr_max', 'Links/rechts max'],
+  ['laser_ud_mitte', 'Show-Mitte hoch/runter']];
 let laserPower = false;
 function laserPost(body) {
   fetch('api/laser', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
@@ -1017,7 +1042,9 @@ class Handler(BaseHTTPRequestHandler):
             for key in ("lampen_decke", "lampen_vitrine"):
                 if key in body:
                     SETTINGS[key] = max(0, min(150, int(body[key])))
-            for key in ("laser_ud_min", "laser_ud_max", "laser_lr_min", "laser_lr_max"):
+            if "lampen_vorlauf" in body:
+                SETTINGS["lampen_vorlauf"] = max(0.0, min(2.0, round(float(body["lampen_vorlauf"]), 1)))
+            for key in ("laser_ud_min", "laser_ud_max", "laser_lr_min", "laser_lr_max", "laser_ud_mitte"):
                 if key in body:
                     SETTINGS[key] = max(0, min(255, int(body[key])))
             laser_apply({})   # neue Grenzen sofort anwenden
