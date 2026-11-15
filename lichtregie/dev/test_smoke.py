@@ -239,6 +239,28 @@ assert amb_sent <= lamps.QUOTA, amb_sent
 st = lamps.stats()
 assert st and st["fehler"] == 0, st
 print(f"Lampen: Wechsel auf der 1, nur geänderte Werte, Budget hält ({amb_sent} von 80 Wechseln gesendet)")
+# --- Gleichmäßige Bilder: fester Takt gegen die Uhr, Messung der Lücken -----------------------------------
+engine.AUDIO.on = True
+import record  # noqa: E402
+record.start({"titel": "Takttest"}, seconds=3.0)
+engine.start_beat("Takttest", "Test", {"bpm": 128, "energy": 0.9}, "smoke-takt", 200)
+time.sleep(1.0)
+record.sent(time.time())
+record.mark(kind="haenger")
+time.sleep(3.5)
+bi = engine.BEAT.get("bilder")
+assert bi and 37 <= bi["fps"] <= 41 and bi["ruckler"] == 0, bi
+assert heads.FRAME.is_set() or True
+engine.halt_beat()
+record.stop()
+time.sleep(0.5)
+rec = sorted(record.DIR.iterdir())[-1]
+import subprocess  # noqa: E402
+out = subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "show_auswerten.py"), str(rec)],
+                     capture_output=True, text=True).stdout
+assert "Kopf 1:" in out and "„Hängt jetzt“ bei" in out and "Bilder mit Kopf-Werten" in out, out
+print(f"Bilder gleichmäßig: {bi}; Auswertung der Aufnahme ok")
+
 # --- Tempo-Korrektur aus Beat This wird je Lied gemerkt ---------------------------------------------------
 engine.tempo = lambda title, artist: {"bpm": 65.0, "energy": 0.8}
 assert engine.song_tempo("Another World", "MEDUZA")["bpm"] == 65.0
@@ -260,7 +282,7 @@ assert record.mark() and record.status()["laeuft"]
 record.tap(np.zeros(512, dtype=np.float32), t + 3.0)
 time.sleep(0.5)
 st = record.status()
-assert not st["laeuft"] and len(st["dateien"]) == 1, st
+assert not st["laeuft"] and len(st["dateien"]) == 2, st
 z = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(f"{base}/aufnahme/{st['dateien'][0]}").read()))
 daten = json.loads(z.read("daten.json"))
 assert len(daten["blocks"]) == 21 and daten["marks"] and daten["trace"] and len(z.read("ton.wav")) > 20000

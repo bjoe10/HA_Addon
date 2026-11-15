@@ -1,6 +1,22 @@
 # Changelog
 
-## 0.9.3
+## 0.9.4
+
+- **Gleichmäßigere Bewegung:** Show und Art-Net-Sender liefen mit zwei eigenen, leicht verschiedenen Takten
+  (ca. 39 und 38 pro Sekunde) nebeneinander; dabei ging regelmäßig ein Bild doppelt raus oder fiel aus. Jetzt
+  schickt der Sender jedes Show-Bild sofort, wenn es fertig ist (ohne Show weiter 40-mal pro Sekunde). Die
+  Show-Schleife hält ihren Takt fest gegen die Uhr (Bild k zur Zeit Start + k/40 s), statt nach jedem Bild fest
+  25 ms zu warten; eine Verzögerung verschiebt so nicht alle folgenden Bilder. Am Mac: 39,9 Bilder/s, größte
+  Lücke 35 ms, kein Ruckler.
+- Messung: Takt-Sync-Anzeige und Status zeigen für die Sendungen die größte Lücke und die Ruckler (> 50 ms) der
+  letzten 10 s.
+- **Die fertige Show messen:** Die Aufnahme speichert jetzt je Bild (40 pro Sekunde), was an die Köpfe geht (Pan,
+  Tilt, Helligkeit), dazu jede Art-Net-Sendung. Neuer Knopf „Hängt jetzt“ markiert Stellen, an denen die Köpfe
+  stocken. Auswertung mit `dev/show_auswerten.py`: Lücken, Stillstand je Kopf mit Szene, und für jede Markierung
+  die 3 s davor (Lücken, Stillstand, Szene, Ereignisse der Schlagzählung).
+- Enthält 0.9.3 (nicht eingespielt).
+
+## 0.9.3 (nicht eingespielt, in 0.9.4 enthalten)
 
 - **Gemessenes Tempo schlägt die Datenbank:** Die Datenbank gilt nur, bis Beat This das Lied gemessen hat.
   FreqBlog meldete z. B. für „Another World“ (MEDUZA) 65 BPM, Beat This maß 130,04 BPM. Bis 4 % Abweichung wird

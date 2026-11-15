@@ -1,6 +1,7 @@
 """Show-Motor: verbindet Titel (HA), Tempo (FreqBlog), Live-Audio und die Show-Regeln (show.py) und
 gibt 40 Bilder pro Sekunde an Köpfe, Laser und Lampen."""
 import json
+from collections import deque
 import math
 import threading
 import time
@@ -90,6 +91,8 @@ def show_loop(prof, t0, stop):
     counter = BeatCounter()
     last_b = None
     frames, fps_t = 0, time.time()
+    next_t = time.time()
+    frame_times = deque(maxlen=600)
     seeks = LIVE["seeks"]
     last_sound = started
     seen_model = downbeat.STATE["letzte"]
@@ -200,16 +203,21 @@ def show_loop(prof, t0, stop):
             laser.off()
         elif SETTINGS["laser"] and not SETTINGS["takttest"]:
             laser.apply_show(show.laser_frame(prof, b, live, locked))
+        heads.FRAME.set()                      # Bild fertig: der Sender schickt es sofort
         frames += 1
+        frame_times.append(now)
         if now - fps_t >= 2.0:                 # Bildrate für die Anzeige (Soll: 40)
             BEAT["fps"] = round(frames / (now - fps_t), 1)
+            BEAT["bilder"] = heads.gaps(frame_times)
             frames, fps_t = 0, now
         BEAT["b"] = b
         if record.REC["on"]:
             record.trace(now, {"b": round(b, 3), "b_ha": round(b_ha, 3), "pos": pos, "bpm": bpm, "locked": locked,
                                "break": bool(live and live["break"]), "drop": bool(live and live["drop"]),
                                "info": info, "vorlauf": SETTINGS["ton_vorlauf"], "eins": counter.bar_info(), "bins": [round(x, 3) for x in counter.bar_bins],
-                               "ereignisse": [e[1] for e in counter.events[-3:]]})
+                               "ereignisse": [e[1] for e in counter.events[-3:]],
+                               "koepfe": {k: [s["pan"], s["tilt"], s["hell"] if s["on"] else 0]
+                                          for k, s in heads.snapshot().items()}})
         recent = [f"{e[1]} (vor {int(t_a - e[0])} s)" for e in counter.events[-3:] if t_a - e[0] < 60]
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
                         "audio": locked, "ereignisse": recent,
@@ -220,7 +228,11 @@ def show_loop(prof, t0, stop):
             szene += f" · {counter.events[-1][1]}"
         BEAT["szene"] = szene
         lamps.follow(prof, b, live)
-        stop.wait(1.0 / FPS)
+        # fester Takt gegen die Uhr: Bild k zur Zeit Start + k/FPS (eine Verzögerung verschiebt nicht alle folgenden)
+        next_t += 1.0 / FPS
+        if time.time() - next_t > 0.1:         # lange hängen geblieben: neu ansetzen statt nachzuholen
+            next_t = time.time()
+        stop.wait(max(0.0, next_t - time.time()))
 
 
 # --- Thema je Lied: fest aus der Track-ID, auf Wunsch neu gewürfelt (Variante wird gemerkt) -----------
@@ -301,6 +313,7 @@ def idle_loop():
             x, y, z = v["ziel"]
             SPOTS[str(k)] = {"x": float(x), "y": float(y), "z": float(z), "hell": int(v["hell"]),
                              "farbe": int(v["farbe"])}
+        heads.FRAME.set()
         if not BEAT["szene"].startswith("Warten"):
             BEAT["szene"] = "Warten auf Musik · Sternhimmel"
 

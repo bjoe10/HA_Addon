@@ -25,14 +25,14 @@ KEEP = 12                  # so viele Aufnahmen bleiben liegen, ältere werden g
 NAME = re.compile(r"^\d{8}-\d{6}\.zip$")
 LOCK = threading.Lock()
 REC = {"on": False, "start": 0.0, "until": 0.0, "chunks": [], "blocks": [], "trace": [], "marks": [],
-       "meta": {}, "last_trace": 0.0}
+       "haenger": [], "sends": [], "meta": {}, "last_trace": 0.0}
 
 
 def start(meta, seconds=None):
     now = time.time()
     with LOCK:
         REC.update(on=True, start=now, until=now + (seconds or SECONDS), chunks=[], blocks=[], trace=[],
-                   marks=[], meta=dict(meta), last_trace=0.0)
+                   marks=[], haenger=[], sends=[], meta=dict(meta), last_trace=0.0)
 
 
 def tap(mono, t_end):
@@ -45,20 +45,26 @@ def tap(mono, t_end):
 
 
 def trace(now, row):
-    """Von der Show-Schleife in jedem Bild aufgerufen; behalten wird jedes zweite (20 pro Sekunde)."""
-    if not REC["on"] or now - REC["last_trace"] < 0.049:
+    """Von der Show-Schleife in jedem Bild aufgerufen (40 pro Sekunde): Entscheidungen und was an die Köpfe geht."""
+    if not REC["on"]:
         return
     REC["last_trace"] = now
     REC["trace"].append(dict(row, t=round(now, 3)))
     _check(now)
 
 
-def mark(now=None):
-    """„Hier ist die 1“ von Hand, nur als Markierung (ändert die Show nicht)."""
+def mark(now=None, kind="marks"):
+    """„Hier ist die 1“ (marks) oder „Hängt jetzt“ (haenger) von Hand, nur als Markierung (ändert die Show nicht)."""
     if not REC["on"]:
         return False
-    REC["marks"].append(round(time.time() if now is None else now, 3))
+    REC[kind].append(round(time.time() if now is None else now, 3))
     return True
+
+
+def sent(t):
+    """Vom Art-Net-Sender bei jeder Sendung aufgerufen."""
+    if REC["on"]:
+        REC["sends"].append(round(t, 4))
 
 
 def _check(now):
@@ -84,7 +90,7 @@ def _write():
         w.setframerate(44100)
         w.writeframes(pcm.tobytes())
     data = {"meta": REC["meta"], "start": REC["start"], "blocks": blocks, "trace": REC["trace"],
-            "marks": REC["marks"]}
+            "marks": REC["marks"], "haenger": REC["haenger"], "sends": REC["sends"]}
     try:
         DIR.mkdir(parents=True, exist_ok=True)
         name = time.strftime("%Y%m%d-%H%M%S", time.localtime(REC["start"])) + ".zip"
@@ -97,7 +103,7 @@ def _write():
               flush=True)
     except OSError as err:
         print(f"Aufnahme nicht gespeichert: {err}", flush=True)
-    REC.update(chunks=[], blocks=[], trace=[])
+    REC.update(chunks=[], blocks=[], trace=[], sends=[])
 
 
 def files():
@@ -121,4 +127,5 @@ def status(now=None):
     now = time.time() if now is None else now
     _check(now)                # endet auch, wenn kein Ton und keine Show mehr läuft
     return {"laeuft": REC["on"], "rest": max(0, int(REC["until"] - now)) if REC["on"] else 0,
-            "ton": bool(REC["blocks"]), "marken": len(REC["marks"]), "dateien": files()}
+            "ton": bool(REC["blocks"]), "marken": len(REC["marks"]), "haenger": len(REC["haenger"]),
+            "dateien": files()}

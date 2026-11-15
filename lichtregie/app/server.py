@@ -9,6 +9,7 @@ import json
 import socket
 import threading
 import time
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from artnet import ART_PORT, FPS, artdmx
 from settings import SETTINGS
 
 WEB = Path(__file__).resolve().parent / "web"
+SENT = deque(maxlen=1000)    # Zeitpunkte der Art-Net-Sendungen (für die Messung der Ruckler)
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/index.html": ("index.html", "text/html; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
@@ -33,10 +35,15 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
 
 
 def sender(stop):
-    """Sendet 40-mal pro Sekunde die DMX-Puffer per Art-Net an die Nodes."""
+    """Sendet die DMX-Puffer per Art-Net an die Nodes: direkt nach jedem fertigen Show-Bild (heads.FRAME), ohne Show
+    spätestens alle 1/FPS Sekunden."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     seq = 1
     while not stop.is_set():
+        heads.FRAME.wait(1.0 / FPS)
+        heads.FRAME.clear()
+        SENT.append(time.time())
+        record.sent(SENT[-1])
         for k, head in heads.HEADS.items():
             with head.lock:
                 data = bytes(head.buf)
@@ -46,7 +53,6 @@ def sender(stop):
                 data = bytes(laser.BUF)
             sock.sendto(artdmx(config.LASER[1], data, seq), (config.LASER[0], ART_PORT))
         seq = (seq + 1) % 256 or 1
-        time.sleep(1.0 / FPS)
     sock.close()
 
 
@@ -71,7 +77,7 @@ def status():
     return {"spots": engine.SPOTS, "szene": engine.BEAT["szene"], "info": engine.BEAT["info"],
             "audio": engine.AUDIO.status() if engine.AUDIO is not None else None,
             "party": party.status(), "lied": engine.BEAT["lied"], "sync": engine.BEAT["sync"],
-            "fps": engine.BEAT.get("fps"), "lampen": lamps.stats(), "aufnahme": record.status(), "beatthis": downbeat.status(),
+            "fps": engine.BEAT.get("fps"), "bilder": engine.BEAT.get("bilder"), "senden": heads.gaps(SENT), "lampen": lamps.stats(), "aufnahme": record.status(), "beatthis": downbeat.status(),
             "spielt": bool(fresh and live.get("playing")),
             "titel": f"{live['title']} – {live['artist']}" if fresh else None,
             "warnungen": warn}
@@ -149,6 +155,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/aufnahme":     # Aufnahme für die Fehlersuche: starten, stoppen, „1“ markieren
             if body.get("marke"):
                 return self._json({"ok": record.mark()})
+            if body.get("haenger"):
+                return self._json({"ok": record.mark(kind="haenger")})
             if body.get("an"):
                 record.start({"lied": engine.BEAT["lied"], "titel": status()["titel"],
                               "audio_versatz": SETTINGS["audio_versatz"], "offset": SETTINGS["offset"]})

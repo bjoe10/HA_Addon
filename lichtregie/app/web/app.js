@@ -120,11 +120,12 @@ function showStatus(d) {
       + ` höchstens ${ls.max_ms} ms` + (ls.fehler ? ` · ${ls.fehler} fehlgeschlagen` : ' · keine Fehler');
   const r = d.aufnahme;
   if (r) {
-    $('recstat').textContent = r.laeuft ? `Aufnahme läuft, noch ${r.rest} s · ${r.marken} Markierungen` + (r.ton ? '' : ' · kein Ton!')
+    $('recstat').textContent = r.laeuft ? `Aufnahme läuft, noch ${r.rest} s · ${r.marken} × „1“, ${r.haenger} × hängt` + (r.ton ? '' : ' · kein Ton!')
       : 'Keine Aufnahme läuft.';
     $('recstart').textContent = r.laeuft ? 'Aufnahme beenden' : 'Aufnahme starten (90 s)';
     $('recstart').dataset.an = r.laeuft ? '1' : '';
     $('recmark').disabled = !r.laeuft;
+    $('rechang').disabled = !r.laeuft;
     const list = r.dateien.map(n => `<a href="aufnahme/${esc(n)}" download>${esc(n)}</a>`).join(' · ');
     if ($('recfiles').dataset.list !== list) { $('recfiles').dataset.list = list; $('recfiles').innerHTML = list ? 'Herunterladen: ' + list : ''; }
   }
@@ -150,6 +151,7 @@ function showSync(s, fps) {
                                : s.eins.quelle === 'von Hand' ? 'von Hand gesetzt'
                                : `geschätzt, lernt noch (${s.eins.schlaege} Schläge)`) : '')
       + (fps ? ` · ${fps} Bilder/s` + (fps < 25 ? ' (zu wenig, Soll 40)' : '') : '')
+      + (status.senden ? ` · Senden: größte Lücke ${status.senden.max_ms} ms, ${status.senden.ruckler} Ruckler in 10 s` : '')
       + (s.ereignisse.length ? ' · ' + s.ereignisse.join(', ') : '');
 }
 for (const [id, body] of [['syncm4', {schlaege: -4}], ['syncp4', {schlaege: 4}], ['syncm1', {schlaege: -1}],
@@ -159,6 +161,7 @@ for (const [id, body] of [['syncm4', {schlaege: -4}], ['syncp4', {schlaege: 4}],
 
 $('recstart').addEventListener('click', () => api('api/aufnahme', {an: !$('recstart').dataset.an}));
 $('recmark').addEventListener('click', () => api('api/aufnahme', {marke: true}));
+$('rechang').addEventListener('click', () => api('api/aufnahme', {haenger: true}));
 
 // --- Raumbild: aus Sicht der Kopfwand (y = 6), leicht von oben, Blick Richtung TV-Wand ----------------
 const CAM = {pos: [2.5, 5.9, 2.2], target: [2.5, 0, 0.8], fov: 62 * Math.PI / 180};

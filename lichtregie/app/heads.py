@@ -13,6 +13,19 @@ HEADS = {k: Head(config.LAYOUT[k], 0) for k in (1, 2)}
 STATE = {k: {"pan": 32768, "tilt": 32768, "on": True, "farbe": 0, "gobo": 0, "strobe": 0, "hell": 255}
          for k in HEADS}
 LOCK = threading.Lock()
+# Ein Show-Bild ist fertig: Der Art-Net-Sender schickt es sofort (sonst laufen Show und Sender mit zwei leicht
+# verschiedenen Takten nebeneinander, und ab und zu geht ein Bild doppelt raus oder fällt aus: Die Köpfe stocken)
+FRAME = threading.Event()
+
+
+def gaps(times, window=10.0):
+    """Abstände zwischen Zeitpunkten der letzten `window` Sekunden: Bilder/s, größter Abstand (ms), Lücken > 50 ms."""
+    ts = [t for t in list(times) if times and times[-1] - t < window]
+    if len(ts) < 3:
+        return None
+    d = [b - a for a, b in zip(ts, ts[1:])]
+    return {"fps": round(len(d) / (ts[-1] - ts[0]), 1), "max_ms": round(max(d) * 1000),
+            "ruckler": sum(1 for x in d if x > 0.05)}
 LIMITS = {"pan": 65535, "tilt": 65535, "farbe": 255, "gobo": 255, "strobe": 255, "hell": 255}
 
 
