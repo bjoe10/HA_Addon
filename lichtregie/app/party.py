@@ -25,6 +25,8 @@ LOCK = threading.Lock()
 FILE = config.DATA / "party.json"   # Stand überdauert einen Neustart des Add-ons (z. B. ein Update)
 START_AFTER = 3.0        # so lange muss Musik ankommen, bevor die Automatik einschaltet
 REARM_AFTER = 60.0       # so lange Ruhe hebt einen Stopp von Hand wieder auf
+PARK = (0, 0)            # Parkposition (Pan, Tilt) vor dem Abschalten: beide Köpfe hängen gleich (wie im alten
+PARK_SEC = 3.5           # Skript „Moving Head off“), erst danach gehen die Steckdosen aus
 
 
 def _save():
@@ -62,6 +64,12 @@ def start(why="von Hand", last_music=None):
         DEVICES["at"] = 0.0
 
 
+def _power_off():
+    """Geräte ausschalten, wenn die Köpfe geparkt sind (außer die Party hat inzwischen wieder begonnen)."""
+    if not PARTY["on"] and config.GERAETE:
+        ha.call("homeassistant", "turn_off", {"entity_id": config.GERAETE})
+
+
 def stop(why="von Hand", manual=True):
     with LOCK:
         if not PARTY["on"]:
@@ -70,11 +78,10 @@ def stop(why="von Hand", manual=True):
         _save()
         print(f"Party aus ({why})", flush=True)
         engine.stop_all()
-        for k in heads.HEADS:
-            heads.apply(k, on=False, strobe=0)
+        for k in heads.HEADS:      # dunkel und in die Parkposition fahren
+            heads.apply(k, pan=PARK[0], tilt=PARK[1], on=False, strobe=0)
         lamps.set_room(False)
-        if config.GERAETE:
-            ha.call("homeassistant", "turn_off", {"entity_id": config.GERAETE})
+        threading.Timer(PARK_SEC, _power_off).start()
         DEVICES["at"] = 0.0
 
 

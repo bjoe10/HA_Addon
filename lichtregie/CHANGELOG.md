@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.2
+
+- Party aus: Die Köpfe fahren erst dunkel in die Parkposition (Pan 0, Tilt 0, wie im alten Skript „Moving Head
+  off“), damit beide gleich hängen; nach 3,5 s gehen die Steckdosen aus.
+
 ## 0.8.1
 
 - Ambilights wechseln alle 8 oder 16 Takte durch drei Farben des Liedes (Grund, Akzent, Gegenfarbe) statt nur

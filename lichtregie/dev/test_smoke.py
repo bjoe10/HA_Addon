@@ -109,8 +109,10 @@ assert st["party"]["an"] and lamps.ROOM["dark"]
 assert ("homeassistant.turn_on", config.GERAETE) in CALLS, CALLS
 st = post("/api/party", {"an": False})
 assert not st["party"]["an"] and st["party"]["gesperrt"] and not lamps.ROOM["dark"]
+assert not heads.STATE[1]["on"] and heads.STATE[1]["pan"] == 0 and heads.STATE[1]["tilt"] == 0, "nicht geparkt"
+assert ("homeassistant.turn_off", config.GERAETE) not in CALLS, "Steckdosen aus, bevor die Köpfe geparkt sind"
+time.sleep(party.PARK_SEC + 0.5)
 assert ("homeassistant.turn_off", config.GERAETE) in CALLS
-assert not heads.STATE[1]["on"]
 
 
 class FakeAudio:           # Musik kommt an / kommt nicht an
