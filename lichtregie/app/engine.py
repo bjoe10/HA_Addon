@@ -93,6 +93,7 @@ def show_loop(prof, t0, stop):
     seeks = LIVE["seeks"]
     last_sound = started
     seen_model = downbeat.STATE["letzte"]
+    prev_model = None                  # Tempo der vorigen Messung von Beat This (für die Bestätigung)
     if AUDIO is not None:        # Ereignisse aus dem vorigen Lied nicht als Anker nehmen
         counter.seen_drop, counter.seen_change = AUDIO.drop_at, AUDIO.change_at
     while not stop.is_set():
@@ -134,12 +135,26 @@ def show_loop(prof, t0, stop):
             st = downbeat.STATE
             if locked and st["letzte"] != seen_model and BEAT["start"] and st["lied"] == tuple(BEAT["start"][:2]):
                 seen_model = st["letzte"]                      # neues Ergebnis von Beat This für dieses Lied
-                if st["bpm"] and 0.003 < abs(st["bpm"] - bpm) / bpm < 0.04:
+                ratio = st["bpm"] / bpm if st["bpm"] else 1.0
+                agree = prev_model is not None and abs(st["bpm"] / prev_model - 1.0) < 0.02
+                prev_model = st["bpm"]
+                if st["schlaege"] >= 16 and abs(ratio - 1.0) >= 0.04 and agree:
+                    # Gemessenes Tempo schlägt die Datenbank (sie gilt nur, bis Beat This gemessen hat), z. B. FreqBlog
+                    # 65 statt 130 BPM. Große Abweichung: erst wenn zwei Messungen übereinstimmen, dann die Show mit
+                    # dem Tempo des Modells neu starten (Zählung, HA-Abgleich und Bahnen hängen am Tempo); merken
+                    title, artist, info, track_id, duration = BEAT["start"]
+                    print(f"Tempo {bpm:.1f} → {st['bpm']:.1f} BPM (Beat This): {title}", flush=True)
+                    save_tempo_fix(title, artist, st["bpm"])
+                    threading.Thread(target=start_beat, daemon=True, args=(
+                        title, artist, dict(info, bpm=st["bpm"], quelle="Beat This"), track_id, duration)).start()
+                    return
+                if st["bpm"] and 0.003 < abs(ratio - 1.0) < 0.04:
                     # Tempo aus der Datenbank etwas daneben: das genaue Tempo des Modells übernehmen
                     counter.events.append((t_a, f"Tempo {bpm:.1f} → {st['bpm']:.1f} BPM (Beat This)"))
                     bpm = prof["bpm"] = st["bpm"]
                     AUDIO.set_bpm_hint(bpm)
                     BEAT["lied"] = dict(BEAT["lied"] or {}, bpm=round(bpm, 1), tempo_quelle="Beat This")
+                    save_tempo_fix(*BEAT["start"][:2], bpm)
                 b += counter.model_anchor(t_a, st["eins"], bpm, st["beats"])
             if counter.audio_off:              # Audio-Takt läuft nicht mit der Musik: nicht als eingerastet werten
                 locked = False
@@ -210,6 +225,33 @@ def show_loop(prof, t0, stop):
 
 # --- Thema je Lied: fest aus der Track-ID, auf Wunsch neu gewürfelt (Variante wird gemerkt) -----------
 THEMES_FILE = config.DATA / "themen.json"
+TEMPO_FILE = config.DATA / "tempo_korrektur.json"     # Tempo je Lied aus Beat This, wenn die Datenbank daneben lag
+
+
+def _tempo_fixes():
+    try:
+        return json.loads(TEMPO_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_tempo_fix(title, artist, bpm):
+    fixes = _tempo_fixes()
+    fixes[f"{artist}|{title}"] = round(float(bpm), 2)
+    try:
+        TEMPO_FILE.write_text(json.dumps(fixes, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def song_tempo(title, artist):
+    """Tempo-Daten aus der Datenbank; hat Beat This das Lied schon einmal genauer gemessen, gilt dieses Tempo."""
+    found = tempo(title, artist)
+    fix = _tempo_fixes().get(f"{artist}|{title}")
+    if fix:
+        found = dict(found or {}, bpm=fix, quelle="Beat This")
+    return found
+
 
 
 def _themes():
@@ -358,14 +400,14 @@ def watch_loop(stop, current):
                     continue
                 if time.time() - miss["at"] > 20:      # FreqBlog nicht im 2-s-Takt fragen
                     miss["at"] = time.time()
-                    found = tempo(*key)
+                    found = song_tempo(*key)
                 if not (found and found.get("bpm")):
                     found = audio_tempo(miss["since"])
                 if found and found.get("bpm"):
                     start_beat(args[0], args[1], found, *args[3:])
             continue
         current = key
-        found = tempo(*key)
+        found = song_tempo(*key)
         if found and found.get("bpm"):
             known[key] = found
             if audio_mode() and not sound():

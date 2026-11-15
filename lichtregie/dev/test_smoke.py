@@ -239,6 +239,14 @@ assert amb_sent <= lamps.QUOTA, amb_sent
 st = lamps.stats()
 assert st and st["fehler"] == 0, st
 print(f"Lampen: Wechsel auf der 1, nur geänderte Werte, Budget hält ({amb_sent} von 80 Wechseln gesendet)")
+# --- Tempo-Korrektur aus Beat This wird je Lied gemerkt ---------------------------------------------------
+engine.tempo = lambda title, artist: {"bpm": 65.0, "energy": 0.8}
+assert engine.song_tempo("Another World", "MEDUZA")["bpm"] == 65.0
+engine.save_tempo_fix("Another World", "MEDUZA", 130.04)
+st = engine.song_tempo("Another World", "MEDUZA")
+assert st["bpm"] == 130.04 and st["quelle"] == "Beat This" and st["energy"] == 0.8, st
+print("Tempo-Korrektur je Lied ok")
+
 # --- Aufnahme: Ton und Entscheidungen landen in einer ZIP-Datei, die sich herunterladen lässt -------------
 import io, zipfile  # noqa: E402,E401
 import numpy as np  # noqa: E402

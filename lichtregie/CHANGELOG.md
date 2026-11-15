@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.3
+
+- **Gemessenes Tempo schlägt die Datenbank:** Die Datenbank gilt nur, bis Beat This das Lied gemessen hat.
+  FreqBlog meldete z. B. für „Another World“ (MEDUZA) 65 BPM, Beat This maß 130,04 BPM. Bis 4 % Abweichung wird
+  das Tempo fließend übernommen; bei größerer Abweichung (z. B. doppelt oder halb) startet die Show das Lied mit
+  dem gemessenen Tempo neu, sobald zwei Messungen hintereinander übereinstimmen (Zählung, HA-Abgleich und Bahnen
+  hängen am Tempo). Bisher galt das Modell nur bis 4 % Abweichung.
+- Das gemessene Tempo wird je Lied gespeichert (`tempo_korrektur.json`) und gilt beim nächsten Abspielen sofort,
+  auch die kleinen Korrekturen bis 4 %.
+
 ## 0.9.2
 
 - **Beat This mit weniger Last:** Am Pi gemessen: 16 s Ton in 7,2 s (Spektrogramm 0,3 s, Vorbau 4,0 s,
