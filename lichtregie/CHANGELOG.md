@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2
+
+- **Beat This mit weniger Last:** Am Pi gemessen: 16 s Ton in 7,2 s (Spektrogramm 0,3 s, Vorbau 4,0 s,
+  Transformer 2,8 s; numpy 2.4.6 mit OpenBLAS 0.3.30). Mit den Aufnahmen verglichen (Fenster/Abstand → „1“
+  getroffen): 30 s/15 s 93 %, 16 s/20 s 95 %, 16 s/30 s 88 %, 12 s/20 s 63 %. Jetzt 16 s Ton alle 20 s: Der
+  Rechenprozess arbeitet gut ein Drittel der Zeit statt fast ununterbrochen.
+
 ## 0.9.1
 
 - **Messung der Rechenzeit von Beat This am Pi:** Am Pi 5 brauchte das Modell 33 s für 30 s Ton (am Mac 1,5 s)

@@ -4,7 +4,9 @@ Alle REPEAT Sekunden, solange eine Show mit eingerastetem Audio-Takt läuft, geh
 dieses Liedes an einen eigenen Prozess (niedrige Priorität, 2 Rechenkerne), damit die Show-Schleife nicht ruckelt.
 Am Pi 5 dauerten 30 s Ton zuerst 33 s Rechenzeit (am Mac 1,5 s). Seltener rechnen hilft nicht: Mit einer
 Rechnung pro Minute über 20 s sank die Trefferquote in den Aufnahmen von 93 % auf 62 % (die „1“ im Intro ist oft
-mehrdeutig, spätere Rechnungen korrigieren das). Die Rechenzeit je Abschnitt steht im Add-on-Log.
+mehrdeutig, spätere Rechnungen korrigieren das). Gemessen mit den Aufnahmen (Fenster/Abstand → Treffer):
+30 s/15 s 93 %, 16 s/20 s 95 %, 16 s/30 s 88 %, 12 s/20 s 63 %. Am Pi: 16 s Ton in 7,2 s, also gut ein Drittel
+der Zeit rechnend. Die Rechenzeit je Abschnitt steht im Add-on-Log.
 Ergebnis: Zeitpunkte der „1“-Schläge (Uhrzeit der Analyse); die Schlagzählung legt den Takt danach fest.
 Gemessen am 15.11.2026 mit 6 Aufnahmen vom Gerät: Mit dem richtigen Ton-Vorlauf lag die „1“ von Beat This zu
 93 % auf der von Hand markierten „1“ (die bisherige Erkennung aus dem Klangwechsel: in 2 von 6 Liedern).
@@ -20,9 +22,9 @@ from pathlib import Path
 
 import numpy as np
 
-WINDOW = 30.0
+WINDOW = 16.0
 MIN_AUDIO = 16.0
-REPEAT = 15.0
+REPEAT = 20.0
 THREADS = "2"
 STATE = {"an": False, "rechenzeit": None, "letzte": 0.0, "eins": [], "beats": [], "bpm": None, "lied": None,
          "schlaege": 0, "fehler": "", "laeuft": False}
