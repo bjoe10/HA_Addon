@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.6
+
+- Kein automatischer Neustart des Empfängers mehr: Am Gerät zeigte sich, dass Music Assistant einen
+  Empfänger, der sich während der Wiedergabe neu anmeldet, nicht wieder in den laufenden Stream aufnimmt. Der
+  Neustart hat ihn also aus dem Stream geworfen statt zu helfen. Die Warnung sagt stattdessen, was zu tun ist.
+
 ## 0.8.5
 
 - **Empfänger zuverlässiger:** Die Lichtregie hält die Audio-Pipe jetzt dauerhaft offen (lesen und schreiben).
@@ -8,8 +14,8 @@
   Wiedergabe. Im Test passierte das bei 11 von 20 schnellen Wechseln, mit dem neuen Leser bei keinem.
 - Start der Party weiterhin nur durch Ton am Empfänger. Läuft sie schon, hält sie auch Spotify am Leben, damit
   sie bei einer Störung des Empfängers nicht ausgeht.
-- Überwachung auch bei ausgeschalteter Party: Spielt Spotify über Music Assistant und am Empfänger kommt 40 s
-  nichts an, wird shairport-sync neu gestartet (höchstens alle 3 min; run.sh startet ihn in einer Schleife).
+- Warnung auch bei ausgeschalteter Party: Spielt Spotify über Music Assistant und am Empfänger kommt nichts an,
+  sagt die Oberfläche, was zu tun ist. shairport-sync läuft in einer Schleife und kommt nach einem Absturz wieder.
 - Diagnose: Kachel „Audio“ unterscheidet „kein Signal“ von „Daten, aber stumm“, die Warnung nennt die Ursache;
   shairport-sync schreibt Verbindungen und Wiedergabe-Start ins Add-on-Log.
 - Neuer Test `dev/test_pipe.py` (Liedwechsel an der Pipe wie mit shairport-sync).
