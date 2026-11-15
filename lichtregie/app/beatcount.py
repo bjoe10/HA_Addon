@@ -33,7 +33,7 @@ class BeatCounter:
         self.seen_change = 0.0
         self.events = []        # (Zeit, Text) für die Anzeige
         self.last_fix = None    # (Zeit, Richtung) des letzten HA-Abgleichs
-        self.ha_off = False     # HA-Abgleich für dieses Lied abgeschaltet
+        self.audio_off = False  # Audio-Zählung für dieses Lied abgeschaltet (läuft nicht mit der Musik)
 
     def shift(self, s, now, why="von Hand"):
         """Zählung um s Schläge verschieben (z. B. nach dem Break, wenn der Einsatz nicht stimmt)."""
@@ -51,6 +51,8 @@ class BeatCounter:
         (None, wenn kein Takt eingerastet ist); drop_at/change_at = Zeitpunkte der letzten Ereignisse."""
         beat = 60.0 / bpm
         b_ref = b_ha + self.offset
+        if self.audio_off:
+            frac = None
         if frac is None:
             self.count = None
             self.prev = None
@@ -66,16 +68,20 @@ class BeatCounter:
             b = self.count + frac
             # Grobe Drift gegen HA: nur wenn sie groß ist und anhält
             self.diff += 0.02 * ((b_ref - b) - self.diff)
-            if abs(self.diff) > DRIFT_LIMIT and not self.ha_off:
+            if abs(self.diff) > DRIFT_LIMIT:
                 self.far_since = self.far_since or now
                 if now - self.far_since > DRIFT_TIME:
                     s = round(self.diff)
                     if self.last_fix and now - self.last_fix[0] < 60 and (s > 0) == self.last_fix[1]:
-                        # zweimal kurz hintereinander in dieselbe Richtung: HA und Audio laufen verschieden
-                        # schnell (Tempo aus der Datenbank passt nicht). Dann zählt nur noch das Audio.
-                        self.ha_off = True
+                        # zweimal kurz hintereinander in dieselbe Richtung: Die Audio-Zählung läuft nicht mit der
+                        # Musik. Für dieses Lied nach der HA-Position zählen. (Bis 0.8.10 wurde stattdessen HA
+                        # abgeschaltet; lief das Audio falsch, stand die Show dann fast still.)
+                        self.audio_off = True
                         self.far_since = None
-                        self.events.append((now, "HA-Abgleich aus (Tempo passt nicht)"))
+                        self.events.append((now, "Audio-Zählung aus (läuft nicht mit der Musik)"))
+                        self.count = None
+                        self.prev = None
+                        b = b_ref
                     else:
                         self.count += s
                         b += s

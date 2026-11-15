@@ -101,6 +101,8 @@ def show_loop(prof, t0, stop):
                 frac = AUDIO.phase(now + SETTINGS["audio_versatz"] / 1000.0)
                 locked = True
             b = counter.update(now, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm)
+            if counter.audio_off:              # Audio-Takt läuft nicht mit der Musik: nicht als eingerastet werten
+                locked = False
         else:
             b = counter.update(now, b)
         # Pause (Spotify pausiert): Spots bleiben stehen und leuchten leise, Laser aus
@@ -149,7 +151,9 @@ def show_loop(prof, t0, stop):
         BEAT["b"] = b
         recent = [f"{e[1]} (vor {int(now - e[0])} s)" for e in counter.events[-3:] if now - e[0] < 60]
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
-                        "audio": locked, "ereignisse": recent}
+                        "audio": locked, "ereignisse": recent,
+                        "abweichung": round(counter.diff, 1),      # Diagnose: HA-Position minus Zählung (Schläge)
+                        "audio_aus": counter.audio_off, "schlag_nr": round(b, 2)}
         szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
         if counter.events and now - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
             szene += f" · {counter.events[-1][1]}"
@@ -220,6 +224,7 @@ def start_beat(title, artist, info, track_id=None, duration=None):
     variant = _themes().get(key, 0)
     prof = show.profile(f"{key}#{variant}" if variant else key, info, duration, nebel=SETTINGS["nebel"])
     stop = threading.Event()
+    new_song = not BEAT["start"] or tuple(BEAT["start"][:2]) != (title, artist)
     BEAT["stop"] = stop
     BEAT["start"] = (title, artist, info, track_id, duration)
     BEAT["info"] = f"{title} – {artist}: {prof['bpm']:.1f} BPM, {show.describe(prof)}"
@@ -231,6 +236,8 @@ def start_beat(title, artist, info, track_id=None, duration=None):
         "gobos": [show.GOBO_NAMES[prof["gobo"]], show.GOBO_NAMES[prof["gobo2"]]],
         "lampen_takte": prof["lamp_beats"] // 4, "laser": show.L_ROLE_NAMES[prof["laser_role"]]}
     if AUDIO is not None:
+        if new_song:
+            AUDIO.new_song()                   # Pegelspitzen des vorigen Liedes vergessen
         AUDIO.set_bpm_hint(prof["bpm"])
     threading.Thread(target=show_loop, args=(prof, time.time(), stop), daemon=True).start()
 

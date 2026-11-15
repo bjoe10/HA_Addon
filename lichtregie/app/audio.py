@@ -23,6 +23,7 @@ HOP = 512
 N = 2048
 HOP_SEC = HOP / RATE
 ONSET_LAG = 0.012   # gemessen: Onsets werden durch das FFT-Fenster ca. 12 ms zu spät erkannt
+BREAK_MAX = 30.0    # länger als so viele Sekunden „leiser Bass“ ist kein Break, sondern eine falsche Spitze
 
 
 class Analyzer:
@@ -67,14 +68,23 @@ class Analyzer:
         self.quiet_since = None
         self.drop_at = 0.0
         self._last_tempo = 0.0
+        self.rest = b""                                        # angefangener Stereo-Frame aus dem letzten Lesen
+        self.inputs = deque(maxlen=4000)                       # (Zeit, Samples) je Lesen: Eingangsrate prüfen
 
     # --- Eingang -------------------------------------------------------------------------------------
     def feed_pcm(self, data, t_end):
         """Rohdaten (S16LE stereo) einspeisen; t_end = Zeitpunkt des letzten Samples."""
-        if len(data) < 4:
+        # Ein Lesen kann mitten in einem Stereo-Frame (4 Byte) enden. Den Rest aufheben und vorn anhängen: Früher
+        # wurde er verworfen, danach war der Ton dauerhaft um 1–3 Byte verschoben und wurde als lautes Rauschen
+        # gelesen (falsche Pegelspitzen, Break blieb hängen)
+        data = self.rest + data
+        cut = len(data) - len(data) % 4
+        self.rest = data[cut:]
+        data = data[:cut]
+        if not data:
             return
-        data = data[: len(data) - len(data) % 4]
         x = np.frombuffer(data, dtype="<i2").astype(np.float32).reshape(-1, 2).mean(axis=1) / 32768.0
+        self.inputs.append((t_end, len(x)))
         self.data_at = t_end                     # Diagnose: kommen überhaupt Daten an (auch stumme)?
         self.data_peak = max(self.data_peak * 0.98, float(np.abs(x).max()))
         self.feed(x, t_end)
@@ -99,6 +109,24 @@ class Analyzer:
             self.bpm_hint = float(bpm) if bpm else None
             if self.bpm_hint:
                 self.period = 60.0 / self.bpm_hint
+
+    def new_song(self):
+        """Neues Lied: Pegelspitzen auf den jetzigen Stand setzen. Sonst misst das neue Lied gegen die lauteste
+        Stelle des vorigen (die Spitzen klingen nur langsam ab) und gilt dauerhaft als „Break“."""
+        with self.lock:
+            self.level_peak = max(self.level, 1e-4)
+            self.bass_peak = max(self.bass, 1e-6)
+            self.bass_short = 1.0
+            self.break_on = False
+            self.quiet_since = None
+
+    def input_rate(self, now=None):
+        """Wie schnell Ton ankommt, im Verhältnis zur Echtzeit (1,0 = richtig), über die letzten 10 s."""
+        now = time.time() if now is None else now
+        recent = [(t, n) for t, n in list(self.inputs) if now - t < 10.0]
+        if len(recent) < 10 or recent[-1][0] - recent[0][0] < 3.0:
+            return None
+        return sum(n for _, n in recent[1:]) / (recent[-1][0] - recent[0][0]) / RATE
 
     # --- Verarbeitung je 11,6 ms -----------------------------------------------------------------------
     def _process(self, hop, t):
@@ -141,7 +169,14 @@ class Analyzer:
         self.bass_short += 0.05 * (self.bass / self.bass_peak - self.bass_short)   # ca. 0,25 s
         if self.bass_short < 0.3:
             self.quiet_since = self.quiet_since or t
-            if t - self.quiet_since > 2.0:
+            if t - self.quiet_since > BREAK_MAX:
+                # So lange gibt es keinen Break: Die Bass-Spitze stammt von einer zu lauten Stelle. Auf den
+                # jetzigen Bass setzen, damit Break und Drop wieder funktionieren (kein Drop auslösen)
+                self.bass_peak = max(self.bass * 1.5, 1e-6)
+                self.bass_short = self.bass / self.bass_peak
+                self.break_on = False
+                self.quiet_since = None
+            elif t - self.quiet_since > 2.0:
                 self.break_on = True
         else:
             self.quiet_since = None
@@ -280,6 +315,7 @@ class Analyzer:
                 "bass": round(min(1.0, self.bass / self.bass_peak), 2) if on else 0.0,
                 "break": self.break_on, "drop": now - self.drop_at < 8.0,
                 "wechsel": now - self.change_at < 8.0,
+                "eingang": None if (rate := self.input_rate(now)) is None else round(rate, 3),
             }
 
 

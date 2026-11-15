@@ -267,7 +267,7 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 
 ---
 
-## Stand der Umsetzung (0.8.10)
+## Stand der Umsetzung (0.8.11)
 
 **Show-Regeln** (`app/show.py`, reine Funktionen der Taktposition):
 - Song-Thema aus der Track-ID: Grund- und Akzentfarbe aus der Tonart, zwei Gobos, Motiv-Punkt, 5 Szenen
@@ -293,7 +293,8 @@ Kein Ton, während Spotify über 15 s spielt: Warnung in der Oberfläche und HA-
 **Takt- und Phrasen-Sync** (`app/beatcount.py`, ab 0.6.0): Mit eingerastetem Audio zählt die Lichtregie die
 Schläge selbst (Phase aus der Analyse), HA liefert nur die Grobposition. Anker: Drop → nächste Phrasengrenze
 (±12 Schläge), erkannter Klangwechsel → Phrasengrenze, wenn höchstens 3 Schläge daneben. Spulen (Sprung der
-Liedposition über 5 s) setzt die Zählung sofort neu auf. Synthetischer Test (`dev/test_beatcount.py`, HA
+Liedposition über 5 s) setzt die Zählung sofort neu auf. Läuft die Audio-Zählung dauerhaft gegen die HA-Position (zwei Korrekturen in
+dieselbe Richtung innerhalb von 60 s), zählt das Lied ab dann nach HA (seit 0.8.11). Synthetischer Test (`dev/test_beatcount.py`, HA
 5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
 
 **Lampen** (`app/lamps.py`): wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen. Grund- und Akzentfarbe

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.11
+
+- **Show blieb stehen, obwohl Musik lief:** Am Gerät lief die Schlagzählung deutlich langsamer als die Musik
+  (nach 40 s 23 Schläge zurück). Nach zwei Korrekturen schaltete 0.8.9 den HA-Abgleich ab, danach stand die
+  Show praktisch still, während die Analyse „sicher 100 %“ meldete (sie prüft nur, ob die Kicks zu ihrem eigenen
+  Raster passen). Jetzt wird in diesem Fall die Audio-Zählung für das Lied abgeschaltet und nach der HA-Position
+  weitergezählt: Die Show läuft im Tempo weiter, die Takt-Effekte gelten dann nicht als eingerastet.
+- **Break blieb hängen:** Die Bass-Spitze, an der Breaks gemessen werden, klang nur sehr langsam ab. Nach einer
+  lauten Stelle galt danach jedes Stück als „Break“ (ruhige Szenen, Spots treffen sich, kein Drop). Jetzt werden
+  die Pegel bei jedem neuen Lied neu angesetzt, und ein „Break“ über 30 s gilt als falsche Spitze.
+- **Leser:** Endete ein Lesevorgang mitten in einem Stereo-Frame, wurde der Rest verworfen; danach war der Ton
+  dauerhaft verschoben und wurde als Rauschen gelesen. Der Rest wird jetzt aufgehoben.
+- Diagnose: Status zeigt die Eingangsrate des Tons (`eingang`, 1,0 = Echtzeit) sowie Schlagnummer, Abweichung zu
+  HA und ob die Audio-Zählung aus ist (unter `sync`).
+
 ## 0.8.10
 
 - **Ruhe-Animationen**, wenn keine Musik läuft:

@@ -128,4 +128,46 @@ print(f"Sprünge: {jumps}")
 assert max(map(abs, end_err)) < 0.3, "Nach dem Drop nicht auf dem Raster"
 hits = sum(any(abs(cb - g) <= 3 for cb in ch_beats) for g in (32, 64, 96, 128))
 assert hits >= 3, "zu wenige Phrasenwechsel erkannt"
+
+# --- Teil 3: Audio-Zeit läuft zu langsam (am Gerät gesehen, 0.8.10) ----------------------------------
+# Die Audiophase läuft mit 73 % der echten Geschwindigkeit, HA stimmt. Erwartet: Nach zwei Korrekturen zählt
+# das Lied nach HA weiter und bleibt in der Nähe der echten Position, statt stehen zu bleiben.
+c = BeatCounter()
+t0 = 3000.0
+for i in range(90 * 40):
+    t = t0 + i / 40
+    b_true = (t - t0) / BEAT
+    b = c.update(t, ha_pos(b_true, t, 0), (b_true * 0.73) % 1.0, 0.0, 0.0, BPM)
+ev = [e[1] for e in c.events]
+print(f"Audio zu langsam: nach 90 s Fehler {b - b_true:+.1f} Schläge, Ereignisse {ev}")
+assert c.audio_off, "Audio-Zählung nicht abgeschaltet"
+assert abs(b - b_true) < 2.0, "Zählung läuft nicht mit der Musik"
+
+# --- Teil 4: Leser und Pegel ---------------------------------------------------------------------------
+# Ungerade Leseblöcke dürfen den Ton nicht verschieben (früher: Rest verworfen → Rauschen)
+pcm = (np.clip(x[: RATE * 4], -1, 1) * 32767).astype("<i2")
+pcm = np.repeat(pcm, 2).tobytes()
+a1, a2 = audio.Analyzer(), audio.Analyzer()
+a1.feed_pcm(pcm, 10.0)
+pos = 0
+for size in [1001, 2047, 3, 4093, 517] * 1000:
+    if pos >= len(pcm):
+        break
+    a2.feed_pcm(pcm[pos:pos + size], 10.0)
+    pos += size
+assert abs(a1.level - a2.level) < 1e-6 and abs(a1.bass_peak - a2.bass_peak) < 1e-6, "ungerade Blöcke verschieben den Ton"
+print("Leser: ungerade Blöcke ok")
+
+# Eine zu laute Stelle darf das nächste Stück nicht dauerhaft zum „Break“ machen
+an = audio.Analyzer()
+loud = (np.sin(2 * np.pi * 60 * np.arange(RATE) / RATE) * 0.99).astype(np.float32)
+an.feed(loud, 1.0)
+quiet = x[RATE * 20: RATE * 60] * 0.1
+for i in range(0, len(quiet), 4410):
+    an.feed(quiet[i:i + 4410].astype(np.float32), 1.0 + (i + 4410) / RATE)
+print(f"Nach lauter Stelle: Break {an.break_on}")
+assert not an.break_on, "Break bleibt nach lauter Stelle hängen"
+an.feed(loud, 50.0)
+an.new_song()
+assert not an.break_on and an.bass_peak <= an.bass + 1e-6, "neues Lied setzt die Pegel nicht zurück"
 print("Schlagzählung ok")
