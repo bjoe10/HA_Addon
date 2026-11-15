@@ -83,7 +83,11 @@ for path, needle in (("/", b"<!doctype html>"), ("/style.css", b"body"), ("/app.
     assert needle in get(path), path
 st = json.loads(get("/api/state"))
 assert st["laeuft"] and "settings" in st and "laser" in st and "1" in st
+import numpy as np  # noqa: E402
+engine.SPOTS["9"] = {"x": np.float32(1.5)}       # wie aus der Audioanalyse
 sp = json.loads(get("/api/status"))
+assert sp["spots"]["9"]["x"] == 1.5
+del engine.SPOTS["9"]
 assert {"spots", "szene", "audio", "warnungen", "party", "lied"} <= set(sp), sp.keys()
 assert sp["lied"]["titel"] == "Testlied" and sp["lied"]["bpm"] == 128
 # Takt-Sync von Hand: Verschiebung wird übernommen und angezeigt

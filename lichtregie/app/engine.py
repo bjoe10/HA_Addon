@@ -136,7 +136,7 @@ def show_loop(prof, t0, stop):
                 hell = strobe = 0
             heads.apply(k, pan, tilt, True, v["farbe"], v["gobo"], strobe, hell)
             x, y, z = v["ziel"]
-            SPOTS[str(k)] = {"x": x, "y": y, "z": z, "hell": hell, "farbe": v["farbe"]}
+            SPOTS[str(k)] = {"x": float(x), "y": float(y), "z": float(z), "hell": int(hell), "farbe": int(v["farbe"])}
         if paused:
             laser.off()
         elif SETTINGS["laser"] and not SETTINGS["takttest"]:

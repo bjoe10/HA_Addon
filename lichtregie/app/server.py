@@ -84,7 +84,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _json(self, data, code=200):
-        self._send(code, "application/json", json.dumps(data).encode("utf-8"))
+        # Werte aus der Audioanalyse sind teils numpy-Zahlen (float32); die als normale Zahlen senden
+        self._send(code, "application/json",
+                   json.dumps(data, default=lambda o: o.item() if hasattr(o, "item") else str(o)).encode("utf-8"))
 
     def _allowed(self):
         """Im Add-on (Host-Netzwerk) nur Anfragen über den HA-Ingress-Proxy annehmen."""

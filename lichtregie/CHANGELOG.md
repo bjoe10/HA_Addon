@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.8
+
+- Fehler behoben: Sobald Ton ankam, stürzte die Status-Abfrage der Oberfläche ab (numpy-Zahl aus der
+  Audioanalyse nicht als JSON sendbar). Startseite, Vorschau und Status blieben dadurch stehen.
+
 ## 0.8.7
 
 - **Empfänger auf stdout umgestellt:** Am Gerät meldete shairport-sync (beim Neubau jetzt Version 5.5.1) eine
