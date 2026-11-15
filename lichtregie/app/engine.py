@@ -73,6 +73,7 @@ def show_loop(prof, t0, stop):
     started = time.time()
     counter = BeatCounter()
     last_b = None
+    frames, fps_t = 0, time.time()
     seeks = LIVE["seeks"]
     if AUDIO is not None:        # Ereignisse aus dem vorigen Lied nicht als Anker nehmen
         counter.seen_drop, counter.seen_change = AUDIO.drop_at, AUDIO.change_at
@@ -141,6 +142,10 @@ def show_loop(prof, t0, stop):
             laser.off()
         elif SETTINGS["laser"] and not SETTINGS["takttest"]:
             laser.apply_show(show.laser_frame(prof, b, live, locked))
+        frames += 1
+        if now - fps_t >= 2.0:                 # Bildrate für die Anzeige (Soll: 40)
+            BEAT["fps"] = round(frames / (now - fps_t), 1)
+            frames, fps_t = 0, now
         BEAT["b"] = b
         recent = [f"{e[1]} (vor {int(now - e[0])} s)" for e in counter.events[-3:] if now - e[0] < 60]
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,

@@ -80,13 +80,19 @@ class Analyzer:
         self.feed(x, t_end)
 
     def feed(self, mono, t_end):
+        # Die Sperre nur für jeweils einen Hop halten: Kommt Ton in großen Blöcken (stdout von shairport-sync),
+        # käme die Show-Schleife sonst lange nicht an Phase und Pegel und würde ruckeln
         with self.lock:
             self.pending = np.concatenate([self.pending, mono.astype(np.float32)])
-            while len(self.pending) >= HOP:
+        while True:
+            with self.lock:
+                if len(self.pending) < HOP:
+                    return
                 hop = self.pending[:HOP]
                 self.pending = self.pending[HOP:]
                 t_hop = t_end - len(self.pending) / RATE
                 self._process(hop, t_hop)
+            time.sleep(0)                        # anderen Threads Gelegenheit geben
 
     def set_bpm_hint(self, bpm):
         with self.lock:

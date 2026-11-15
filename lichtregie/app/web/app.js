@@ -113,12 +113,12 @@ function showStatus(d) {
              + (a.break ? ' · Break' : '') + (a.drop ? ' · Drop' : '') + (a.wechsel ? ' · Klangwechsel' : '')
     : 'Kein Signal am Empfänger';
   spots = d.spots || {};
-  showSync(d.sync);
+  showSync(d.sync, d.fps);
   draw();
 }
 // --- Takt-Sync: 8 Takte à 4 Schläge, aktueller Schlag leuchtet ---------------------------------------
 $('phrase').innerHTML = Array.from({length: 8}, (_, i) => `<div class="bar${i === 0 ? ' first' : ''}"><i></i><i></i><i></i><i></i></div>`).join('');
-function showSync(s) {
+function showSync(s, fps) {
   const bars = all('#phrase .bar');
   bars.forEach((bar, bi) => {
     bar.classList.toggle('cur', !!s && s.takt === bi + 1);
@@ -129,6 +129,7 @@ function showSync(s) {
   });
   $('syncstat').textContent = !s ? 'Keine Show läuft.'
     : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Spotify-Position (ungenau)')
+      + (fps ? ` · ${fps} Bilder/s` + (fps < 25 ? ' (zu wenig, Soll 40)' : '') : '')
       + (s.ereignisse.length ? ' · ' + s.ereignisse.join(', ') : '');
 }
 for (const [id, body] of [['syncm4', {schlaege: -4}], ['syncp4', {schlaege: 4}], ['syncm1', {schlaege: -1}],

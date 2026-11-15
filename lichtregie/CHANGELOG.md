@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.9
+
+- **Schlagzählung repariert:** Am Gerät sprang die Zählung alle 11 s um +25 Schläge („HA-Abgleich“), Takt und
+  Phrase passten dadurch nie zur Musik. Ursache: Gezählt wurde über die Phasensprünge von Bild zu Bild; lief
+  die Show-Schleife auf dem Pi mit unter ~5 Bildern/s, gingen Schläge verloren. Jetzt wird aus der vergangenen
+  Zeit vorhergesagt und auf die gemessene Phase eingerastet: richtig bei jeder Bildrate (Test bis 1,3 s
+  Bildabstand).
+- HA-Abgleich schaltet sich für das Lied ab, wenn er zweimal kurz hintereinander in dieselbe Richtung korrigieren
+  müsste (Tempo aus der Datenbank passt nicht zum Audio); dann zählt nur das Audio.
+- Audioanalyse hält ihre Sperre nur noch je Hop: Kommt Ton in großen Blöcken, blockierte sie die Show-Schleife
+  (wahrscheinliche Ursache der niedrigen Bildrate).
+- Bildrate der Show in der Takt-Sync-Anzeige (Soll 40/s, Hinweis unter 25).
+
 ## 0.8.8
 
 - Fehler behoben: Sobald Ton ankam, stürzte die Status-Abfrage der Oberfläche ab (numpy-Zahl aus der

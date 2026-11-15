@@ -32,6 +32,8 @@ class BeatCounter:
         self.seen_drop = 0.0
         self.seen_change = 0.0
         self.events = []        # (Zeit, Text) für die Anzeige
+        self.last_fix = None    # (Zeit, Richtung) des letzten HA-Abgleichs
+        self.ha_off = False     # HA-Abgleich für dieses Lied abgeschaltet
 
     def shift(self, s, now, why="von Hand"):
         """Zählung um s Schläge verschieben (z. B. nach dem Break, wenn der Einsatz nicht stimmt)."""
@@ -54,28 +56,33 @@ class BeatCounter:
             self.prev = None
             b = b_ref
         else:
-            if self.count is None:
-                recent = self.last_b is not None and self.last_t is not None and now - self.last_t < 2.0
-                ref = self.last_b + (now - self.last_t) / beat if recent else b_ref
-                self.count = round(ref - frac)
-            elif self.prev is not None:
-                if self.prev > 0.7 and frac < 0.3:
-                    self.count += 1
-                elif self.prev < 0.3 and frac > 0.7:
-                    self.count -= 1
+            # Vorhersage aus dem letzten Bild und der vergangenen Zeit, auf die gemessene Phase eingerastet.
+            # Das zählt auch dann richtig, wenn Bilder ausfallen (früher: Zählen der Phasensprünge, das verlor
+            # bei unter ~5 Bildern/s Schläge)
+            recent = self.last_b is not None and self.last_t is not None and now - self.last_t < 2.0
+            ref = self.last_b + (now - self.last_t) / beat if recent else b_ref
+            self.count = round(ref - frac)
             self.prev = frac
             b = self.count + frac
             # Grobe Drift gegen HA: nur wenn sie groß ist und anhält
             self.diff += 0.02 * ((b_ref - b) - self.diff)
-            if abs(self.diff) > DRIFT_LIMIT:
+            if abs(self.diff) > DRIFT_LIMIT and not self.ha_off:
                 self.far_since = self.far_since or now
                 if now - self.far_since > DRIFT_TIME:
                     s = round(self.diff)
-                    self.count += s
-                    b += s
-                    self.diff -= s
-                    self.far_since = None
-                    self.events.append((now, f"HA-Abgleich: {s:+d} Schläge"))
+                    if self.last_fix and now - self.last_fix[0] < 60 and (s > 0) == self.last_fix[1]:
+                        # zweimal kurz hintereinander in dieselbe Richtung: HA und Audio laufen verschieden
+                        # schnell (Tempo aus der Datenbank passt nicht). Dann zählt nur noch das Audio.
+                        self.ha_off = True
+                        self.far_since = None
+                        self.events.append((now, "HA-Abgleich aus (Tempo passt nicht)"))
+                    else:
+                        self.count += s
+                        b += s
+                        self.diff -= s
+                        self.far_since = None
+                        self.last_fix = (now, s > 0)
+                        self.events.append((now, f"HA-Abgleich: {s:+d} Schläge"))
             else:
                 self.far_since = None
         # Drop als Anker: auf die nächste Phrasengrenze legen
