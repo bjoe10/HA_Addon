@@ -27,6 +27,7 @@ BEAT = {"stop": None, "info": "aus", "szene": "", "start": None, "lied": None, "
 WATCH = {"stop": None}               # Titel-Überwachung
 SPOTS = {}                           # aktuelle Zielpunkte für die Vorschau im Raumbild
 SYNC = {"pending": 0}                # Verschiebung der Schlagzählung von Hand (Schläge), wird im Bild übernommen
+IDLE = {"on": False}                 # vom Party-Modus gesetzt: Party läuft (dann Ruhe-Animation, wenn keine Show)
 BLACKOUT_SEC = 0.6                   # Liedwechsel: so lange dunkel, damit Farb- und Goborad unsichtbar laufen
 
 
@@ -112,9 +113,8 @@ def show_loop(prof, t0, stop):
         out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"],
                                strobe_amount=SETTINGS["strobe_menge"],
                                live=live, locked=locked)
-        if paused:
-            glow = int(show.MIN_DIM + 50 + 30 * math.sin(now * 2 * math.pi / 6))
-            out = {k: dict(v, hell=glow, strobe=0) for k, v in out.items()}
+        if paused:                             # Ruhe-Animation: Spots treffen sich über dem TV und atmen
+            out = show.idle_frame(now, "pause", [show.WHEEL[prof["base"]]])
             info = "Pause"
         if SETTINGS["takttest"]:
             # Takt-Test zum Einstellen von Audio-Versatz und Takt-Sync: weiß auf TV-Wand-Mitte, Blitz auf jedem
@@ -187,6 +187,30 @@ def reroll():
         pass
     restart_beat()
     return True
+
+
+def idle_loop():
+    """Ruhe-Animation mit 20 Bildern/s: läuft, solange die Party an ist, aber keine Show (noch keine Musik,
+    Lied ohne Tempo, gerade zwischen zwei Shows). Laser aus; die Spots zeigt auch die Vorschau."""
+    was_idle = False
+    while True:
+        time.sleep(0.05)
+        idle = IDLE["on"] and BEAT["stop"] is None and not SETTINGS["takttest"]
+        if not idle:
+            was_idle = False
+            continue
+        if not was_idle:
+            laser.off()
+            was_idle = True
+        now = time.time()
+        for k, v in show.idle_frame(now, "warten").items():
+            pan, tilt = heads.aim_show(k, v["ziel"])
+            heads.apply(k, pan, tilt, True, v["farbe"], v["gobo"], 0, v["hell"])
+            x, y, z = v["ziel"]
+            SPOTS[str(k)] = {"x": float(x), "y": float(y), "z": float(z), "hell": int(v["hell"]),
+                             "farbe": int(v["farbe"])}
+        if not BEAT["szene"].startswith("Warten"):
+            BEAT["szene"] = "Warten auf Musik · Sternhimmel"
 
 
 def start_beat(title, artist, info, track_id=None, duration=None):

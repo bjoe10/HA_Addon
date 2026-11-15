@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.10
+
+- **Ruhe-Animationen**, wenn keine Musik läuft:
+  - *Warten* (Party an, noch keine Musik, oder ein Lied ohne Tempo): Sternhimmel an der Decke. Beide Köpfe
+    ziehen langsam gegenläufig Kreise (40 s pro Runde), Gobo Punkte-Ring, sanftes Atmen; die Farbe wechselt
+    alle 24 s, der Radwechsel passiert im Dunkeln. Laser aus.
+  - *Pause* (Spotify pausiert): Beide Spots treffen sich über dem TV, pendeln leicht gegeneinander und atmen in
+    der Grundfarbe des Liedes. Bisher blieben sie einfach stehen.
+  - Beim Ausschalten wie bisher: dunkel in die Parkposition, dann Steckdosen aus.
+
 ## 0.8.9
 
 - **Schlagzählung repariert:** Am Gerät sprang die Zählung alle 11 s um +25 Schläge („HA-Abgleich“), Takt und

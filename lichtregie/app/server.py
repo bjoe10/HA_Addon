@@ -170,6 +170,7 @@ def main():
     threading.Thread(target=sender, args=(stop,), daemon=True).start()
     threading.Thread(target=lamps.lamp_loop, daemon=True).start()
     threading.Thread(target=party.loop, daemon=True).start()
+    threading.Thread(target=engine.idle_loop, daemon=True).start()
     if engine.AUDIO is not None:
         threading.Thread(target=engine.audio_watch_loop, daemon=True).start()
         if config.AUDIO_CMD:

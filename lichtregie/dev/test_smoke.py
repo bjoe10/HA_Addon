@@ -123,8 +123,17 @@ assert laser.STATE["mode"] == 0 and not engine.SPOTS
 ha.now_playing = lambda: None
 engine.LIVE.update(live=None, at=0.0)       # Spotify meldet nichts: nur der Ton zählt als Musik
 CALLS.clear()
+threading.Thread(target=engine.idle_loop, daemon=True).start()
 st = post("/api/party", {"an": True})
 assert st["party"]["an"] and lamps.ROOM["dark"]
+# keine Musik: Ruhe-Animation (Sternhimmel an der Decke, Gobo Punkte-Ring, Köpfe bewegen sich)
+pans = set()
+for _ in range(20):
+    time.sleep(0.1)
+    pans.add(heads.STATE[1]["pan"])
+assert heads.STATE[1]["gobo"] == 21 and len(pans) > 3, (heads.STATE[1], len(pans))
+assert engine.BEAT["szene"].startswith("Warten") and engine.SPOTS["1"]["z"] == 2.5
+assert laser.STATE["mode"] == 0
 assert ("homeassistant.turn_on", config.GERAETE) in CALLS, CALLS
 st = post("/api/party", {"an": False})
 assert not st["party"]["an"] and st["party"]["gesperrt"] and not lamps.ROOM["dark"]

@@ -60,6 +60,7 @@ def start(why="von Hand", last_music=None):
         lamps.set_room(True)
         for k in heads.HEADS:
             heads.apply(k, on=True, hell=0, strobe=0)
+        engine.IDLE["on"] = True          # bis Musik kommt: Ruhe-Animation
         engine.start_watch("", "")     # nimmt den laufenden Titel und startet die Show
         DEVICES["at"] = 0.0
 
@@ -77,6 +78,8 @@ def stop(why="von Hand", manual=True):
         PARTY.update(on=False, why=why, since=time.time(), manual_stop=manual)
         _save()
         print(f"Party aus ({why})", flush=True)
+        engine.IDLE["on"] = False
+        time.sleep(0.1)                   # Ruhe-Animation ein letztes Bild fertig rechnen lassen
         engine.stop_all()
         for k in heads.HEADS:      # dunkel und in die Parkposition fahren
             heads.apply(k, pan=PARK[0], tilt=PARK[1], on=False, strobe=0)

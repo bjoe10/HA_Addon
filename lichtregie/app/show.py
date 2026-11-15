@@ -769,3 +769,43 @@ def laser_frame(prof, b, live=None, locked=False):
     dots = 0 if ls["dots"] == "normal" else (150 if teil != "Break" else 210)
     return {"mode": L_MODE, "shape": shape, "rotate": rotate, "mirror_h": mirror_h, "mirror_v": mirror_v,
             "size": size, "color": color, "dots": dots, "pos": (x, y), "teil": teil}
+
+
+# --- Ruhe-Animationen (keine Musik) ----------------------------------------------------------------
+IDLE_COLORS = [64, 73, 36, 22, 54, 17]     # Farbfolge beim Warten (eisblau, lila, blau, grün, orange, rot)
+IDLE_COLOR_SEC = 24.0                      # so lange bleibt eine Farbe; der Radwechsel passiert im Dunkeln
+
+
+def _level(x):
+    return 0 if x <= 0 else int(MIN_DIM + (255 - MIN_DIM) * min(1.0, x))
+
+
+def idle_frame(t, mode="warten", colors=None):
+    """Bild für die Köpfe, wenn keine Musik läuft. t = Zeit in Sekunden.
+    - "warten": Party an, noch keine Musik (oder zwischen zwei Liedern ohne Tempo): Sternhimmel an der Decke.
+      Beide Köpfe ziehen langsam gegenläufig Kreise (40 s pro Runde), Gobo Punkte-Ring, sanftes Atmen,
+      Farbe wechselt alle 24 s im Dunkeln.
+    - "pause": Spotify pausiert: beide Spots treffen sich über dem TV, pendeln leicht und atmen in der
+      Grundfarbe des Liedes.
+    Rückgabe wie frame(): {kopf: {ziel, hell, farbe, gobo, strobe}}."""
+    out = {}
+    if mode == "pause":
+        color = (colors or [64])[0]
+        for k in (1, 2):
+            sway = 0.25 * math.sin(2 * math.pi * t / 12.0 + (0 if k == 1 else math.pi))
+            breath = 0.35 + 0.25 * (0.5 - 0.5 * math.cos(2 * math.pi * t / 6.0))
+            out[k] = {"ziel": (2.5 + sway, 0.0, 1.9), "hell": _level(breath), "farbe": color, "gobo": 0,
+                      "strobe": 0}
+        return out
+    step = int(t // IDLE_COLOR_SEC)
+    palette = colors or IDLE_COLORS
+    color = palette[step % len(palette)]
+    in_step = t % IDLE_COLOR_SEC
+    for k in (1, 2):
+        a = 2 * math.pi * t / 40.0 + (0 if k == 1 else math.pi)
+        target = (2.5 + 1.3 * math.cos(a), 3.0 + 1.6 * math.sin(a), 2.5)
+        breath = 0.3 + 0.3 * (0.5 - 0.5 * math.cos(2 * math.pi * (t / 10.0 + (0 if k == 1 else 0.5))))
+        if in_step > IDLE_COLOR_SEC - 0.8 or in_step < 0.2:     # Radwechsel im Dunkeln
+            breath = 0.0
+        out[k] = {"ziel": target, "hell": _level(breath), "farbe": color, "gobo": 21, "strobe": 0}
+    return out

@@ -58,7 +58,9 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   Party hält auch Spotify am Leben.
 - **Von Hand:** großer Schalter auf der Startseite. Ein Stopp von Hand gilt, bis die Musik einmal eine Minute
   aus war; sonst würde die Automatik sofort wieder einschalten.
-- **Pause:** Pausiert Spotify, bleiben die Spots stehen und leuchten leise, der Laser geht aus.
+- **Ruhe-Animationen:** Läuft die Party ohne Musik, zeigen die Köpfe einen langsam kreisenden Sternhimmel an
+  der Decke. Pausiert Spotify, treffen sich beide Spots über dem TV und atmen in der Farbe des Liedes. Der
+  Laser ist dann aus.
 - **Überspringen und Spulen:** Ein neuer Titel wird nach spätestens 2 s erkannt. Spulen im Lied (Sprung über
   5 s) setzt die Schlagzählung neu auf, sobald HA die neue Position meldet.
 - **Titel unbekannt:** Kennt FreqBlog das Lied nicht oder meldet HA keinen Titel, läuft die Show mit dem Tempo
