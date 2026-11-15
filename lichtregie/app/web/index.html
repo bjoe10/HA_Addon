@@ -98,11 +98,7 @@
   <h2>Lampen</h2>
   <p class="status" id="lampstat">–</p>
   <p class="label">Farbwechsel der Ambilights</p>
-  <div class="switches three">
-   <button class="sw" data-choice="lampen_wechsel" data-value="0.25">¼ Schlag</button>
-   <button class="sw" data-choice="lampen_wechsel" data-value="0.5">½ Schlag</button>
-   <button class="sw" data-choice="lampen_wechsel" data-value="1">jeder Schlag</button>
-   <button class="sw" data-choice="lampen_wechsel" data-value="2">halber Takt</button>
+  <div class="switches">
    <button class="sw" data-choice="lampen_wechsel" data-value="4">jeder Takt</button>
    <button class="sw" data-choice="lampen_wechsel" data-value="8">2 Takte</button>
    <button class="sw" data-choice="lampen_wechsel" data-value="16">4 Takte</button>
@@ -112,15 +108,12 @@
    <button class="sw" data-set="lampen_hart">Harter Wechsel</button>
    <button class="sw" data-set="lampentest">Lampen-Test</button>
   </div>
-  <label>Dunkel vor dem Wechsel <span class="val" data-val="lampen_dunkel" data-unit=" % eines Schlags"></span>
-   <input type="range" data-set="lampen_dunkel" min="0" max="75" step="5"></label>
   <label>Vorlauf <span class="val" data-val="lampen_vorlauf" data-unit=" s"></span>
    <input type="range" data-set="lampen_vorlauf" min="0" max="2" step="0.05"></label>
-  <p class="hint">Die Ambilights wechseln auf dem Schlag die Farbe, hart ohne Übergang. „Dunkel“ schaltet sie
-   kurz vorher aus, dann fällt der Wechsel stärker auf (0 = direkt umschalten). „Nach Lied“: alle 8 oder
-   16 Takte, je nach Thema. Lampen-Test: Die Ambilights wechseln im eingestellten Rhythmus zwischen rot und blau.
-   Den Vorlauf so stellen, dass der Wechsel auf dem Kick sitzt; schneller stellen, bis sie nicht mehr mitkommen
-   (Messwerte oben in der Karte).</p>
+  <p class="hint">Die Ambilights wechseln auf der „1“ des Takts die Farbe, hart ohne Übergang. „Nach Lied“: alle
+   8 oder 16 Takte, je nach Thema. Schneller als ein Takt geht nicht: Die Yeelights nehmen nur etwa 60 Befehle
+   pro Minute an. Lampen-Test: Die Ambilights wechseln im eingestellten Rhythmus zwischen rot und blau; den
+   Vorlauf so stellen, dass der Wechsel auf dem Kick sitzt.</p>
  </section>
 
  <section class="card">

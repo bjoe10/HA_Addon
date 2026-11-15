@@ -293,12 +293,15 @@ Kein Ton, während Spotify über 15 s spielt: Warnung in der Oberfläche und HA-
 **Takt- und Phrasen-Sync** (`app/beatcount.py`, ab 0.6.0): Mit eingerastetem Audio zählt die Lichtregie die
 Schläge selbst (Phase aus der Analyse), HA liefert nur die Grobposition. Anker: Drop → nächste Phrasengrenze
 (±12 Schläge), erkannter Klangwechsel → Phrasengrenze, wenn höchstens 3 Schläge daneben. Spulen (Sprung der
-Liedposition über 5 s) setzt die Zählung sofort neu auf. Läuft die Audio-Zählung dauerhaft gegen die HA-Position (zwei Korrekturen in
+Liedposition über 5 s) setzt die Zählung sofort neu auf. Die „1“ im Takt kommt seit 0.8.13 aus dem Audio:
+Klangwechsel je Schlag, über mehrere Takte auf die vier Positionen summiert; die deutlich stärkste wird zur „1“
+(Takt-Anker). Danach verschieben Drop und Phrasenwechsel nur um ganze Takte; eine Korrektur von Hand hat Vorrang. Läuft die Audio-Zählung dauerhaft gegen die HA-Position (zwei Korrekturen in
 dieselbe Richtung innerhalb von 60 s), zählt das Lied ab dann nach HA (seit 0.8.11). Synthetischer Test (`dev/test_beatcount.py`, HA
 5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
 
 **Lampen** (`app/lamps.py`): Die Ambilights wechseln seit 0.8.12 hart auf dem Schlag, im eingestellten
-Rhythmus (Standard jeder Takt, „nach Lied“ = 8 oder 16 Takte), auf Wunsch kurz dunkel davor; um den Vorlauf
+Rhythmus (Standard jeder Takt, „nach Lied“ = 8 oder 16 Takte; schneller geht nicht, die Yeelights nehmen nur ca.
+60 Befehle pro Minute je Lampe an); nur geänderte Werte, Budget je Gruppe; um den Vorlauf
 vorgezogen (Standard 0,8 s), Lampen-Schleife alle 20 ms. Grund- und Akzentfarbe
 laufen über HA; Schrank 1 (links vom TV) und Schrank 2 (rechts) wechseln sich je Takt bei 100 % und 20 % ab,
 die Ambilights durchlaufen Grund-, Akzent- und Komplementärfarbe. Der Ausgangszustand wird gesichert und nach

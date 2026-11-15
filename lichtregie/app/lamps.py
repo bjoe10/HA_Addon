@@ -14,6 +14,11 @@ LAMP = {"prof": None, "b": 0.0, "at": 0.0, "live": None, "last": {}, "snapshot":
 TICK = 0.02                # so oft rechnet lamp_loop nach: Wechsel liegen auf ±20 ms am geplanten Zeitpunkt
 TEST_COLORS = (17, 36)     # Lampen-Test: rot und blau im Wechsel, im eingestellten Rhythmus
 CALLS = deque(maxlen=2000)  # (Zeit, Dauer s, ok, Gruppe) je Befehl an HA: wie schnell geht es wirklich?
+# Yeelights nehmen nur ca. 60 Befehle pro Minute je Lampe an („client quota exceeded“). HA schickt Farbe und
+# Helligkeit als getrennte Befehle; gezählt wird deshalb je geändertem Wert. Ist das Budget einer Gruppe
+# aufgebraucht, wird der Wechsel ausgelassen statt von der Lampe abgelehnt.
+QUOTA = 50
+SPENT = {}                 # Gruppe → deque[(Zeit, Befehle)]
 
 
 def stats(now=None):
@@ -111,9 +116,9 @@ def want_now():
     Verzögerung, deshalb wird die Lage um den Vorlauf vorausgerechnet; so kommt der Wechsel auf dem Schlag an."""
     bps = LAMP["prof"]["bpm"] / 60.0
     b_lamp = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["lampen_vorlauf"]) * bps
-    want = show.lamps(LAMP["prof"], b_lamp, LAMP["live"], SETTINGS["lampen_wechsel"], SETTINGS["lampen_dunkel"])
+    want = show.lamps(LAMP["prof"], b_lamp, LAMP["live"], SETTINGS["lampen_wechsel"])
     if SETTINGS["lampentest"]:
-        per = SETTINGS["lampen_wechsel"] or 4
+        per = show.lamp_period(LAMP["prof"], SETTINGS["lampen_wechsel"] or show.LAMP_MIN_BEATS)
         want["grund"] = (show.RGB[TEST_COLORS[int(b_lamp // per) % 2]], 100)
     # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
     for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine"),
@@ -124,17 +129,33 @@ def want_now():
 
 
 def send(want):
-    """Nur die Gruppen senden, die sich geändert haben, Ambilights zuerst (sie tragen den Wechsel)."""
+    """Nur die Gruppen senden, die sich geändert haben, Ambilights zuerst (sie tragen den Wechsel), und davon nur
+    die geänderten Werte: Ein Farbwechsel ist ein Befehl, das Wechselspiel der Schränke auch."""
     trans = 0 if SETTINGS["lampen_hart"] else 0.4
+    now = time.time()
     for group, ents in groups():
         if not ents or LAMP["last"].get(group) == want[group]:
             continue
-        LAMP["last"][group] = want[group]
         rgb, pct = want[group]
-        t0 = time.time()
+        prev = LAMP["last"].get(group)
+        data = {"entity_id": ents, "transition": trans}
         if pct == 0:
-            ok = ha.call("light", "turn_off", {"entity_id": ents, "transition": 0})
+            service, cost = "turn_off", 1
         else:
-            ok = ha.call("light", "turn_on", {"entity_id": ents, "rgb_color": list(rgb),
-                                              "brightness_pct": pct, "transition": trans})
+            service, cost = "turn_on", 0
+            if prev is None or prev[1] == 0 or prev[0] != rgb:
+                data["rgb_color"] = list(rgb)
+                cost += 1
+            if prev is None or prev[1] == 0 or prev[1] != pct:
+                data["brightness_pct"] = pct
+                cost += 1
+        spent = SPENT.setdefault(group, deque())
+        while spent and now - spent[0][0] > 60.0:
+            spent.popleft()
+        if sum(c for _, c in spent) + cost > QUOTA:
+            continue                            # Budget der Lampe aufgebraucht: diesen Wechsel auslassen
+        spent.append((now, cost))
+        LAMP["last"][group] = want[group]
+        t0 = time.time()
+        ok = ha.call("light", service, data)
         CALLS.append((t0, time.time() - t0, bool(ok), group))

@@ -170,4 +170,59 @@ assert not an.break_on, "Break bleibt nach lauter Stelle hängen"
 an.feed(loud, 50.0)
 an.new_song()
 assert not an.break_on and an.bass_peak <= an.bass + 1e-6, "neues Lied setzt die Pegel nicht zurück"
+
+
+# --- Teil 5: die „1“ im Takt aus dem Klangwechsel ------------------------------------------------------
+# Kick auf jedem Schlag (kein Hinweis auf die „1“), Akkord und Bass-Ton wechseln auf jeder „1“. HA liegt um
+# `wrong` Schläge daneben. Erwartet: Die Zählung findet die „1“ (Rest modulo 4 ≈ 0) und bleibt dort.
+def bar_song(bars=40):
+    chords = [(220, 277, 330), (196, 247, 294), (175, 220, 262), (247, 311, 370)]
+    bass = [55, 49, 44, 62]
+    total = OFFSET + bars * 4 * BEAT + 1.0
+    t = np.arange(int(total * RATE)) / RATE
+    y = np.zeros_like(t)
+    for k in range(bars):
+        a, e = OFFSET + 4 * k * BEAT, OFFSET + 4 * (k + 1) * BEAT
+        m = (t >= a) & (t < e)
+        for f in chords[k % 4]:
+            y[m] += 0.05 * np.sin(2 * np.pi * f * t[m])
+        y[m] += 0.12 * np.sin(2 * np.pi * bass[k % 4] * 2 * t[m])
+        for j in range(4):
+            i = int((a + j * BEAT) * RATE)
+            n = int(0.15 * RATE)
+            ts = np.arange(n) / RATE
+            kick = 0.9 * np.sin(2 * np.pi * (55 + 60 * np.exp(-ts * 30)) * ts) * np.exp(-ts * 18)
+            y[i:i + n] += kick[: len(y) - i]
+    return np.clip(y, -1, 1).astype(np.float32)
+
+
+for wrong in (2, -1, 1):
+    y = bar_song()
+    an = audio.Analyzer()
+    an.set_bpm_hint(BPM)
+    c = BeatCounter()
+    t0 = 5000.0 + wrong
+    errs = []
+    for i in range(0, len(y), 1102):
+        part = y[i:i + 1102]
+        now = t0 + (i + len(part)) / RATE
+        an.feed(part, now)
+        if not an.signal(now):
+            continue
+        b_true = (now - t0 - OFFSET) / BEAT
+        locked = an.phase_ok(now)
+        frac = an.phase(now) if locked else None
+        ch = an.changes_since(c.seen_bc) if locked else None
+        b = c.update(now, b_true + wrong, frac, 0.0, 0.0, BPM, ch)
+        if b_true > 100:
+            errs.append(b - b_true)
+    off = [((e + 2) % 4) - 2 for e in errs]
+    print(f"„1“ aus dem Klang, HA {wrong:+d} daneben: Rest modulo 4 max {max(map(abs, off)):.2f}, "
+          f"{c.bar_info()}, Ereignisse {[e[1] for e in c.events]}")
+    assert c.bar_locked and max(map(abs, off)) < 0.3, "„1“ nicht gefunden"
+
+# Von Hand gesetzt: der Takt-Anker greift nicht mehr ein
+c = BeatCounter()
+c.shift(1, 0.0)
+assert c.bar_manual and c.bar_info()["quelle"] == "von Hand"
 print("Schlagzählung ok")

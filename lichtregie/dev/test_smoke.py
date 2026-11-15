@@ -209,29 +209,35 @@ while engine.BEAT["stop"] is None and time.time() < deadline:
 assert engine.BEAT["stop"] is not None, "Show kommt nach der Pause nicht wieder"
 print("Show nur mit Ton: Pause nach 2 s, Warten nach 10 s, zurück mit dem Ton (Zeiten im Test verkürzt)")
 
-# --- Lampen: harter Wechsel auf dem Schlag, kurz dunkel davor, nur Geänderte senden ----------------------
+# --- Lampen: harter Wechsel auf der „1“, mindestens ein Takt, nur Geänderte senden, Budget je Lampe ------
 prof = show.profile("lampentest", {"bpm": 120, "energy": 0.8}, 200)
-seen = {}
-for i in range(0, 64 * 40):
-    b = i / 40
-    want = show.lamps(prof, b, None, 4, 25)
-    seen.setdefault(int(b // 4), set()).add(want["grund"])
-colors = [{c for c, p in v if p} for _, v in sorted(seen.items())]
-assert all(len(c) == 1 for c in colors), "Farbe wechselt mitten im Takt"
-dark = [b for b in (i / 40 for i in range(64 * 40)) if show.lamps(prof, b, None, 4, 25)["grund"][1] == 0]
-assert dark and all(3.75 <= b % 4 < 4.0 for b in dark), f"dunkel nicht nur im letzten Viertelschlag: {dark[:5]}"
-assert not any(show.lamps(prof, b, None, 4, 0)["grund"][1] == 0 for b in (i / 40 for i in range(64 * 40)))
-CALLS.clear()
-lamps.LAMP["last"] = {}
+for wechsel in (4, 1):                     # 1 (schneller als ein Takt) wird auf einen Takt begrenzt
+    seen = {}
+    for i in range(0, 64 * 40):
+        b = i / 40
+        seen.setdefault(int(b // 4), set()).add(show.lamps(prof, b, None, wechsel)["grund"][0])
+    assert all(len(v) == 1 for v in seen.values()), "Farbe wechselt mitten im Takt"
+SENT = []
+ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
+lamps.LAMP["last"], lamps.SPENT = {}, {}
 lamps.groups = lambda: [("grund", ["light.amb"]), ("links", ["light.s1"]), ("rechts", ["light.s2"])]
-lamps.send({"grund": ((255, 0, 0), 40), "akzent": ((0, 0, 255), 100), "links": ((0, 0, 255), 100),
-            "rechts": ((0, 0, 255), 20)})
-n = len(CALLS)
-lamps.send({"grund": ((255, 0, 0), 0), "akzent": ((0, 0, 255), 100), "links": ((0, 0, 255), 100),
-            "rechts": ((0, 0, 255), 20)})
-assert len(CALLS) == n + 1 and CALLS[-1][0] == "light.turn_off", CALLS[n:]
+base = {"grund": ((255, 0, 0), 40), "akzent": ((0, 0, 255), 100), "links": ((0, 0, 255), 100),
+        "rechts": ((0, 0, 255), 20)}
+lamps.send(base)
+assert len(SENT) == 3 and all("rgb_color" in d and "brightness_pct" in d for _, d in SENT), SENT
+SENT.clear()
+lamps.send(dict(base, grund=((0, 255, 0), 40), links=((0, 0, 255), 20), rechts=((0, 0, 255), 100)))
+amb = [d for _, d in SENT if d["entity_id"] == ["light.amb"]][0]
+schrank = [d for _, d in SENT if d["entity_id"] == ["light.s1"]][0]
+assert "rgb_color" in amb and "brightness_pct" not in amb, "Farbwechsel schickt unnötig die Helligkeit"
+assert "brightness_pct" in schrank and "rgb_color" not in schrank, "Schrank-Wechsel schickt unnötig die Farbe"
+SENT.clear()
+for k in range(80):                        # viel zu schnell: das Budget hält die Lampe unter ihrer Grenze
+    lamps.send(dict(base, grund=(((k * 37) % 256, 0, 0), 40)))
+amb_sent = sum(1 for _, d in SENT if d["entity_id"] == ["light.amb"])
+assert amb_sent <= lamps.QUOTA, amb_sent
 st = lamps.stats()
-assert st and st["fehler"] == 0 and st["ambilight_min"] >= 2, st
-print(f"Lampen: Wechsel auf dem Takt, dunkel davor, nur Geändertes gesendet ({st})")
+assert st and st["fehler"] == 0, st
+print(f"Lampen: Wechsel auf der 1, nur geänderte Werte, Budget hält ({amb_sent} von 80 Wechseln gesendet)")
 httpd.shutdown()
 print("Rauchtest ok")

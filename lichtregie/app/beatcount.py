@@ -9,8 +9,18 @@ Anker für Takt und Phrase:
 - Phrasenwechsel aus der Klanganalyse: liegt er nahe an einer erwarteten Phrasengrenze (±3 Schläge),
   wird die Zählung nachgezogen.
 Verschiebungen gelten auch für die HA-Grundlage (offset), sonst würde die Drift-Korrektur sie zurückdrehen.
+
+Die „1“ im Takt (seit 0.8.13): HA ist nur auf 1–3 s genau, die Lage im Takt war damit Zufall. Die Analyse
+liefert je Schlag, wie stark sich der Klang gegenüber dem vorigen Schlag ändert (Akkord, Bass-Ton, Instrumente
+wechseln meist auf der „1“). Über mehrere Takte auf die vier Positionen im Takt summiert, wird die Position mit
+dem klar größten Wechsel zur „1“. Danach verschieben Drop und Phrasenwechsel nur noch um ganze Takte. Eine
+Korrektur von Hand hat Vorrang: Dann bleibt die „1“ für das Lied, wo sie gesetzt wurde.
 """
 PHRASE = 32          # Schläge pro Phrase (8 Takte)
+BAR = 4
+BAR_MIN_BEATS = 24   # so viele Schläge sammeln, bevor die „1“ zum ersten Mal festgelegt wird
+BAR_MARGIN = 1.25    # die stärkste Position muss so viel stärker sein als die zweitstärkste
+BAR_DECAY = 0.99     # ältere Schläge zählen langsam weniger (ca. 100 Schläge Gedächtnis)
 DRIFT_LIMIT = 6.0    # so viele Schläge Abweichung von HA, bevor korrigiert wird …
 DRIFT_TIME = 8.0     # … und so lange (s) muss sie bestehen
 DROP_MAX_SHIFT = 12  # weiter verschiebt ein Drop die Zählung nicht
@@ -34,21 +44,36 @@ class BeatCounter:
         self.events = []        # (Zeit, Text) für die Anzeige
         self.last_fix = None    # (Zeit, Richtung) des letzten HA-Abgleichs
         self.audio_off = False  # Audio-Zählung für dieses Lied abgeschaltet (läuft nicht mit der Musik)
+        self.bar_bins = [0.0] * BAR   # Klangwechsel je Position im Takt (0 = „1“)
+        self.bar_beats = 0            # so viele Schläge gesammelt
+        self.bar_since = 0            # Schläge seit der letzten Verschiebung durch den Takt-Anker
+        self.bar_locked = False       # „1“ aus dem Audio gefunden
+        self.bar_manual = False       # „1“ von Hand gesetzt: kein automatischer Takt-Anker mehr
+        self.bar_ratio = 0.0
+        self.seen_bc = 0.0
 
     def shift(self, s, now, why="von Hand"):
         """Zählung um s Schläge verschieben (z. B. nach dem Break, wenn der Einsatz nicht stimmt)."""
+        self.bar_manual = True
         self._shift(int(s), now, why)
+
+    def bar_info(self):
+        """Für die Anzeige: woher die „1“ kommt und wie deutlich sie ist."""
+        source = "von Hand" if self.bar_manual else ("Audio" if self.bar_locked else "geschätzt")
+        return {"quelle": source, "deutlich": round(self.bar_ratio, 2), "schlaege": self.bar_beats}
 
     def _shift(self, s, now, why):
         if self.count is not None:
             self.count += s
         self.offset += s
+        self.bar_bins = [self.bar_bins[(i - s) % BAR] for i in range(BAR)]   # Statistik mitverschieben
         self.events.append((now, f"{why}: {s:+d} Schläge"))
         del self.events[:-5]
 
-    def update(self, now, b_ha, frac=None, drop_at=0.0, change_at=0.0, bpm=120.0):
+    def update(self, now, b_ha, frac=None, drop_at=0.0, change_at=0.0, bpm=120.0, changes=None):
         """Taktposition b. b_ha = Schätzung aus HA/Zeit; frac = Phase des aktuellen Schlags aus dem Audio
-        (None, wenn kein Takt eingerastet ist); drop_at/change_at = Zeitpunkte der letzten Ereignisse."""
+        (None, wenn kein Takt eingerastet ist); drop_at/change_at = Zeitpunkte der letzten Ereignisse;
+        changes = neue Klangwechsel je Schlag [(Zeit, Stärke)] für die „1“ im Takt."""
         beat = 60.0 / bpm
         b_ref = b_ha + self.offset
         if self.audio_off:
@@ -83,19 +108,26 @@ class BeatCounter:
                         self.prev = None
                         b = b_ref
                     else:
+                        if self.bar_locked or self.bar_manual:
+                            s = BAR * round(self.diff / BAR) or s   # die „1“ nicht verschieben
                         self.count += s
                         b += s
                         self.diff -= s
+                        self.bar_bins = [self.bar_bins[(i - s) % BAR] for i in range(BAR)]
                         self.far_since = None
                         self.last_fix = (now, s > 0)
                         self.events.append((now, f"HA-Abgleich: {s:+d} Schläge"))
             else:
                 self.far_since = None
-        # Drop als Anker: auf die nächste Phrasengrenze legen
+            if changes and not self.audio_off:
+                b += self._bar_anchor(now, b, beat, changes)
+        # Drop als Anker: auf die nächste Phrasengrenze legen (ist die „1“ bekannt, nur um ganze Takte)
         if drop_at and drop_at != self.seen_drop:
             self.seen_drop = drop_at
             b_drop = round(b - (now - drop_at) / beat)
             s = round(b_drop / PHRASE) * PHRASE - b_drop
+            if self.bar_locked or self.bar_manual:
+                s = BAR * round(s / BAR)
             if s and abs(s) <= DROP_MAX_SHIFT:
                 self._shift(s, now, "Drop-Anker")
                 b += s
@@ -104,9 +136,42 @@ class BeatCounter:
             self.seen_change = change_at
             b_c = b - (now - change_at) / beat
             err = round(b_c / PHRASE) * PHRASE - b_c
-            s = round(err)
-            if s and abs(err) <= CHANGE_WINDOW:
+            if self.bar_locked or self.bar_manual:
+                s = BAR * round(err / BAR)            # nur um ganze Takte, und nur wenn er gut auf einer „1“ liegt
+                ok = abs(err - s) <= 1.0 and abs(err) <= BAR + 0.5
+            else:
+                s = round(err)
+                ok = abs(err) <= CHANGE_WINDOW
+            if s and ok:
                 self._shift(s, now, "Phrasenwechsel")
                 b += s
         self.last_b, self.last_t = b, now
         return b
+
+    def _bar_anchor(self, now, b, beat, changes):
+        """Klangwechsel je Schlag auf die Positionen im Takt summieren; ist eine Position deutlich die stärkste,
+        wird sie zur „1“. Rückgabe: Verschiebung in Schlägen (meist 0)."""
+        for t_c, d in changes:
+            if t_c <= self.seen_bc:
+                continue
+            self.seen_bc = t_c
+            idx = round(b - (now - t_c) / beat)
+            self.bar_bins = [x * BAR_DECAY for x in self.bar_bins]
+            self.bar_bins[idx % BAR] += d
+            self.bar_beats += 1
+            self.bar_since += 1
+        if self.bar_beats < BAR_MIN_BEATS or self.bar_since < 2 * BAR:
+            return 0
+        order = sorted(range(BAR), key=lambda i: -self.bar_bins[i])
+        best, second = order[0], order[1]
+        self.bar_ratio = self.bar_bins[best] / (self.bar_bins[second] + 1e-9)
+        if self.bar_manual or self.bar_ratio < BAR_MARGIN:
+            return 0
+        self.bar_locked = True
+        if best == 0:
+            return 0
+        s = (-best) % BAR
+        s = s - BAR if s > BAR // 2 else s          # kürzester Weg: −1, +1 oder +2
+        self._shift(s, now, "Takt-Anker")
+        self.bar_since = 0
+        return s

@@ -133,6 +133,9 @@ function showSync(s, fps) {
   });
   $('syncstat').textContent = !s ? 'Keine Show läuft.'
     : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Spotify-Position (ungenau)')
+      + (s.eins ? ' · „1“ ' + (s.eins.quelle === 'Audio' ? `aus dem Audio (${s.eins.deutlich}×)`
+                               : s.eins.quelle === 'von Hand' ? 'von Hand gesetzt'
+                               : `geschätzt, lernt noch (${s.eins.schlaege} Schläge)`) : '')
       + (fps ? ` · ${fps} Bilder/s` + (fps < 25 ? ' (zu wenig, Soll 40)' : '') : '')
       + (s.ereignisse.length ? ' · ' + s.ereignisse.join(', ') : '');
 }

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.13
+
+- **Die „1“ im Takt aus dem Audio:** Tempo und Schlag kamen schon aus dem Audio, welcher Schlag die „1“ ist
+  aber aus der Spotify-Position (auf 1–3 s genau, also 2–6 Schläge): Der Einsatz im Takt war Glückssache.
+  Jetzt misst die Analyse je Schlag, wie stark sich der Klang gegenüber dem vorigen ändert (Akkord, Bass-Ton,
+  neue Instrumente kommen meist auf der „1“), und summiert das über mehrere Takte auf die vier Positionen im
+  Takt. Ist eine Position deutlich die stärkste (mindestens 1,25-mal), wird sie zur „1“ („Takt-Anker“).
+  Danach verschieben Drop, Phrasenwechsel und HA-Abgleich nur noch um ganze Takte. „Jetzt ist die 1“ oder
+  ±1 Schlag von Hand hat Vorrang und gilt für das ganze Lied.
+- Takt-Sync-Anzeige: woher die „1“ kommt (aus dem Audio mit Deutlichkeit, von Hand, oder noch geschätzt).
+- **Lampen an der Grenze der Yeelights:** Am Gerät meldete HA bei schnellen Wechseln „client quota exceeded“:
+  Die Yeelights nehmen nur etwa 60 Befehle pro Minute je Lampe an, und HA schickt Farbe und Helligkeit als zwei
+  Befehle. Deshalb:
+  - Farbwechsel der Ambilights höchstens einmal pro Takt (jeder Takt, 2 Takte, 4 Takte, nach Lied).
+  - „Dunkel vor dem Wechsel“ entfernt (kostete einen weiteren Befehl je Wechsel und sah nicht gut aus).
+  - Gesendet wird nur, was sich ändert: Ein Farbwechsel ist nur die Farbe, das Wechselspiel der Schränke nur
+    die Helligkeit.
+  - Budget je Lampengruppe (50 Befehle pro Minute): Ist es aufgebraucht, wird ein Wechsel ausgelassen, statt
+    dass die Lampe ihn ablehnt.
+
 ## 0.8.12
 
 - **Ambilights: harte Farbwechsel auf dem Schlag.** Der Rhythmus ist einstellbar (¼ Schlag bis 4 Takte oder wie
