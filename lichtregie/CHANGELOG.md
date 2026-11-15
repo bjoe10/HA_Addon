@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.5
+
+- **Gemessenes Tempo greift auch ohne eingerasteten Takt:** Bei „Drifting (SISTEK Remix)“ meldete FreqBlog
+  122,1 BPM, Beat This maß 145,8 BPM, die Zählung lag nach kurzer Zeit 21 Schläge zurück. Die Show stellte aber
+  nicht um: Ergebnisse von Beat This wurden nur bei eingerastetem Audio-Takt verarbeitet, und der kann bei
+  falschem Tempo aus der Datenbank gar nicht einrasten (die Analyse ist auf dieses Tempo festgelegt). Jetzt rechnet
+  Beat This, sobald Ton ankommt, und das Tempo wird ohne eingerasteten Takt übernommen; nur die „1“ braucht ihn.
+
 ## 0.9.4
 
 - **Gleichmäßigere Bewegung:** Show und Art-Net-Sender liefen mit zwei eigenen, leicht verschiedenen Takten

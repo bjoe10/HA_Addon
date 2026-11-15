@@ -1,6 +1,7 @@
 """Die „1“ im Takt mit Beat This! (beatthis.py), im Hintergrund.
 
-Alle REPEAT Sekunden, solange eine Show mit eingerastetem Audio-Takt läuft, gehen die letzten WINDOW Sekunden Ton
+Alle REPEAT Sekunden, solange eine Show läuft und Ton ankommt (auch ohne eingerasteten Takt: bei falschem
+Tempo aus der Datenbank rastet er nicht ein, und gerade dann braucht es das gemessene Tempo), gehen die letzten WINDOW Sekunden Ton
 dieses Liedes an einen eigenen Prozess (niedrige Priorität, 2 Rechenkerne), damit die Show-Schleife nicht ruckelt.
 Am Pi 5 dauerten 30 s Ton zuerst 33 s Rechenzeit (am Mac 1,5 s). Seltener rechnen hilft nicht: Mit einer
 Rechnung pro Minute über 20 s sank die Trefferquote in den Aufnahmen von 93 % auf 62 % (die „1“ im Intro ist oft
@@ -67,7 +68,7 @@ def loop(engine):
         song = engine.BEAT["start"]
         key = tuple(song[:2]) if song else None
         if (a is None or engine.BEAT["stop"] is None or not engine.SETTINGS["audio"]
-                or not engine.SETTINGS.get("beatthis", True) or not a.phase_ok()
+                or not engine.SETTINGS.get("beatthis", True) or not a.signal()
                 or time.time() - last < REPEAT):
             continue
         # nur Ton dieses Liedes: Es begann (Uhrzeit der Analyse) spätestens Ton-Vorlauf vor dem Start der Show

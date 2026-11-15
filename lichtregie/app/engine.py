@@ -136,7 +136,9 @@ def show_loop(prof, t0, stop):
             changes = AUDIO.changes_since(counter.seen_bc) if locked else None
             b = counter.update(t_a, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm, changes)
             st = downbeat.STATE
-            if locked and st["letzte"] != seen_model and BEAT["start"] and st["lied"] == tuple(BEAT["start"][:2]):
+            # Auch ohne eingerasteten Takt: Liegt das Tempo aus der Datenbank falsch, kann der Takt gar nicht
+            # einrasten (die Analyse ist auf das Tempo festgelegt); dann muss gerade das gemessene Tempo greifen
+            if st["letzte"] != seen_model and BEAT["start"] and st["lied"] == tuple(BEAT["start"][:2]):
                 seen_model = st["letzte"]                      # neues Ergebnis von Beat This für dieses Lied
                 ratio = st["bpm"] / bpm if st["bpm"] else 1.0
                 agree = prev_model is not None and abs(st["bpm"] / prev_model - 1.0) < 0.02
@@ -158,7 +160,8 @@ def show_loop(prof, t0, stop):
                     AUDIO.set_bpm_hint(bpm)
                     BEAT["lied"] = dict(BEAT["lied"] or {}, bpm=round(bpm, 1), tempo_quelle="Beat This")
                     save_tempo_fix(*BEAT["start"][:2], bpm)
-                b += counter.model_anchor(t_a, st["eins"], bpm, st["beats"])
+                if locked:
+                    b += counter.model_anchor(t_a, st["eins"], bpm, st["beats"])
             if counter.audio_off:              # Audio-Takt läuft nicht mit der Musik: nicht als eingerastet werten
                 locked = False
         else:
