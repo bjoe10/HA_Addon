@@ -20,7 +20,7 @@ from beatcount import BeatCounter
 from settings import SETTINGS
 from tempo import tempo
 
-AUDIO = audio.Analyzer() if (audio is not None and config.AUDIO_PIPE) else None
+AUDIO = audio.Analyzer() if (audio is not None and (config.AUDIO_PIPE or config.AUDIO_CMD)) else None
 LIVE = {"live": None, "at": 0.0, "seeks": 0}   # letzter Stand des Spotify-Players aus HA; seeks zählt Spulen
 SEEK_SEC = 5.0                       # Sprung der Liedposition ab dieser Größe gilt als Spulen
 BEAT = {"stop": None, "info": "aus", "szene": "", "start": None, "lied": None, "b": None, "sync": None}   # laufende Show

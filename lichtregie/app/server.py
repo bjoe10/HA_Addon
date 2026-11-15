@@ -169,8 +169,12 @@ def main():
     threading.Thread(target=party.loop, daemon=True).start()
     if engine.AUDIO is not None:
         threading.Thread(target=engine.audio_watch_loop, daemon=True).start()
-        threading.Thread(target=engine.audio.reader, args=(engine.AUDIO, config.AUDIO_PIPE), daemon=True).start()
-    print(f"Audioanalyse: {'an, Pipe ' + config.AUDIO_PIPE if engine.AUDIO is not None else 'aus'}", flush=True)
+        if config.AUDIO_CMD:
+            threading.Thread(target=engine.audio.reader_cmd, args=(engine.AUDIO, config.AUDIO_CMD), daemon=True).start()
+        else:
+            threading.Thread(target=engine.audio.reader, args=(engine.AUDIO, config.AUDIO_PIPE), daemon=True).start()
+    source = f"Programm {config.AUDIO_CMD}" if config.AUDIO_CMD else f"Pipe {config.AUDIO_PIPE}"
+    print(f"Audioanalyse: {'an, ' + source if engine.AUDIO is not None else 'aus'}", flush=True)
     print(f"Geräte der Party: {config.GERAETE or '-'}", flush=True)
     print(f"Lampen: Grundfarbe {config.LAMPEN_GRUND or '-'}, Akzent {config.LAMPEN_AKZENT or '-'}, "
           f"aus während der Party {config.LAMPEN_AUS or '-'}", flush=True)

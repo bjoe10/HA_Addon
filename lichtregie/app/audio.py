@@ -303,3 +303,31 @@ def reader(analyzer, path, stop=None):
             time.sleep(1.0)
         finally:
             os.close(fd)
+
+
+def reader_cmd(analyzer, cmd, stop=None):
+    """Startet ein Programm, das Ton als PCM (S16LE, stereo, 44,1 kHz) auf seine Standardausgabe schreibt
+    (shairport-sync mit dem Ausgang „stdout“), und liest diese. Endet das Programm, wird es nach 3 s neu
+    gestartet. Seine Meldungen (stderr) landen im Add-on-Log. Ohne Pipe-Datei gibt es kein Rennen beim Öffnen."""
+    import shlex
+    import subprocess
+    while stop is None or not stop.is_set():
+        try:
+            proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, bufsize=0)
+        except OSError as err:
+            print(f"Audio-Programm startet nicht: {err}", flush=True)
+            time.sleep(10.0)
+            continue
+        print(f"Audio-Programm gestartet: {cmd}", flush=True)
+        try:
+            while stop is None or not stop.is_set():
+                data = proc.stdout.read(HOP * 4)
+                if not data:
+                    break
+                analyzer.feed_pcm(data, time.time())
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
+        print(f"Audio-Programm beendet (Code {proc.returncode}), Neustart in 3 s", flush=True)
+        time.sleep(3.0)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.7
+
+- **Empfänger auf stdout umgestellt:** Am Gerät meldete shairport-sync (beim Neubau jetzt Version 5.5.1) eine
+  laufende Wiedergabe von Music Assistant, in der Pipe kam aber kein Byte an. Die Lichtregie startet
+  shairport-sync jetzt selbst mit dem Ausgang „stdout“ und liest den Ton direkt (Format fest S16_LE, 44,1 kHz,
+  stereo). Endet shairport-sync, startet die Lichtregie es nach 3 s neu; seine Meldungen stehen im Add-on-Log.
+
 ## 0.8.6
 
 - Kein automatischer Neustart des Empfängers mehr: Am Gerät zeigte sich, dass Music Assistant einen

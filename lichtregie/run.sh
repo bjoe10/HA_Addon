@@ -18,8 +18,7 @@ export LICHTREGIE_AIRPLAY_NAME="$(bashio::config 'airplay_name')"
 
 # --- AirPlay-Empfänger für die Audioanalyse ---------------------------------------------------------
 # Music Assistant spielt synchron an den Lautsprecher und an diesen Empfänger; shairport-sync schreibt
-# die Musik als Rohdaten in eine Pipe, die server.py liest. Schlägt etwas fehl, läuft die Show ohne Audio.
-PIPE=/tmp/lichtregie.pcm
+# die Musik als Rohdaten auf seine Standardausgabe, die server.py liest. Schlägt etwas fehl, läuft die Show ohne Audio.
 if bashio::config.true 'airplay'; then
   NAME="$(bashio::config 'airplay_name')"
   mkdir -p /run/dbus /var/run/dbus
@@ -38,27 +37,28 @@ publish-hinfo=no
 publish-workstation=no
 CONF
   avahi-daemon -D --no-chroot --no-drop-root || bashio::log.warning "avahi startet nicht"
-  rm -f "$PIPE" && mkfifo "$PIPE"
+  # Ausgang „stdout“: die Lichtregie startet shairport-sync selbst und liest den Ton direkt (keine Pipe-Datei;
+  # die Pipe-Ausgabe von shairport-sync 5 lieferte keine Daten). Format fest, damit die Analyse passt.
   cat > /etc/shairport-sync.conf <<CONF
 general = {
   name = "${NAME}";
-  output_backend = "pipe";
+  output_backend = "stdout";
   mdns_backend = "avahi";
   port = 5123;
   udp_port_base = 6101;
   ignore_volume_control = "yes";
   interpolation = "basic";
 };
-pipe = {
-  name = "${PIPE}";
+stdout = {
+  output_format = "S16_LE";
+  output_rate = 44100;
+  output_channels = 2;
 };
 diagnostics = {
   log_verbosity = 1;
 };
 CONF
-  # in einer Schleife, damit der Empfänger nach einem Absturz oder Neustart durch die Lichtregie wiederkommt
-  ( while true; do shairport-sync -c /etc/shairport-sync.conf; sleep 3; done ) &
-  export LICHTREGIE_AUDIO_PIPE="$PIPE"
+  export LICHTREGIE_AUDIO_CMD="shairport-sync -c /etc/shairport-sync.conf"
   bashio::log.info "AirPlay-Empfänger \"${NAME}\" gestartet"
 fi
 

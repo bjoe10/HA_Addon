@@ -32,4 +32,15 @@ for song in range(5):                          # fünf Lieder, jedes mit eigenem
     time.sleep(0.15)
     assert an.data_at > before, f"Lied {song + 1}: nichts angekommen"
 assert an.signal(an.data_at), "Ton nicht als Signal erkannt"
-print("Pipe ok: 5 Liedwechsel ohne Lücke")
+# Ton von einem Programm über stdout (wie shairport-sync mit Ausgang „stdout“), mit Neustart nach dem Ende
+gen = (f"{sys.executable} -c \"import sys, numpy as np; t = np.arange(44100) / 44100; "
+       f"x = (0.3 * np.sin(2 * np.pi * 220 * t) * 32767).astype('<i2'); "
+       f"sys.stdout.buffer.write(np.repeat(x[:, None], 2, axis=1).tobytes())\"")
+an2 = audio.Analyzer()
+threading.Thread(target=audio.reader_cmd, args=(an2, gen), daemon=True).start()
+time.sleep(1.5)
+first = an2.data_at
+assert first > 0 and an2.signal(first), "über stdout nichts angekommen"
+time.sleep(4.0)                                # Programm endet nach 1 s Ton, wird nach 3 s neu gestartet
+assert an2.data_at > first + 2, "Programm nicht neu gestartet"
+print("Pipe ok: 5 Liedwechsel ohne Lücke; stdout-Leser ok, mit Neustart")

@@ -129,7 +129,10 @@ LAMPEN_AUS = _entity_list("LICHTREGIE_LAMPEN_AUS", SCHALTBAR)   # während der P
 
 
 # --- Live-Audio vom AirPlay-Empfänger ---------------------------------------------------------------
-AUDIO_PIPE = os.environ.get("LICHTREGIE_AUDIO_PIPE", "").strip()   # leer = ohne Audioanalyse
+AUDIO_PIPE = os.environ.get("LICHTREGIE_AUDIO_PIPE", "").strip()   # Ton aus einer Pipe (lokale Tests)
+# Ton von einem Programm, das PCM auf seine Standardausgabe schreibt (im Add-on: shairport-sync mit „stdout“).
+# Die Lichtregie startet es selbst und startet es neu, wenn es endet.
+AUDIO_CMD = os.environ.get("LICHTREGIE_AUDIO_CMD", "").strip()
 
 # Erlaubte Absender (Add-on: nur der Ingress-Proxy von HA); leer = alle (lokal auf dem Mac)
 ALLOWED_CLIENTS = {c.strip() for c in os.environ.get("LICHTREGIE_ALLOWED_CLIENTS", "").split(",") if c.strip()}
