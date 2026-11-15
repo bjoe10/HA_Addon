@@ -1,6 +1,20 @@
 # Changelog
 
-## 0.8.3
+## 0.8.5
+
+- **Empfänger zuverlässiger:** Die Lichtregie hält die Audio-Pipe jetzt dauerhaft offen (lesen und schreiben).
+  Bisher gab es nach jedem Ende einer Wiedergabe einen kurzen Moment ohne Leser; öffnete shairport-sync die
+  Pipe genau dann (Liedwechsel, Gruppe in Music Assistant neu gestartet), verwarf es den Ton der ganzen
+  Wiedergabe. Im Test passierte das bei 11 von 20 schnellen Wechseln, mit dem neuen Leser bei keinem.
+- Start der Party weiterhin nur durch Ton am Empfänger. Läuft sie schon, hält sie auch Spotify am Leben, damit
+  sie bei einer Störung des Empfängers nicht ausgeht.
+- Überwachung auch bei ausgeschalteter Party: Spielt Spotify über Music Assistant und am Empfänger kommt 40 s
+  nichts an, wird shairport-sync neu gestartet (höchstens alle 3 min; run.sh startet ihn in einer Schleife).
+- Diagnose: Kachel „Audio“ unterscheidet „kein Signal“ von „Daten, aber stumm“, die Warnung nennt die Ursache;
+  shairport-sync schreibt Verbindungen und Wiedergabe-Start ins Add-on-Log.
+- Neuer Test `dev/test_pipe.py` (Liedwechsel an der Pipe wie mit shairport-sync).
+
+## 0.8.4
 
 - **Takt-Sync-Anzeige** unter Feinabstimmung: eine Phrase als 8 Takte à 4 Schläge, der aktuelle Schlag
   leuchtet (die 1 jedes Takts weiß, der Phrasenanfang markiert), dazu Quelle (Audio oder Spotify-Position)

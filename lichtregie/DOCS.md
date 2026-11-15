@@ -53,8 +53,9 @@ Ohne Audio (z. B. Spotify direkt auf den Lautsprecher) läuft die Show mit Tempo
 Der Party-Modus ist der Hauptschalter. **An:** Geräte einschalten, Raum abdunkeln, laufenden Titel lesen,
 Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück auf den Zustand von vorher.
 
-- **Automatik** (abschaltbar): Die Party geht an, sobald 3 s lang Musik ankommt (Ton am AirPlay-Empfänger;
-  ohne Empfänger: Spotify spielt), und aus, wenn 15 Minuten keine lief (Zeit einstellbar).
+- **Automatik** (abschaltbar): Die Party geht an, sobald 3 s lang Ton am AirPlay-Empfänger ankommt (ohne
+  Empfänger: Spotify spielt), und aus, wenn 15 Minuten keine Musik lief (Zeit einstellbar). Eine laufende
+  Party hält auch Spotify am Leben.
 - **Von Hand:** großer Schalter auf der Startseite. Ein Stopp von Hand gilt, bis die Musik einmal eine Minute
   aus war; sonst würde die Automatik sofort wieder einschalten.
 - **Pause:** Pausiert Spotify, bleiben die Spots stehen und leuchten leise, der Laser geht aus.

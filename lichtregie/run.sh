@@ -38,7 +38,7 @@ publish-hinfo=no
 publish-workstation=no
 CONF
   avahi-daemon -D --no-chroot --no-drop-root || bashio::log.warning "avahi startet nicht"
-  [ -p "$PIPE" ] || mkfifo "$PIPE"
+  rm -f "$PIPE" && mkfifo "$PIPE"
   cat > /etc/shairport-sync.conf <<CONF
 general = {
   name = "${NAME}";
@@ -52,8 +52,12 @@ general = {
 pipe = {
   name = "${PIPE}";
 };
+diagnostics = {
+  log_verbosity = 1;
+};
 CONF
-  shairport-sync -c /etc/shairport-sync.conf &
+  # in einer Schleife, damit der Empfänger nach einem Absturz oder Neustart durch die Lichtregie wiederkommt
+  ( while true; do shairport-sync -c /etc/shairport-sync.conf; sleep 3; done ) &
   export LICHTREGIE_AUDIO_PIPE="$PIPE"
   bashio::log.info "AirPlay-Empfänger \"${NAME}\" gestartet"
 fi

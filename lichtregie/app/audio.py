@@ -49,6 +49,8 @@ class Analyzer:
         self.last_onset = 0.0
         self.onset_times = deque(maxlen=64)
         self.last_audio = 0.0
+        self.data_at = 0.0
+        self.data_peak = 0.0
         self.bpm_hint = None
         self.period = None
         self.t_beat = None
@@ -73,6 +75,8 @@ class Analyzer:
             return
         data = data[: len(data) - len(data) % 4]
         x = np.frombuffer(data, dtype="<i2").astype(np.float32).reshape(-1, 2).mean(axis=1) / 32768.0
+        self.data_at = t_end                     # Diagnose: kommen überhaupt Daten an (auch stumme)?
+        self.data_peak = max(self.data_peak * 0.98, float(np.abs(x).max()))
         self.feed(x, t_end)
 
     def feed(self, mono, t_end):
@@ -261,6 +265,8 @@ class Analyzer:
             on = now - self.last_audio < 1.5
             return {
                 "an": on,
+                "daten": now - self.data_at < 3.0,        # Rohdaten kommen an, auch wenn sie stumm sind
+                "stumm": now - self.data_at < 3.0 and not on,
                 "takt": on and self.period is not None and self.hit_count >= 4 and now - self.last_hit < 30.0,
                 "bpm": round(60.0 / self.period, 1) if self.period else None,
                 "sicher": round(self.confidence(now), 2),
@@ -272,14 +278,28 @@ class Analyzer:
 
 
 def reader(analyzer, path, stop=None):
-    """Liest die Pipe von shairport-sync. Ohne Wiedergabe ist die Pipe geschlossen; dann wird gewartet."""
+    """Liest die Pipe von shairport-sync.
+
+    Die Pipe wird zum Lesen *und* Schreiben geöffnet (O_RDWR): So ist für shairport-sync jederzeit ein Leser da,
+    auch in dem Moment, in dem ein Lied endet und das nächste beginnt. Mit einem reinen Leser gab es dort eine
+    Lücke: shairport öffnet die Pipe nicht blockierend und verwirft den Ton, wenn gerade niemand liest.
+    Außerdem gibt es nie ein Dateiende; ohne Wiedergabe blockiert read() einfach."""
+    import os
     while stop is None or not stop.is_set():
         try:
-            with open(path, "rb", buffering=0) as pipe:
-                while True:
-                    data = pipe.read(HOP * 4)
-                    if not data:
-                        break          # Schreiber hat die Pipe geschlossen (Wiedergabe beendet)
-                    analyzer.feed_pcm(data, time.time())
-        except OSError:
+            fd = os.open(path, os.O_RDWR)
+        except OSError as err:
+            print(f"Audio-Pipe {path} nicht lesbar: {err}", flush=True)
             time.sleep(2.0)
+            continue
+        print(f"Audio-Pipe geöffnet: {path}", flush=True)
+        try:
+            while stop is None or not stop.is_set():
+                data = os.read(fd, HOP * 4)
+                if data:
+                    analyzer.feed_pcm(data, time.time())
+        except OSError as err:
+            print(f"Audio-Pipe Fehler: {err}", flush=True)
+            time.sleep(1.0)
+        finally:
+            os.close(fd)

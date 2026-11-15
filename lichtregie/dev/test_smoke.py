@@ -117,6 +117,7 @@ assert laser.STATE["mode"] == 0 and not engine.SPOTS
 
 # --- Party-Modus: Schalter, Automatik an bei Musik, aus nach Ruhe --------------------------------------
 ha.now_playing = lambda: None
+engine.LIVE.update(live=None, at=0.0)       # Spotify meldet nichts: nur der Ton zählt als Musik
 CALLS.clear()
 st = post("/api/party", {"an": True})
 assert st["party"]["an"] and lamps.ROOM["dark"]
@@ -156,5 +157,16 @@ party.SETTINGS["party_aus_min"] = 0.05     # 3 s
 time.sleep(6.0)
 assert not party.PARTY["on"] and not party.PARTY["manual_stop"], party.PARTY
 print(f"Party-Automatik: an bei Musik, aus nach Ruhe ({party.PARTY['why']})")
+# Spotify spielt, am Empfänger kommt nichts an: Party startet trotzdem
+party.SETTINGS["party_aus_min"] = 15
+ha.now_playing = lambda: {"title": "T", "artist": "A", "pos": 5.0, "playing": True, "id": "x", "duration": 100}
+time.sleep(5.0)
+assert not party.PARTY["on"], "Party darf ohne Ton am Empfänger nicht starten"
+# läuft sie aber schon, hält Spotify sie am Leben, auch wenn der Ton ausfällt
+party.start("Test")
+party.SETTINGS["party_aus_min"] = 0.05
+time.sleep(5.0)
+assert party.PARTY["on"], "Party bei Störung des Empfängers ausgegangen, obwohl Spotify spielt"
+print("Start nur durch Ton; laufende Party bleibt an, solange Spotify spielt")
 httpd.shutdown()
 print("Rauchtest ok")

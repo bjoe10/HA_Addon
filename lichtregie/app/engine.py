@@ -304,6 +304,20 @@ AUDIO_WARN_SEC = 15.0      # so lange kein Ton, während Spotify spielt, bis gew
 NOTIFY_ID = "lichtregie_audio"
 
 
+RESTART_AFTER = 40.0       # so lange kein Ton, bevor der AirPlay-Empfänger neu gestartet wird
+RESTART_EVERY = 180.0      # und höchstens so oft
+
+
+def restart_receiver():
+    """Beendet shairport-sync; die Schleife in run.sh startet ihn neu, Music Assistant findet ihn wieder."""
+    try:
+        import subprocess
+        subprocess.run(["pkill", "-x", "shairport-sync"], timeout=5, check=False)
+        print("AirPlay-Empfänger neu gestartet (kein Ton)", flush=True)
+    except Exception as err:
+        print(f"Empfänger-Neustart nicht möglich: {err}", flush=True)
+
+
 def audio_watch_loop():
     """Warnt, wenn Spotify spielt und die Show läuft, aber am AirPlay-Empfänger kein Ton ankommt
     (z. B. der Empfänger nach einem Neustart nicht mehr in der Sync-Gruppe von Music Assistant).
@@ -312,8 +326,10 @@ def audio_watch_loop():
         time.sleep(2.0)
         now = time.time()
         live = LIVE.get("live") or {}
-        expect = (AUDIO is not None and SETTINGS["audio"] and BEAT["stop"] is not None
-                  and live.get("playing") and now - LIVE["at"] < 30)
+        # Ton erwartet: Spotify spielt über Music Assistant (dann gehört der Empfänger zur Gruppe), auch wenn
+        # die Party noch aus ist: Gerade dann muss der Empfänger funktionieren, damit der Ton sie startet
+        expect = (AUDIO is not None and SETTINGS["audio"] and live.get("playing") and now - LIVE["at"] < 30
+                  and ("Music Assistant" in live.get("source", "") or BEAT["stop"] is not None))
         if not expect or AUDIO.signal(now):
             if AUDIO_WARN["notified"]:
                 ha.call("persistent_notification", "dismiss", {"notification_id": NOTIFY_ID})
@@ -326,7 +342,13 @@ def audio_watch_loop():
             continue
         hint = (f"„{config.AIRPLAY_NAME}“ in Music Assistant in die Sync-Gruppe aufnehmen und das Lied "
                 f"neu starten.")
-        AUDIO_WARN["text"] = f"Kein Audio seit {int(quiet)} s, obwohl Spotify spielt. {hint}"
+        st = AUDIO.status()
+        cause = ("Es kommen Daten an, aber nur Stille (Lautstärke des Empfängers in Music Assistant?)."
+                 if st["stumm"] else "Am Empfänger kommen keine Daten an.")
+        if quiet > RESTART_AFTER and not st["daten"] and now - AUDIO_WARN.get("restart", 0) > RESTART_EVERY:
+            AUDIO_WARN["restart"] = now          # Empfänger neu starten; run.sh startet ihn von selbst wieder
+            restart_receiver()
+        AUDIO_WARN["text"] = f"Kein Audio seit {int(quiet)} s, obwohl Spotify spielt. {cause} {hint}"
         if not AUDIO_WARN["notified"]:
             AUDIO_WARN["notified"] = ha.call("persistent_notification", "create", {
                 "notification_id": NOTIFY_ID, "title": "Lichtregie: kein Audio",

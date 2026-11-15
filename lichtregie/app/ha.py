@@ -47,7 +47,8 @@ def now_playing():
             estimate += (datetime.now(timezone.utc) - datetime.fromisoformat(updated)).total_seconds()
     return {"title": attrs["media_title"], "artist": attrs.get("media_artist", ""),
             "id": attrs.get("media_content_id"),
-            "duration": attrs.get("media_duration"), "pos": estimate, "playing": playing}
+            "duration": attrs.get("media_duration"), "pos": estimate, "playing": playing,
+            "source": attrs.get("source") or ""}
 
 
 def states(entities):

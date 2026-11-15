@@ -73,7 +73,7 @@ function deviceTiles(p) {
 function audioTile(a) {
   if (!a) return tile('Audio', 'nicht eingerichtet', '');
   if (!settings.audio) return tile('Audio', 'abgeschaltet', '');
-  if (!a.an) return tile('Audio', 'kein Signal', status.party.an && status.spielt ? 'bad' : '');
+  if (!a.an) return tile('Audio', a.stumm ? 'Daten, aber stumm' : 'kein Signal', status.party.an && status.spielt ? 'bad' : '');
   return a.takt ? tile('Audio', `Takt sitzt · ${a.bpm} BPM`, 'ok') : tile('Audio', 'sucht den Takt', 'warn');
 }
 function showStatus(d) {

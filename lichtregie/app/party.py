@@ -85,16 +85,28 @@ def stop(why="von Hand", manual=True):
         DEVICES["at"] = 0.0
 
 
-def _music(now, tick):
-    """Kommt gerade Musik an?"""
-    if engine.AUDIO is not None and SETTINGS["audio"]:
-        return engine.AUDIO.signal(now)
-    if not PARTY["on"] and tick % 5 == 0:      # ohne Empfänger: Spotify in HA fragen (läuft die Party,
-        live = ha.now_playing()                # macht das schon die Titel-Überwachung)
+def _audio(now):
+    return engine.AUDIO is not None and SETTINGS["audio"] and engine.AUDIO.signal(now)
+
+
+def _spotify(now, tick):
+    if not PARTY["on"] and tick % 3 == 0:      # läuft die Party, fragt die Titel-Überwachung HA schon
+        live = ha.now_playing()
         if live:
             engine.update_live(live)
     live = engine.LIVE.get("live")
     return bool(live and live.get("playing") and now - engine.LIVE["at"] < 15)
+
+
+def _music(now, tick):
+    """Starten darf nur Ton am Empfänger (ohne Empfänger: Spotify spielt). Läuft die Party schon, hält sie
+    auch Spotify am Leben, damit sie bei einer Störung des Empfängers nicht ausgeht."""
+    if engine.AUDIO is None or not SETTINGS["audio"]:
+        return _spotify(now, tick)
+    if _audio(now):
+        _spotify(now, tick)                    # Titel für die Anzeige trotzdem lesen
+        return True
+    return _spotify(now, tick) and PARTY["on"]
 
 
 def loop():
