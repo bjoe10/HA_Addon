@@ -39,6 +39,7 @@ def sender(stop):
     spätestens alle 1/FPS Sekunden."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     seq = 1
+    laser_off = 0             # nach dem Abschalten des Lasers in der Oberfläche noch so viele Bilder „aus“ senden
     while not stop.is_set():
         heads.FRAME.wait(1.0 / FPS)
         heads.FRAME.clear()
@@ -48,7 +49,15 @@ def sender(stop):
             with head.lock:
                 data = bytes(head.buf)
             sock.sendto(artdmx(config.UNIVERSE[k], data, seq), (config.NODES[k], ART_PORT))
-        if SETTINGS["laser"]:     # nur senden, wenn freigegeben; sonst behält HA den Laser
+        if SETTINGS["laser"] or laser_off > 0:
+            # Nur senden, wenn freigegeben; sonst behält HA den Laser. Beim Abschalten noch 1 s „aus“ senden: Der
+            # Art-Net-Knoten hält sonst das letzte Bild, und der Laser zeigt die letzte Figur ohne Animation weiter
+            if SETTINGS["laser"]:
+                laser_off = FPS
+            else:
+                if laser_off == FPS:
+                    laser.off()
+                laser_off -= 1
             with laser.LOCK:
                 data = bytes(laser.BUF)
             sock.sendto(artdmx(config.LASER[1], data, seq), (config.LASER[0], ART_PORT))

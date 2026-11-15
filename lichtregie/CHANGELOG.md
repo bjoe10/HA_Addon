@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.7
+
+- **Lampen nach der Party zurück:** Nach einem Stopp blieb Schrank 1 in den Farben der Party (lila), die anderen
+  Lampen kamen erst nach gut einer Minute zurück. Direkt nach der Show ist die Befehlsgrenze der Yeelights oft
+  noch erschöpft, einzelne Lampen lehnen die Szene „vorher“ dann ab. Die Szene wird jetzt nach 5, 20 und 65 s
+  noch einmal angewendet (bisher einmal nach 5 s).
+- **Laser aus heißt aus:** Beim Abschalten des Lasers in der Oberfläche hörte der Sender nur auf zu senden; der
+  Art-Net-Knoten hielt das letzte Bild, und der Laser zeigte die letzte Figur ohne Animation weiter. Jetzt geht
+  noch 1 s lang „Laser aus“ raus, erst dann hört der Sender auf.
+
 ## 0.9.6
 
 - **Lampenfarben passen zur Show:** Ambilights und Schränke zeigen nur noch die beiden Farben der Köpfe (Grund-

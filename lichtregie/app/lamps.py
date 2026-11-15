@@ -93,10 +93,14 @@ def lamp_loop():
             if LAMP["snapshot"]:
                 ha.call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}", "transition": 2})
                 _mark(False)
-                LAMP["again"] = time.time() + 5.0
-            elif LAMP["again"] and time.time() > LAMP["again"]:
+                # Noch einmal nach 5, 20 und 65 s: Direkt nach der Show ist die Befehlsgrenze der Yeelights (ca. 60
+                # pro Minute) oft noch erschöpft, dann lehnen einzelne Lampen die Szene ab und bleiben in den Farben
+                # der Party (gesehen: Schrank 1 blieb lila). Spätestens nach einer Minute ist die Grenze wieder frei
+                now = time.time()
+                LAMP["again"] = [now + 5.0, now + 20.0, now + 65.0]
+            elif LAMP["again"] and time.time() > LAMP["again"][0]:
                 ha.call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}"})
-                LAMP["again"] = None
+                LAMP["again"] = LAMP["again"][1:] or None
             continue
         LAMP["again"] = None
         if not LAMP["snapshot"]:
