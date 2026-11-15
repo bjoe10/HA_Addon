@@ -14,6 +14,7 @@ Gemessen am 15.11.2026 mit 6 Aufnahmen vom Gerät: Mit dem richtigen Ton-Vorlauf
 """
 import json
 import os
+import select
 import struct
 import subprocess
 import sys
@@ -27,6 +28,7 @@ WINDOW = 16.0
 MIN_AUDIO = 16.0
 REPEAT = 20.0
 THREADS = "2"
+TIMEOUT = 60.0             # so lange ohne Antwort: Rechenprozess hängt, beenden (der nächste Abschnitt startet ihn neu)
 STATE = {"an": False, "rechenzeit": None, "letzte": 0.0, "eins": [], "beats": [], "bpm": None, "lied": None,
          "schlaege": 0, "fehler": "", "laeuft": False}
 _PROC = {"p": None}
@@ -51,6 +53,12 @@ def analyze(x):
         data = np.asarray(x, dtype=np.float32).tobytes()
         p.stdin.write(struct.pack("<I", len(data)) + data)
         p.stdin.flush()
+        ready, _, _ = select.select([p.stdout], [], [], TIMEOUT)
+        if not ready:
+            p.kill()
+            p.wait()
+            _PROC["p"] = None
+            raise RuntimeError(f"Beat-This-Prozess antwortet nicht ({TIMEOUT:.0f} s), neu gestartet")
         line = p.stdout.readline()
     if not line:
         raise RuntimeError("Beat-This-Prozess beendet")
@@ -75,8 +83,7 @@ def loop(engine):
         avail = time.time() - engine.BEAT.get("since", 0.0) + engine.SETTINGS["ton_vorlauf"] - 0.5
         if avail < MIN_AUDIO:
             continue
-        with a.lock:
-            x, clock = a.recent_audio(min(WINDOW, avail))
+        x, clock = a.recent_audio(min(WINDOW, avail))
         if x is None or len(x) < MIN_AUDIO * 44100:
             continue
         last, last_song = time.time(), key

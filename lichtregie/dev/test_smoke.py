@@ -225,7 +225,7 @@ for i in range(0, 64 * 40, 7):
         assert w["grund"][0] != w["akzent"][0], "Ambilights und Schränke in derselben Farbe"
 SENT = []
 ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
-lamps.LAMP["last"], lamps.SPENT = {}, {}
+lamps.LAMP["last"], lamps.SPENT, lamps.PARALLEL = {}, {}, False
 lamps.groups = lambda: [("grund", ["light.amb"]), ("links", ["light.s1"]), ("rechts", ["light.s2"])]
 lampen_soll = {"grund": ((255, 0, 0), 40), "akzent": ((0, 0, 255), 100), "links": ((0, 0, 255), 100),
         "rechts": ((0, 0, 255), 20)}
@@ -244,7 +244,37 @@ amb_sent = sum(1 for _, d in SENT if d["entity_id"] == ["light.amb"])
 assert amb_sent <= lamps.QUOTA, amb_sent
 st = lamps.stats()
 assert st and st["fehler"] == 0, st
-print(f"Lampen: Wechsel auf der 1, nur geänderte Werte, Budget hält ({amb_sent} von 80 Wechseln gesendet)")
+# Abgelehnter Befehl: nicht als gesendet merken, nach 1 s noch einmal
+lamps.SPENT, lamps.RETRY = {}, {}
+ha.call = lambda domain, service, data: False
+lamps.send(dict(lampen_soll, grund=((1, 2, 3), 40)))
+assert lamps.LAMP["last"]["grund"] != ((1, 2, 3), 40) and lamps.RETRY.get("grund"), "Fehlschlag als gesendet gemerkt"
+ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
+lamps.RETRY["grund"] = 0.0
+lamps.send(dict(lampen_soll, grund=((1, 2, 3), 40)))
+assert lamps.LAMP["last"]["grund"] == ((1, 2, 3), 40) and lamps.SHOWN["light.amb"] == [1, 2, 3]
+# Paralleles Senden: ein langsamer Befehl hält die anderen Gruppen nicht auf, und nichts geht doppelt raus
+lamps.PARALLEL, lamps.SPENT = True, {}
+SENT.clear()
+ha.call = lambda domain, service, data: (time.sleep(0.3) if data["entity_id"] == ["light.amb"] else None,
+                                         SENT.append((service, dict(data))))[1] or True
+t_par = time.time()
+lamps.send(dict(lampen_soll, grund=((9, 9, 9), 40), links=((9, 9, 9), 100)))
+lamps.send(dict(lampen_soll, grund=((9, 9, 9), 40), links=((9, 9, 9), 100)))
+assert time.time() - t_par < 0.1, "send wartet auf HA"
+time.sleep(0.5)
+assert len(SENT) == 2, SENT
+lamps.PARALLEL = False
+ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
+# Nach der Party: Steht eine Lampe noch in der Show-Farbe, ist das Zurücksetzen gescheitert
+cur = {"light.s1": {"state": "on", "rgb": [170, 0, 255], "bri": 23}, "light.s2": {"state": "off", "rgb": None}}
+assert lamps.stuck(cur, {"light.s1": [170, 0, 255]}) == ["light.s1"]
+assert lamps.stuck(cur, {"light.s1": [255, 90, 0]}) == []
+before = {"light.s1": {"state": "on", "rgb": [255, 200, 150], "bri": 180}, "light.s2": {"state": "off"}}
+assert not lamps.restored(cur, before)
+assert lamps.restored({"light.s1": {"state": "on", "rgb": [250, 205, 150], "bri": 184}}, before)
+print(f"Lampen: Wechsel auf der 1, nur geänderte Werte, Budget hält ({amb_sent} von 80 Wechseln gesendet), "
+      "Fehlschlag wird wiederholt, Gruppen parallel, Zurücksetzen geprüft")
 # --- Gleichmäßige Bilder: fester Takt gegen die Uhr, Messung der Lücken -----------------------------------
 engine.AUDIO.on = True
 import record  # noqa: E402

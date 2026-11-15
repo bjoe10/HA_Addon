@@ -1,6 +1,8 @@
 """Lampen über HA. Sie folgen dem Song-Thema: Die Ambilights wechseln hart auf dem Schlag die Farbe (Rhythmus,
 Dunkelzeit und Vorlauf in der Oberfläche), die Schränke spielen pro Takt im Wechsel. Gesendet wird nur, was sich
 ändert; die Yeelights hängen lokal."""
+import json
+import threading
 import time
 from collections import deque
 
@@ -40,6 +42,55 @@ ENTITIES = config.LAMPEN_GRUND + config.LAMPEN_AKZENT + config.LAMPEN_AUS
 # darf der schon abgedunkelte Raum nicht als „vorher“ gesichert werden.
 MARKER = config.DATA / "lampen_gesichert"
 LAMP["snapshot"] = MARKER.exists()
+# Zum Prüfen nach der Party: der Zustand beim Sichern und die zuletzt gesendete Show-Farbe je Lampe. Leuchtet
+# eine Lampe beim nächsten Party-Start noch in der Show-Farbe, hat das Zurücksetzen nicht geklappt; dann bleibt die
+# alte Szene, statt die Party-Farbe als „vorher“ zu sichern (gesehen: Schrank 1 blieb dauerhaft lila)
+BEFORE_FILE = config.DATA / "lampen_vorher.json"
+SHOW_FILE = config.DATA / "lampen_show.json"
+SHOWN = {}                 # Lampe → zuletzt erfolgreich gesendete Farbe (None = aus)
+CHECKS = (5.0, 20.0, 65.0, 120.0)   # nach der Party prüfen, ob alles zurück ist; die letzte Prüfung meldet nur
+BUSY = set()               # Gruppen, deren Befehl gerade unterwegs ist
+RETRY = {}                 # Gruppe → frühester neuer Versuch nach einem Fehler
+PARALLEL = True            # jede Gruppe sendet in einem eigenen Thread (ein langsamer Befehl hält keine andere auf)
+
+
+def _load(path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save(path, data):
+    try:
+        path.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _close(a, b, tol=20):
+    return bool(a) and bool(b) and len(a) == len(b) == 3 and all(abs(x - y) <= tol for x, y in zip(a, b))
+
+
+def stuck(cur, show):
+    """Lampen, die noch in der zuletzt gesendeten Show-Farbe leuchten."""
+    return sorted(e for e, s in cur.items() if s.get("state") == "on" and _close(s.get("rgb"), show.get(e)))
+
+
+def restored(cur, before):
+    """Ist der Zustand von vor der Party wieder da? Lampen, die HA gerade nicht meldet, zählen nicht dagegen."""
+    for e, b in before.items():
+        c = cur.get(e)
+        if c is None or b.get("state") not in ("on", "off"):
+            continue
+        if c.get("state") != b["state"]:
+            return False
+        if b["state"] == "on":
+            if b.get("rgb") and not _close(c.get("rgb"), b["rgb"]):
+                return False
+            if b.get("bri") is not None and c.get("bri") is not None and abs(c["bri"] - b["bri"]) > 8:
+                return False
+    return True
 
 
 def _mark(saved):
@@ -73,44 +124,79 @@ def set_room(dark):
     ROOM["dark"] = bool(dark)
 
 
-def restore():
-    """Zustand von vor der Show zurückholen (wenn einer gesichert ist)."""
-    if LAMP["snapshot"]:
+def restore(transition=None):
+    """Zustand von vor der Show zurückholen (wenn einer gesichert ist). Die Show-Farben kommen auf die Platte, damit
+    der nächste Party-Start erkennt, ob das Zurücksetzen geklappt hat."""
+    if not LAMP["snapshot"]:
+        return False
+    if SHOWN:
+        _save(SHOW_FILE, {e: rgb for e, rgb in SHOWN.items() if rgb})
+    data = {"entity_id": f"scene.{SCENE_ID}"}
+    if transition:
+        data["transition"] = transition
+    ha.call("scene", "turn_on", data)
+    _mark(False)
+    return True
+
+
+def snapshot():
+    """Party-Start: Zustand der Lampen als HA-Szene sichern. Leuchten Lampen noch in den Farben der letzten Show,
+    bleibt die alte Szene. True, wenn eine Szene da ist."""
+    cur = ha.lights(ENTITIES)
+    left = stuck(cur, _load(SHOW_FILE))
+    if left and ha.states([f"scene.{SCENE_ID}"]):
+        print(f"Lampen noch in den Farben der letzten Show ({', '.join(left)}): Szene „vorher“ bleibt", flush=True)
+        return True
+    if not ha.call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": ENTITIES}):
+        return False
+    _save(BEFORE_FILE, cur)
+    SHOW_FILE.unlink(missing_ok=True)
+    return True
+
+
+def check_restored(last):
+    """Nach der Party: Ist alles zurück? Sonst die Szene noch einmal (außer bei der letzten Prüfung)."""
+    before = _load(BEFORE_FILE)
+    if not before or restored(ha.lights(ENTITIES), before):
+        if before:
+            print("Lampen wieder wie vor der Party", flush=True)
+        SHOW_FILE.unlink(missing_ok=True)
+        return True
+    if last:
+        print("Lampen nach der Party nicht ganz zurück; die Szene „vorher“ bleibt für die nächste Party", flush=True)
+    else:
         ha.call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}"})
-        _mark(False)
+    return False
 
 
 def lamp_loop():
-    """Alle 0,25 s. Solange der Raum abgedunkelt ist (Party-Modus): Zustand der Lampen einmal als HA-Szene
+    """Alle 20 ms. Solange der Raum abgedunkelt ist (Party-Modus): Zustand der Lampen einmal als HA-Szene
     sichern, „Während der Party aus“ ausschalten und die Lampen nach dem Song-Thema setzen, nur bei Änderung.
-    Zwischen zwei Liedern bleiben sie, wie sie sind. Danach kommt der alte Zustand zurück (zweimal, weil
-    Yeelights gelegentlich einen Befehl verschlucken)."""
+    Zwischen zwei Liedern bleiben sie, wie sie sind. Danach kommt der alte Zustand zurück; nach 5, 20 und 65 s
+    wird geprüft, ob er wirklich da ist (Yeelights verschlucken gelegentlich einen Befehl), sonst noch einmal."""
     while True:
         time.sleep(TICK)
         if not ENTITIES:
             continue
         if not (ROOM["dark"] and SETTINGS["lampen"]):
-            if LAMP["snapshot"]:
-                ha.call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}", "transition": 2})
-                _mark(False)
-                # Noch einmal nach 5, 20 und 65 s: Direkt nach der Show ist die Befehlsgrenze der Yeelights (ca. 60
-                # pro Minute) oft noch erschöpft, dann lehnen einzelne Lampen die Szene ab und bleiben in den Farben
-                # der Party (gesehen: Schrank 1 blieb lila). Spätestens nach einer Minute ist die Grenze wieder frei
+            if restore(transition=2):
                 now = time.time()
-                LAMP["again"] = [now + 5.0, now + 20.0, now + 65.0]
+                LAMP["again"] = [now + d for d in CHECKS]
             elif LAMP["again"] and time.time() > LAMP["again"][0]:
-                ha.call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}"})
                 LAMP["again"] = LAMP["again"][1:] or None
+                if check_restored(last=not LAMP["again"]):
+                    LAMP["again"] = None
             continue
         LAMP["again"] = None
         if not LAMP["snapshot"]:
-            if not ha.call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": ENTITIES}):
+            if not snapshot():
                 time.sleep(2.0)                # HA nicht erreichbar: nicht im 20-ms-Takt nachfragen
                 continue
             _mark(True)
             if config.LAMPEN_AUS:
                 ha.call("homeassistant", "turn_off", {"entity_id": config.LAMPEN_AUS})
             LAMP["last"] = {}
+            SHOWN.clear()
         if LAMP["prof"] is None or time.time() - LAMP["at"] > 3.0:   # gerade keine Show: nichts ändern
             continue
         send(want_now())
@@ -140,12 +226,13 @@ def want_now():
 
 
 def send(want):
-    """Nur die Gruppen senden, die sich geändert haben, Ambilights zuerst (sie tragen den Wechsel), und davon nur
-    die geänderten Werte: Ein Farbwechsel ist ein Befehl, das Wechselspiel der Schränke auch."""
+    """Nur die Gruppen senden, die sich geändert haben, und davon nur die geänderten Werte: Ein Farbwechsel ist ein
+    Befehl, das Wechselspiel der Schränke auch. Jede Gruppe sendet für sich (ein langsamer Befehl hält die anderen
+    nicht vom Schlag ab). Schlägt ein Befehl fehl, versucht es die Gruppe nach 1 s noch einmal."""
     trans = 0 if SETTINGS["lampen_hart"] else 0.4
     now = time.time()
     for group, ents in groups():
-        if not ents or LAMP["last"].get(group) == want[group]:
+        if not ents or group in BUSY or now < RETRY.get(group, 0.0) or LAMP["last"].get(group) == want[group]:
             continue
         rgb, pct = want[group]
         prev = LAMP["last"].get(group)
@@ -166,7 +253,25 @@ def send(want):
         if sum(c for _, c in spent) + cost > QUOTA:
             continue                            # Budget der Lampe aufgebraucht: diesen Wechsel auslassen
         spent.append((now, cost))
-        LAMP["last"][group] = want[group]
-        t0 = time.time()
+        BUSY.add(group)
+        args = (group, ents, service, data, want[group])
+        if PARALLEL:
+            threading.Thread(target=_call, args=args, daemon=True).start()
+        else:
+            _call(*args)
+
+
+def _call(group, ents, service, data, value):
+    t0 = time.time()
+    ok = False
+    try:
         ok = ha.call("light", service, data)
+    finally:
         CALLS.append((t0, time.time() - t0, bool(ok), group))
+        if ok:
+            LAMP["last"][group] = value
+            for e in ents:
+                SHOWN[e] = list(value[0]) if value[1] else None
+        else:
+            RETRY[group] = time.time() + 1.0   # nicht im 20-ms-Takt nachschießen; das Budget zählt ohnehin mit
+        BUSY.discard(group)                    # erst jetzt: sonst schickt der nächste Durchlauf denselben Wechsel

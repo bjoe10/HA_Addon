@@ -50,4 +50,17 @@ s = c.model_anchor(now, true_ones, BPM)
 b_true = (now - 1000.0) / BEAT
 print(f"Takt-Anker aus Beat This: Verschiebung {s:+d}, Rest {(c.last_b - b_true) % 4:.2f}, {c.bar_info()}")
 assert s == -1 and c.bar_model and abs(((c.last_b - b_true + 2) % 4) - 2) < 0.05
+# Hängender Rechenprozess: nach TIMEOUT beenden, Fehler melden, beim nächsten Mal neu starten
+import subprocess  # noqa: E402
+real_worker, real_timeout = downbeat._worker, downbeat.TIMEOUT
+hung = subprocess.Popen([sys.executable, "-c", "import sys; sys.stdin.buffer.read()"],   # liest, antwortet nie
+                        stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+downbeat._PROC["p"], downbeat._worker, downbeat.TIMEOUT = hung, lambda: hung, 0.5
+try:
+    downbeat.analyze(x[:R])
+    raise AssertionError("hängender Prozess nicht erkannt")
+except RuntimeError as err:
+    assert "antwortet nicht" in str(err) and hung.poll() is not None and downbeat._PROC["p"] is None, err
+downbeat._worker, downbeat.TIMEOUT = real_worker, real_timeout
+print("Hängender Rechenprozess wird beendet und neu gestartet")
 print("Beat This ok")

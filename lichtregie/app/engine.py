@@ -134,7 +134,10 @@ def show_loop(prof, t0, stop):
             if AUDIO.phase_ok(t_a):                # Schlagphase, sobald das Raster eingerastet ist
                 frac = AUDIO.phase(t_a + SETTINGS["audio_versatz"] / 1000.0)
                 locked = True
-            changes = AUDIO.changes_since(counter.seen_bc) if locked else None
+            # Die „1“ aus dem Klangwechsel traf in den Aufnahmen kaum; mit Beat This verschob sie am Liedanfang die
+            # Zählung falsch, bis das Modell sie zurückschob. Deshalb nur noch ohne Beat This
+            AUDIO.timbre = not SETTINGS["beatthis"]
+            changes = AUDIO.changes_since(counter.seen_bc) if locked and AUDIO.timbre else None
             b = counter.update(t_a, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm, changes)
             st = downbeat.STATE
             # Auch ohne eingerasteten Takt: Liegt das Tempo aus der Datenbank falsch, kann der Takt gar nicht

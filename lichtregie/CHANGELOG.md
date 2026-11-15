@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.8
+
+- **Szene „vorher“ übernimmt keine Party-Farben mehr:** Beim Party-Start wurde der Zustand immer neu gesichert,
+  auch wenn das Zurücksetzen nach der letzten Party gescheitert war; die Party-Farbe (Schrank 1 lila) wurde so
+  zum neuen „vorher“. Jetzt merkt sich die Lichtregie die zuletzt gesendete Show-Farbe je Lampe. Leuchtet eine
+  Lampe beim nächsten Start noch darin, bleibt die alte Szene.
+- **Zurücksetzen wird geprüft:** Nach der Party prüft die Lichtregie nach 5, 20 und 65 s, ob alle Lampen wieder wie
+  vorher sind, und wendet die Szene nur dann noch einmal an. Nach 2 Minuten steht im Log, ob es geklappt hat.
+- **Abgelehnte Lampenbefehle werden wiederholt:** Bisher galt ein abgelehnter Befehl als gesendet, die Lampe blieb
+  bis zum nächsten Wechsel (mindestens 2 Takte) falsch. Jetzt kommt nach 1 s ein neuer Versuch (im Budget).
+- **Lampengruppen senden gleichzeitig:** Ambilights und Schränke warten nicht mehr aufeinander; ein langsamer
+  Befehl schiebt die anderen Lampen nicht mehr hinter den Schlag.
+- **Kein Hänger mehr alle 20 s:** Für Beat This wurden 35 s Ton unter der Sperre der Audioanalyse
+  zusammengesetzt; so lange wartete die Show-Schleife auf Phase und Pegel. Gesperrt wird jetzt nur noch kurz.
+- **Weniger Last durch die Oberfläche:** Sie fragt 5-mal pro Sekunde den Status. Die teuren Messwerte
+  (Sender, Lampen, Aufnahmen, Beat This, Eingangsrate) werden nur noch einmal pro Sekunde gerechnet.
+- **„1“ am Liedanfang ruhiger:** Die alte Erkennung aus dem Klangwechsel läuft mit Beat This nicht mehr mit. Sie
+  traf in den Aufnahmen kaum und verschob am Liedanfang die Zählung, bis Beat This sie zurückschob. Spart
+  außerdem Rechenzeit bei jedem Audio-Schritt. Ohne Beat This arbeitet sie wie bisher.
+- **Beat This erholt sich:** Antwortet der Rechenprozess 60 s nicht, wird er beendet und neu gestartet; bisher
+  gab es danach bis zum Neustart des Add-ons keine „1“ mehr.
+
 ## 0.9.7
 
 - **Lampen nach der Party zurück:** Nach einem Stopp blieb Schrank 1 in den Farben der Party (lila), die anderen

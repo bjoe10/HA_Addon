@@ -51,6 +51,21 @@ def now_playing():
             "source": attrs.get("source") or ""}
 
 
+def lights(entities):
+    """Zustand von Lampen: {entity_id: {"state", "rgb", "bri"}}; nicht erreichbare fehlen."""
+    out = {}
+    for entity in entities:
+        try:
+            data = _request(f"states/{entity}", timeout=4)
+        except Exception:
+            continue
+        attrs = data.get("attributes") or {}
+        rgb = attrs.get("rgb_color")
+        out[entity] = {"state": data.get("state"), "rgb": list(rgb) if rgb else None,
+                       "bri": attrs.get("brightness")}
+    return out
+
+
 def states(entities):
     """Zustand mehrerer Entitäten: {entity_id: "on"/"off"/…}; nicht erreichbare fehlen."""
     out = {}

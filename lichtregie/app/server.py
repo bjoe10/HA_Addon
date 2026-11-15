@@ -75,6 +75,19 @@ def state():
     return data
 
 
+SLOW = {"at": 0.0, "data": {}}
+
+
+def _slow(now):
+    """Messwerte, die einmal pro Sekunde reichen. Die Oberfläche fragt 5-mal pro Sekunde; jedes Mal das
+    Aufnahmeverzeichnis lesen und über Tausende Messwerte rechnen kostete Rechenzeit neben der Show."""
+    if now - SLOW["at"] >= 1.0:
+        SLOW.update(at=now, data={"senden": heads.gaps(SENT), "lampen": lamps.stats(now),
+                                  "aufnahme": record.status(now), "beatthis": downbeat.status(),
+                                  "bilder": engine.BEAT.get("bilder")})
+    return SLOW["data"]
+
+
 def status():
     """Alles für die Startseite, mehrmals pro Sekunde abgefragt."""
     live = engine.LIVE.get("live")
@@ -86,7 +99,7 @@ def status():
     return {"spots": engine.SPOTS, "szene": engine.BEAT["szene"], "info": engine.BEAT["info"],
             "audio": engine.AUDIO.status() if engine.AUDIO is not None else None,
             "party": party.status(), "lied": engine.BEAT["lied"], "sync": engine.BEAT["sync"],
-            "fps": engine.BEAT.get("fps"), "bilder": engine.BEAT.get("bilder"), "senden": heads.gaps(SENT), "lampen": lamps.stats(), "aufnahme": record.status(), "beatthis": downbeat.status(),
+            "fps": engine.BEAT.get("fps"), **_slow(time.time()),
             "spielt": bool(fresh and live.get("playing")),
             "titel": f"{live['title']} – {live['artist']}" if fresh else None,
             "warnungen": warn}

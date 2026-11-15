@@ -86,6 +86,8 @@ class Analyzer:
         self.beat_prev = None
         self.prev_phase = None
         self.beat_changes = deque(maxlen=128)                  # (Zeit des Schlags, Klangwechsel zum vorigen)
+        self.timbre = True                                     # Klangwechsel rechnen (aus, wenn Beat This die „1“ liefert)
+        self.rate_cache = (0.0, None)                          # Eingangsrate, höchstens einmal pro Sekunde gerechnet
 
     # --- Eingang -------------------------------------------------------------------------------------
     def feed_pcm(self, data, t_end):
@@ -175,7 +177,10 @@ class Analyzer:
         self._levels(rms, e_bass, t)
         self._peak_pick(onset, t)
         self.feats.append(np.log1p(np.array([np.mean(mag[m] ** 2) for m in self.timbre_bins], dtype=np.float32)))
-        self._beat_timbre(mag, t)
+        if self.timbre:
+            self._beat_timbre(mag, t)
+        else:
+            self.prev_phase = None
         if t - self._last_nov > 0.5:
             self._last_nov = t
             self._novelty(t)
@@ -248,8 +253,11 @@ class Analyzer:
         self.beat_n += 1
 
     def recent_audio(self, seconds):
-        """Die letzten `seconds` Sekunden Ton (mono, float32) und eine Funktion Abtastwert → Uhrzeit."""
-        blocks = list(self.ring)
+        """Die letzten `seconds` Sekunden Ton (mono, float32) und eine Funktion Abtastwert → Uhrzeit. Gesperrt wird
+        nur zum Kopieren der Blockliste: Das Zusammensetzen (35 s Ton) unter der Sperre hielt die Show-Schleife auf,
+        die 40-mal pro Sekunde Phase und Pegel abfragt."""
+        with self.lock:
+            blocks = list(self.ring)
         if not blocks:
             return None, None
         x = np.concatenate([b[0] for b in blocks])
@@ -373,6 +381,12 @@ class Analyzer:
                 "drop_beats": since / beat if since >= 0 else 99.0,
             }
 
+    def _rate(self, now):
+        if now - self.rate_cache[0] >= 1.0:
+            rate = self.input_rate(now)
+            self.rate_cache = (now, None if rate is None else round(rate, 3))
+        return self.rate_cache[1]
+
     def status(self, now=None):
         now = time.time() if now is None else now
         with self.lock:
@@ -388,7 +402,7 @@ class Analyzer:
                 "bass": round(min(1.0, self.bass / self.bass_peak), 2) if on else 0.0,
                 "break": self.break_on, "drop": now - self.drop_at < 8.0,
                 "wechsel": now - self.change_at < 8.0,
-                "eingang": None if (rate := self.input_rate(now)) is None else round(rate, 3),
+                "eingang": self._rate(now),
             }
 
 
