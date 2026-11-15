@@ -4,7 +4,8 @@ Ein Home-Assistant-Add-on auf dem Raspberry Pi 5, das die Lichtshow im Wohnzimme
 musikgesteuert macht: beide Moving Heads zielen auf echte Punkte im Raum, der Laser
 folgt der Musik, die Ambilight-Ringe der Deckenlampen und die Vitrinen laufen mit.
 
-Status: **Konzept, noch kein Code.** Offene Fragen stehen ganz unten.
+Status: **Ausgangskonzept (0.1.0).** Der aktuelle Stand steht in [SHOW.md](SHOW.md) unter „Stand der Umsetzung“
+und in [CHANGELOG.md](CHANGELOG.md). Abschnitte, die inzwischen überholt sind, sind in der Überschrift markiert.
 
 ---
 
@@ -176,9 +177,9 @@ Alle Effekte beschreiben, wohin T zeigt und wie die Köpfe zueinander stehen:
 Farben: aus dem Spektrum. Bass → rot/magenta, Mitten → grün, Höhen → blau/weiß. Helligkeit = Energie,
 mit Attack und Release (schnell auf, langsam ab), damit es nicht flackert.
 
-## 6. Laser (vorerst außen vor, später optional)
+## 6. Laser (überholt: der Laser wird inzwischen gesteuert, siehe SHOW.md)
 
-Der Laser wird in der ersten Version nicht angesteuert. Er bleibt bei den bestehenden HA-Automationen
+Ursprünglich war vorgesehen, dass der Laser in der ersten Version nicht angesteuert wird. Er bleibt bei den bestehenden HA-Automationen
 bzw. bei der manuellen Steuerung. Falls er später dazukommt, dann nur über vorgefertigte Muster
 (Presets) und nicht mit Zielpunkten im Raum.
 
@@ -233,7 +234,7 @@ mit Live-Vorschau (Draufsicht des Raums mit Strahlen), Kalibrierungs-Assistent, 
 - Ingress-UI mit einer Seite für Modi, Kalibrierung, Vorschau.
 - Erst testen mit einem Mock-Node (UDP-Empfänger), dann mit echter Hardware.
 
-## 11. Phasen
+## 11. Phasen (Stand: Phasen 0 bis 4 weitgehend umgesetzt, Phase 5 nicht begonnen)
 
 | Phase | Inhalt | Ergebnis |
 |---|---|---|
@@ -246,7 +247,8 @@ mit Live-Vorschau (Draufsicht des Raums mit Strahlen), Kalibrierungs-Assistent, 
 
 ## 12. Offene Fragen
 
-1. **Audioquelle:** USB-Mikrofon im Raum, oder Line-In vom Verstärker oder TV (dann USB-Soundkarte nötig)?
+1. **Audioquelle:** *Beantwortet:* Der Ton kommt per AirPlay über Music Assistant an einen Empfänger im Add-on.
+   Kein Mikrofon und keine Soundkarte nötig. (Ursprüngliche Frage: USB-Mikrofon oder Line-In?)
 2. **Art-Net-Nodes:** *Beantwortet.* IPs, Universe und Kanäle stehen in `configuration.yaml`
    (siehe Abschnitt 1). HA sendet nur bei Änderungen (`refresh_every: 0`).
 3. **Moving Heads:** Pan und Tilt sind 16 Bit, also geklärt. Hersteller: Uking (Billigmarke, kein
@@ -261,7 +263,7 @@ mit Live-Vorschau (Draufsicht des Raums mit Strahlen), Kalibrierungs-Assistent, 
 5. **Geometrie (beantwortet):** Raum etwa 6 m tief (TV-Wand bis Köpfe-Wand) und 5 m breit.
    Die beiden Köpfe hängen an der Wand gegenüber dem TV, etwa 5 m auseinander, auf **2,50 m Höhe**
    (Annahme: Montagehöhe, bitte bestätigen). Offen: genaue Position des Sofas (Abstand zur Köpfe-Wand).
-6. **Ort im Repo:** `lichtregie/` im selben Repo, eigene Add-on-Version ab 0.1.0 – einverstanden?
+6. **Ort im Repo:** *Beantwortet:* `lichtregie/` im selben Repo, eigene Add-on-Version.
 
 ---
 
@@ -282,4 +284,5 @@ Valence, Tanzbarkeit, Lautheit. Kein Mikrofon, kein Audiostream.
 **Hardware-Grenzen** (gemessen): Bei Speed 0 fährt ein Kopf 540° in etwa 2,1 s. A und B liegen rund 25° auseinander,
 Wechsel pro Schlag sind dort gut machbar. Strobe höchstens 3 Hz.
 
-**Offen:** Phrasen-Zählung, Farbe nach Valence, Lampen über HA (langsamere Ebene), manuelle Modi in der Web-App.
+**Stand:** Die Phrasen-Zählung ist umgesetzt (siehe SHOW.md, Takt- und Phrasen-Sync). **Offen:** Farbe nach
+Valence, Lampen über HA als langsamere Ebene (inzwischen mit Grund- und Akzentfarbe umgesetzt, siehe SHOW.md).

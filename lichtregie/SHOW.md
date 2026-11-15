@@ -196,7 +196,9 @@ Titelwechsel ─▶ Blackout 1 Schlag ─▶ Intro ─▶ Hauptteil (Phrasen) �
   Auslaufen ohne Kick zeigt): Spots laufen zu einem gemeinsamen Punkt, werden langsamer. Setzt das nächste
   Lied gleich voll ein, entfällt das ruhige Intro.
 - **Übergang:** Blackout, Rad auf die neue Grundfarbe, neues Intro.
-- **Pause:** Spots bleiben stehen und atmen leise. Nach einigen Minuten Pause ausblenden.
+- **Pause** (Spotify pausiert): Spots treffen sich über dem TV und atmen in der Grundfarbe des Liedes.
+  **Warten** (Party an, keine Musik): Sternhimmel an der Decke, Kreise, Farbwechsel alle 24 s. Details unter
+  „Party-Modus“ im Abschnitt „Stand der Umsetzung“.
 
 ---
 
@@ -233,7 +235,8 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 - **Taktposition** = Liedposition × BPM / 60, mit Audio aus der eigenen Schlagzählung.
 - **Vorziehen der Bewegung** um die Laufzeit des Kopfes, damit die Spots auf dem Schlag ankommen.
 - **Radwechsel:** Farbe/Gobo nur im Dunkeln oder zu Nachbarn.
-- **Tests:** `dev/test_all.sh` (Konfiguration, Audioanalyse, Schlagzählung, Rauchtest von Motor und Web).
+- **Tests:** `dev/test_all.sh` (Konfiguration, Audioanalyse, Schlagzählung, Pipe mit Liedwechseln, Rauchtest von
+  Motor, Party und Web).
 
 ---
 
@@ -256,14 +259,15 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 
 1. **Nebel:** kommt bei Bedarf, von Hand. In der Web-App gibt es einen Schalter „Nebel an“. Ist er an,
    bevorzugt der Szenen-Planer Strahl-Effekte (Kreuzen, Fächer, Spiegel); ist er aus, Flecken-Effekte.
-2. **Strobe:** gehört zur Show, immer mit dem festen Wert 200, höchstens 1 Takt am Stück. Schalter in der Web-App zum Abschalten.
+2. **Strobe:** gehört zur Show. Die Menge stellt ein Regler in der Oberfläche ein (0–200 %, Standard 100 %),
+   höchstens 1 Takt am Stück. Ein Schalter schaltet ihn ganz ab.
 3. **Sperrzonen:** keine.
 4. **Automatischer Start:** über den Party-Modus (siehe „Stand der Umsetzung“).
 5. Offen: Ruhezeiten (z. B. ab 22 Uhr nur ruhige Stufe).
 
 ---
 
-## Stand der Umsetzung (0.7.0)
+## Stand der Umsetzung (0.8.10)
 
 **Show-Regeln** (`app/show.py`, reine Funktionen der Taktposition):
 - Song-Thema aus der Track-ID: Grund- und Akzentfarbe aus der Tonart, zwei Gobos, Motiv-Punkt, 5 Szenen
@@ -279,9 +283,12 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 **Mechanik** (`app/heads.py`): Bewegung 0,4 s vorgezogen; Mindestdauer je Bahn; Anschub (bei Sprüngen ab ca.
 4° für 0,12 s das 2,5-fache Ziel) und Vorsteuerung (Ziel um Geschwindigkeit × 0,45 s voraus).
 
-**Live-Audio** (`app/audio.py`, ab 0.3.0): AirPlay-Empfänger im Add-on, in Music Assistant mit dem Phantom
-gruppiert. Gemessen am Gerät: Audio-Versatz **80 ms** (Licht 80 ms vor der analysierten Phase), danach sitzen
-die Blitze auf dem Kick. Mit eingerastetem Takt: Puls durch Abdunkeln kurz vor dem Schlag.
+**Live-Audio** (`app/audio.py`, ab 0.3.0): AirPlay-Empfänger „Lichtregie“ im Add-on, in Music Assistant mit dem
+Phantom gruppiert. Seit 0.8.7 startet die Lichtregie shairport-sync selbst und liest den Ton über stdout
+(S16_LE, 44,1 kHz, stereo); endet shairport-sync, startet sie es nach 3 s neu. Gemessen am Gerät: Audio-Versatz
+**80 ms** (Licht 80 ms vor der analysierten Phase), danach sitzen die Blitze auf dem Kick. Mit eingerastetem Takt:
+Puls durch Abdunkeln kurz vor dem Schlag. Bildrate der Show am Pi 39,4/s (Soll 40), Last ca. 0,5 % CPU.
+Kein Ton, während Spotify über 15 s spielt: Warnung in der Oberfläche und HA-Benachrichtigung.
 
 **Takt- und Phrasen-Sync** (`app/beatcount.py`, ab 0.6.0): Mit eingerastetem Audio zählt die Lichtregie die
 Schläge selbst (Phase aus der Analyse), HA liefert nur die Grobposition. Anker: Drop → nächste Phrasengrenze
@@ -289,16 +296,29 @@ Schläge selbst (Phase aus der Analyse), HA liefert nur die Grobposition. Anker:
 Liedposition über 5 s) setzt die Zählung sofort neu auf. Synthetischer Test (`dev/test_beatcount.py`, HA
 5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
 
-**Lampen** (`app/lamps.py`): wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen.
+**Lampen** (`app/lamps.py`): wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen. Grund- und Akzentfarbe
+laufen über HA; Schrank 1 (links vom TV) und Schrank 2 (rechts) wechseln sich je Takt bei 100 % und 20 % ab,
+die Ambilights durchlaufen Grund-, Akzent- und Komplementärfarbe. Der Ausgangszustand wird gesichert und nach
+der Party wiederhergestellt.
 
 **Laser** (`app/laser.py`): Rolle je Lied aus / nur Höhepunkte / jede zweite Phrase / durchgehend (Anteil an
 der Liedzeit ca. 0 / 28 / 58 / 100 %). Ruhepunkt hoch/runter 76 (über dem TV), Bahnen nur zwischen 66 und 86.
 
-**Party-Modus** (`app/party.py`, ab 0.8.0): Hauptschalter mit Automatik (an bei Musik, aus nach 15 min
-Ruhe), schaltet Geräte und dunkelt den Raum ab. „Thema neu würfeln“ merkt die Variante je Lied.
+**Party-Modus** (`app/party.py`, ab 0.8.0): Hauptschalter. An: Geräte einschalten (Köpfe, Laser, weitere
+Steckdosen), Raum abdunkeln, Show starten. Aus: Köpfe fahren in die Parkposition (Pan 0, Tilt 0, damit beide
+gleich hängen), nach 3,5 s gehen die Steckdosen aus. Automatik: an, sobald 3 s Ton am Empfänger ankommt; aus nach
+`party_aus_min` (Standard 15) Minuten ohne Musik. Ein Stopp von Hand sperrt die Automatik, bis eine Minute Ruhe
+war. Der Stand bleibt über Neustarts erhalten (`party.json`). „Thema neu würfeln“ merkt die Variante je Lied.
 
-**Noch offen:** Bootzeit der Köpfe nach dem Einschalten messen; Tanzbarkeit und Lautheit aus FreqBlog noch
-ungenutzt.
+**Ruhe-Animationen** (`show.idle_frame`, Schleife in `engine.idle_loop`, ab 0.8.10): *Warten* (Party an, keine
+Musik): Sternhimmel an der Decke, zwei gegenläufige Kreise (40 s pro Runde), Gobo Punkte-Ring, Atmen, Farbwechsel
+alle 24 s im Dunkeln, Laser aus. *Pause* (Spotify pausiert): beide Spots über dem TV, pendeln leicht und atmen in
+der Grundfarbe, Laser aus.
+
+**Noch offen:** Bootzeit der Köpfe nach dem Einschalten messen (sie beeinflusst, wann der Sternhimmel sichtbar
+wird); Tanzbarkeit und Lautheit aus FreqBlog noch ungenutzt. Nach jedem Update muss „Party modus“ in Spotify neu
+gewählt werden, sonst nimmt Music Assistant den Empfänger nicht wieder auf. Eine automatische Lösung über die
+MA-API ist möglich, aber nicht umgesetzt.
 
 ## Laser (gemessen)
 
