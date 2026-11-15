@@ -1,1022 +1,77 @@
 #!/usr/bin/env python3
-"""Lichtregie: Show-Server für die Moving Heads (nur Standardbibliothek).
+"""Lichtregie: Web-Server und Start (nur Standardbibliothek).
 
 Im Add-on läuft er hinter HA-Ingress (Seitenleiste „Lichtregie“), lokal auf dem Mac über dev/run_local.sh.
-Die Web-Oberfläche zeigt den Raum perspektivisch; antippen richtet die Köpfe auf Boden, Wand oder Decke.
-Die Show liest den Spotify-Titel aus HA, holt Tempo und Stimmung und steuert die Köpfe per Art-Net.
-Einstellungen und Nodes: config.py.
+Aufbau: party.py (Hauptschalter), engine.py (Show-Motor), show.py (Show-Regeln), heads.py/laser.py/lamps.py (Geräte),
+audio.py + beatcount.py (Live-Audio und Schlagzählung), ha.py/tempo.py (Daten), web/ (Oberfläche).
 """
 import json
 import socket
 import threading
 import time
-import urllib.request
-from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import config
-import show
-try:            # numpy fehlt lokal ggf.; dann ohne Audioanalyse
-    import audio
-except ImportError:
-    audio = None
-from artnet import ART_PORT, FPS, Head, artdmx
-from beatcount import BeatCounter
-from geometry import pan_tilt
-from tempo import tempo
+import engine
+import ha
+import heads
+import lamps
+import laser
+import party
+import settings
+from artnet import ART_PORT, FPS, artdmx
+from settings import SETTINGS
 
-NODES = config.NODES
-PORT = config.PORT
-HEADS = {k: Head(config.LAYOUT[k], 0) for k in (1, 2)}
-STATE = {k: {"pan": 32768, "tilt": 32768, "on": True, "farbe": 0, "gobo": 0, "strobe": 0, "hell": 255} for k in HEADS}
-COLOR_CH = {k: config.LAYOUT[k]["color"] for k in HEADS}    # DMX-Kanäle aus configuration.yaml
-GOBO_CH = {k: config.LAYOUT[k]["gobo"] for k in HEADS}
-STROBE_CH = {k: config.LAYOUT[k]["strobe"] for k in HEADS}
-STATE_LOCK = threading.Lock()
-AUDIO = audio.Analyzer() if (audio is not None and config.AUDIO_PIPE) else None
-# Letzter Zielpunkt aus dem Bild, in Raumkoordinaten (ohne Spiegelung), für „Punkt merken“
-LAST_TARGET = {"value": None}
-CALIB_FILE = config.DATA / "kalibrierpunkte.jsonl"
-
-
-def apply(k, pan=None, tilt=None, on=None, farbe=None, gobo=None, strobe=None, hell=None):
-    with STATE_LOCK:
-        st = STATE[k]
-        if hell is not None:
-            st["hell"] = max(0, min(255, int(hell)))
-        if strobe is not None:
-            st["strobe"] = max(0, min(255, int(strobe)))
-        if farbe is not None:
-            st["farbe"] = max(0, min(255, int(farbe)))
-        if gobo is not None:
-            st["gobo"] = max(0, min(255, int(gobo)))
-        if pan is not None:
-            st["pan"] = max(0, min(65535, int(pan)))
-        if tilt is not None:
-            st["tilt"] = max(0, min(65535, int(tilt)))
-        if on is not None:
-            st["on"] = bool(on)
-        head = HEADS[k]
-        head.position(st["pan"], st["tilt"])
-        with head.lock:
-            head.set8(head.ch["dimmer"], st["hell"] if st["on"] else 0)
-            head.set8(COLOR_CH[k], st["farbe"])
-            head.set8(GOBO_CH[k], st["gobo"])
-            head.set8(STROBE_CH[k], st["strobe"])
-
-
-def snapshot():
-    with STATE_LOCK:
-        return {str(k): dict(v) for k, v in STATE.items()}
-
-
-def save_point():
-    """Hängt den aktuellen Kalibrierpunkt an die Datei an: Zielpunkt aus dem Bild plus die
-    endgültigen 16-Bit-Werte beider Köpfe nach dem Feinjustieren."""
-    with STATE_LOCK:
-        heads = {str(k): {"pan": v["pan"], "tilt": v["tilt"]} for k, v in STATE.items()}
-    entry = {"zeit": datetime.now().isoformat(timespec="seconds"),
-             "ziel": LAST_TARGET["value"], "kopf": heads}
-    with CALIB_FILE.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    count = sum(1 for _ in CALIB_FILE.open(encoding="utf-8"))
-    return {"count": count, "ziel": entry["ziel"]}
-
-
-def now_playing():
-    """Liest den laufenden Titel aus HA. Gibt None zurück, wenn nichts läuft oder HA nicht antwortet."""
-    try:
-        if not config.PLAYER:
-            return None
-        req = urllib.request.Request(f"{config.HA_API}/states/{config.PLAYER}",
-                                     headers={"Authorization": f"Bearer {config.ha_token()}"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
-    attrs = data.get("attributes", {})
-    if not attrs.get("media_title"):
-        return None
-    playing = data.get("state") == "playing"
-    # Position aus HA hochrechnen: HA aktualisiert sie nur alle paar Sekunden
-    pos = attrs.get("media_position")
-    updated = attrs.get("media_position_updated_at")
-    estimate = None
-    if pos is not None and updated:
-        estimate = float(pos)
-        if playing:
-            estimate += (datetime.now(timezone.utc) - datetime.fromisoformat(updated)).total_seconds()
-    return {"title": attrs["media_title"], "artist": attrs.get("media_artist", ""),
-            "id": attrs.get("media_content_id"),
-            "duration": attrs.get("media_duration"), "pos": estimate, "playing": playing}
-
-
-LIVE = {"live": None, "at": 0.0}
-BEAT = {"stop": None, "info": "aus", "szene": "", "start": None}
-# Einstellungen aus der Web-App: Strobe an/aus, Nebel an/aus, Phasen-Versatz in Schlägen, Vorlauf in Sekunden
-SETTINGS = {"strobe": True, "nebel": False, "offset": 0.0, "vorlauf": 0.4, "tempo": 2.0,
-            "anschub": True, "vorsteuerung": 0.45, "lampen": True,
-            "audio": True, "audio_versatz": 80.0, "takttest": False,
-            "lampen_decke": 40, "lampen_vitrine": 100, "lampen_vorlauf": 0.8,
-            "laser": False, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90,
-            "laser_ud_mitte": 76}   # Ruhepunkt des Lasers über dem TV (dort sieht man ihn schlecht)
-SETTINGS_FILE = config.DATA / "settings.json"
-try:   # Schalter aus der Web-App überdauern einen Neustart
-    SETTINGS.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
-except (OSError, ValueError):
-    pass
-SETTINGS["takttest"] = False   # Takt-Test startet nie von selbst
-SETTINGS["laser"] = False      # Laser sendet nach einem Neustart nie von selbst
-
-
-def save_settings():
-    try:
-        config.DATA.mkdir(parents=True, exist_ok=True)
-        SETTINGS_FILE.write_text(json.dumps(SETTINGS), encoding="utf-8")
-    except OSError:
-        pass
-VORSTEUERUNG_STUFEN = [0.0, 0.2, 0.3, 0.45]  # Sekunden; 0 = aus
-SPOTS = {}  # aktuelle Zielpunkte für die Vorschau im Raumbild
-
-# Anschub (gemessen: Überschießen macht Sprünge schneller, mit leichtem Nachwackeln):
-# bei einem Sprung kurz ein weiter entferntes Ziel vorgeben, dann das echte.
-KICK_FAKTOR = 1.5      # Zusatzweg als Vielfaches des Sprungs (1,5 = Ziel liegt beim 2,5-fachen)
-KICK_ZEIT = 0.12       # Sekunden
-KICK_AB_PAN = 450      # ab ca. 4° Pan in einem Bild gilt es als Sprung
-KICK_AB_TILT = 1760    # ab ca. 4° Tilt
-_LAST_GOAL = {}
-_KICK = {}
-_VEL = {}
-VOR_MAX_PAN = 1700    # Vorsteuerung höchstens ca. 15° Pan
-VOR_MAX_TILT = 6600   # bzw. ca. 15° Tilt
-
-
-def _clamp16(v):
-    return max(0, min(65535, int(v)))
-
-
-def with_kick(k, pan, tilt):
-    """Gibt die tatsächlich zu sendenden Pan/Tilt-Werte zurück.
-    - Sprung (ab ca. 4° in einem Bild): Anschub, kurz ein weiter entferntes Ziel.
-    - Fließende Bewegung: Vorsteuerung, das Ziel um Geschwindigkeit × Zeitkonstante vorausgeben,
-      damit der Kopf trotz interner Glättung nicht hinterherläuft."""
-    now = time.time()
-    prev = _LAST_GOAL.get(k)
-    _LAST_GOAL[k] = (pan, tilt, now)
-    jump = bool(prev) and (abs(pan - prev[0]) > KICK_AB_PAN or abs(tilt - prev[1]) > KICK_AB_TILT)
-    if SETTINGS["anschub"] and jump:
-        _KICK[k] = (now + KICK_ZEIT, _clamp16(pan + KICK_FAKTOR * (pan - prev[0])),
-                    _clamp16(tilt + KICK_FAKTOR * (tilt - prev[1])))
-    vp, vt = _VEL.get(k, (0.0, 0.0))
-    if jump:
-        vp = vt = 0.0
-    elif prev:
-        dt = max(1e-3, now - prev[2])
-        vp = 0.5 * vp + 0.5 * (pan - prev[0]) / dt
-        vt = 0.5 * vt + 0.5 * (tilt - prev[1]) / dt
-    _VEL[k] = (vp, vt)
-    kick = _KICK.get(k)
-    if kick and now < kick[0]:
-        return kick[1], kick[2]
-    tau = SETTINGS["vorsteuerung"]
-    lead_pan = max(-VOR_MAX_PAN, min(VOR_MAX_PAN, tau * vp))
-    lead_tilt = max(-VOR_MAX_TILT, min(VOR_MAX_TILT, tau * vt))
-    return _clamp16(pan + lead_pan), _clamp16(tilt + lead_tilt)
-
-
-# --- Laser: Testwerkzeug (Kanäle von Hand) mit Schutzgrenzen für die Lage des Musters ---------------
-LASER_KEYS = ["mode", "shape", "rotate", "mirror_h", "mirror_v", "up_down", "left_right", "size", "color", "dots"]
-LASER_STATE = {k: 0 for k in LASER_KEYS}
-LASER_PRESET = {"mode": 15, "shape": 125, "rotate": 178, "mirror_h": 0, "mirror_v": 0, "up_down": 8,
-                "left_right": 64, "size": 3, "color": 191, "dots": 0}   # HA-Szene „Laser Party standard“
-LASER_BUF = bytearray(512)
-LASER_LOCK = threading.Lock()
-
-
-def laser_limits(values):
-    """Schutzgrenzen: hoch/runter und links/rechts nie außerhalb des freigegebenen Bereichs."""
-    out = dict(values)
-    for key, lo, hi in (("up_down", "laser_ud_min", "laser_ud_max"),
-                        ("left_right", "laser_lr_min", "laser_lr_max")):
-        out[key] = max(SETTINGS[lo], min(SETTINGS[hi], int(out[key])))
-    return out
-
-
-def laser_apply(values):
-    with LASER_LOCK:
-        LASER_STATE.update({k: max(0, min(255, int(v))) for k, v in values.items() if k in LASER_STATE})
-        safe = laser_limits(LASER_STATE)
-        for key, ch in config.LASER[2].items():
-            LASER_BUF[ch - 1] = safe[key]
-
-
-def laser_snapshot():
-    with LASER_LOCK:
-        return {"werte": dict(LASER_STATE), "gesendet": laser_limits(LASER_STATE),
-                "steckdose": bool(config.LASER_SWITCH)}
-
-
-def show_loop(prof, t0, stop):
-    """Show-Motor mit 40 Bildern/s. Die Taktposition hängt an der Liedposition aus HA,
-    ohne Position (pausiert) an der Zeit seit dem Start."""
-    bpm = prof["bpm"]
-    started = time.time()
-    counter = BeatCounter()      # eigene Schlagzählung je Lied
-    if AUDIO is not None:        # Ereignisse aus dem vorigen Lied nicht als Anker nehmen
-        counter.seen_drop, counter.seen_change = AUDIO.drop_at, AUDIO.change_at
-    while not stop.is_set():
-        # Liedwechsel: die ersten 0,6 s dunkel, damit Farb- und Goborad unsichtbar auf das neue Thema laufen
-        blackout = time.time() - started < 0.6
-        pos = song_position()
-        sec = pos if pos is not None else (time.time() - t0)
-        b = sec * bpm / 60.0 + SETTINGS["offset"]
-        # Live-Audio: die genaue Schlagphase kommt aus der Analyse, der Liedabschnitt weiter aus HA
-        live = None
-        locked = False
-        now = time.time()
-        if AUDIO is not None and SETTINGS["audio"] and AUDIO.signal(now):
-            live = AUDIO.live(now, bpm)            # Pegel, Break, Drop
-            frac = None
-            if AUDIO.phase_ok(now):                # Schlagphase, sobald das Raster eingerastet ist
-                frac = AUDIO.phase(now + SETTINGS["audio_versatz"] / 1000.0)
-                locked = True
-            # Eigene Zählung: Phase aus dem Audio, Takt/Phrase über Drop und Phrasenwechsel ausgerichtet
-            b = counter.update(now, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm)
-        else:
-            b = counter.update(now, b)
-        b_move = b + SETTINGS["vorlauf"] * bpm / 60.0   # Bewegung vorziehen, damit sie auf dem Schlag ankommt
-        out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"],
-                               live=live, locked=locked)
-        if SETTINGS["takttest"]:
-            # Takt-Test zum Einstellen des Audio-Versatzes: weiß auf TV-Wand-Mitte, kurzer Blitz auf jedem Schlag
-            flash = (b % 1.0) < 0.15
-            out = {k: {"ziel": (2.5, 0.0, 1.6), "hell": 255 if flash else show.MIN_DIM, "farbe": 0, "gobo": 0,
-                       "strobe": 0} for k in (1, 2)}
-            info, live = "Takt-Test", None
-        for k, v in out.items():
-            x, y, z = v["ziel"]
-            # Das Modell in ziel.py ist in x gespiegelt, deshalb 5 - x
-            pan, tilt = pan_tilt(k, (5.0 - x, y, z), current_pan=_LAST_GOAL.get(k, (STATE[k]["pan"],))[0])
-            pan, tilt = with_kick(k, pan, tilt)
-            if live and v["hell"] > 0:   # Live-Pegel hebt und senkt die Helligkeit leicht
-                v = dict(v, hell=max(show.MIN_DIM, int(v["hell"] * (0.75 + 0.25 * live["level"]))))
-            if blackout:
-                v = dict(v, hell=0, strobe=0)
-            apply(k, pan, tilt, True, v["farbe"], v["gobo"], v["strobe"], v["hell"])
-            SPOTS[str(k)] = {"x": x, "y": y, "z": z, "hell": v["hell"], "farbe": v["farbe"]}
-        if SETTINGS["laser"] and not SETTINGS["takttest"]:
-            lf = show.laser_frame(prof, b, live, locked)
-            x, y = lf.pop("pos")
-            lf.pop("teil")
-            # Position von -1…1 auf die Schutzgrenzen abbilden (y = 1 oben, x = 1 rechts)
-            # Hoch/runter um den Ruhepunkt, nur so weit, wie er von beiden Grenzen entfernt ist: Bahnen
-            # bleiben dann ganz über (oder unter) dem TV in der Wandmitte
-            lo, hi = SETTINGS["laser_ud_min"], SETTINGS["laser_ud_max"]
-            mid = max(lo, min(hi, SETTINGS["laser_ud_mitte"]))
-            lf["up_down"] = mid + y * max(4, min(mid - lo, hi - mid))
-            lf["left_right"] = SETTINGS["laser_lr_min"] + (x + 1) / 2 * (SETTINGS["laser_lr_max"] - SETTINGS["laser_lr_min"])
-            laser_apply(lf)
-        szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
-        if counter.events and now - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
-            szene += f" · {counter.events[-1][1]}"
-        BEAT["szene"] = szene
-        LAMP.update(prof=prof, b=b, at=time.time(), live=live)   # Lampen-Ebene liest hier mit
-        stop.wait(1.0 / FPS)
-
-
-# --- Lampen über HA: langsame Ebene, folgt dem Song-Thema -----------------------------------------
-LAMP = {"prof": None, "b": 0.0, "at": 0.0, "last": None, "snapshot": False}
-SCENE_ID = "lichtregie_vorher"
-
-
-def ha_call(domain, service, data):
-    req = urllib.request.Request(
-        f"{config.HA_API}/services/{domain}/{service}", data=json.dumps(data).encode("utf-8"), method="POST",
-        headers={"Authorization": f"Bearer {config.ha_token()}", "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            resp.read()
-        return True
-    except Exception as err:
-        print(f"HA-Aufruf {domain}.{service} fehlgeschlagen: {err}", flush=True)
-        return False
-
-
-def lamp_loop():
-    """Alle 0,5 s: Läuft eine Show, werden die Lampen nach dem Song-Thema gesetzt, nur bei Änderung
-    (etwa einmal pro Phrase, unter dem Befehlslimit von Yeelight). Vorher wird ihr Zustand als HA-Szene
-    gesichert und das Hauptlicht ausgeschaltet; 3 s nach dem Ende der Show kommt der alte Zustand zurück."""
-    entities = config.LAMPEN_GRUND + config.LAMPEN_AKZENT + config.LAMPEN_AUS
-    while True:
-        time.sleep(0.25)
-        if not entities:
-            continue
-        active = SETTINGS["lampen"] and LAMP["prof"] is not None and time.time() - LAMP["at"] < 3.0
-        if not active:
-            if LAMP["snapshot"]:
-                ha_call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}", "transition": 2})
-                LAMP["snapshot"] = False
-                LAMP["again"] = time.time() + 5.0
-            elif LAMP.get("again") and time.time() > LAMP["again"]:
-                # zweiter Aufruf: Yeelights verschlucken gelegentlich einen Befehl
-                ha_call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}"})
-                LAMP["again"] = None
-            continue
-        LAMP["again"] = None
-        if not LAMP["snapshot"]:
-            LAMP["snapshot"] = ha_call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": entities})
-            if not LAMP["snapshot"]:
-                continue
-            if config.LAMPEN_AUS:
-                ha_call("light", "turn_off", {"entity_id": config.LAMPEN_AUS, "transition": 2})
-            LAMP["last"] = None
-        # Vorlauf: Yeelights reagieren mit Verzögerung, deshalb die Lage etwas vorausrechnen
-        bps = LAMP["prof"]["bpm"] / 60.0
-        b_lamp = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["lampen_vorlauf"]) * bps
-        want = show.lamps(LAMP["prof"], b_lamp, LAMP.get("live"))
-        # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
-        for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine")):
-            rgb, pct = want[group]
-            want[group] = (rgb, max(1, round(pct * SETTINGS[setting] / 100)))
-        key = (want["grund"], want["akzent"])
-        if key == LAMP["last"]:
-            continue
-        LAMP["last"] = key
-        for group, ents in (("grund", config.LAMPEN_GRUND), ("akzent", config.LAMPEN_AKZENT)):
-            if ents:
-                rgb, pct = want[group]
-                ha_call("light", "turn_on", {"entity_id": ents, "rgb_color": list(rgb),
-                                             "brightness_pct": pct, "transition": 0.5})
-
-
-AUDIO_WARN = {"since": None, "text": "", "notified": False}
-AUDIO_WARN_SEC = 15.0      # so lange kein Ton, während Spotify spielt, bis gewarnt wird
-NOTIFY_ID = "lichtregie_audio"
-
-
-def audio_watch_loop():
-    """Warnt, wenn Spotify spielt und die Show läuft, aber am AirPlay-Empfänger kein Ton ankommt
-    (z. B. „Lichtregie“ nach einem Neustart nicht mehr in der Sync-Gruppe von Music Assistant).
-    Warnung in der Oberfläche und als HA-Benachrichtigung; verschwindet, sobald wieder Ton kommt."""
-    while True:
-        time.sleep(2.0)
-        now = time.time()
-        live = LIVE.get("live") or {}
-        expect = (AUDIO is not None and SETTINGS["audio"] and BEAT["stop"] is not None
-                  and live.get("playing") and now - LIVE["at"] < 30)
-        if not expect or AUDIO.signal(now):
-            if AUDIO_WARN["notified"]:
-                ha_call("persistent_notification", "dismiss", {"notification_id": NOTIFY_ID})
-                print("Audio kommt wieder an", flush=True)
-            AUDIO_WARN.update(since=None, text="", notified=False)
-            continue
-        AUDIO_WARN["since"] = AUDIO_WARN["since"] or now
-        quiet = now - AUDIO_WARN["since"]
-        if quiet < AUDIO_WARN_SEC:
-            continue
-        AUDIO_WARN["text"] = (f"Kein Audio seit {int(quiet)} s, obwohl Spotify spielt. „{config.AIRPLAY_NAME}“ "
-                              f"in Music Assistant in die Sync-Gruppe aufnehmen und das Lied neu starten.")
-        if not AUDIO_WARN["notified"]:
-            AUDIO_WARN["notified"] = ha_call("persistent_notification", "create", {
-                "notification_id": NOTIFY_ID, "title": "Lichtregie: kein Audio",
-                "message": AUDIO_WARN["text"].replace(f"seit {int(quiet)} s", "")
-                           + " Bis dahin läuft die Show nur nach der Spotify-Position."})
-            print("Warnung: kein Audio am AirPlay-Empfänger", flush=True)
-
-
-def song_position():
-    """Geschätzte Position im Lied in Sekunden, oder None wenn nicht spielt."""
-    live = LIVE.get("live")
-    if not live or live.get("pos") is None or not live.get("playing"):
-        return None
-    return float(live["pos"]) + (time.time() - LIVE["at"])
-
-
-def start_beat(title, artist, info, track_id=None, duration=None):
-    """Startet die Show für einen Titel. info = Tempo-Daten (mindestens bpm)."""
-    halt_beat()
-    prof = show.profile(track_id or f"{artist}|{title}", info, duration, nebel=SETTINGS["nebel"])
-    stop = threading.Event()
-    BEAT["stop"] = stop
-    BEAT["start"] = (title, artist, info, track_id, duration)
-    BEAT["info"] = f"{title} – {artist}: {prof['bpm']:.1f} BPM, {show.describe(prof)}"
-    if AUDIO is not None:
-        AUDIO.set_bpm_hint(prof["bpm"])
-    threading.Thread(target=show_loop, args=(prof, time.time(), stop), daemon=True).start()
-
-
-def halt_beat():
-    if BEAT["stop"] is not None:
-        BEAT["stop"].set()
-        BEAT["stop"] = None
-        time.sleep(0.05)
-        for k in HEADS:          # kein Strobe nach dem Stopp
-            apply(k, strobe=0)
-        laser_apply({"mode": 0})  # Laser aus, wenn die Show endet
-    SPOTS.clear()
-    BEAT["szene"] = ""
-
-
-def stop_all():
-    halt_beat()
-    if WATCH["stop"] is not None:
-        WATCH["stop"].set()
-        WATCH["stop"] = None
-    BEAT["info"] = "aus"
-
-
-WATCH = {"stop": None}
-
-
-def audio_tempo(since):
-    """Tempo aus der Audioanalyse, wenn ein Lied bei FreqBlog fehlt: frühestens 8 s nach dem Liedwechsel
-    (Zeit zum Neu-Einrasten ohne Vorgabe) und nur bei sicherem Takt."""
-    if AUDIO is None or not SETTINGS["audio"] or time.time() - since < 8:
-        return None
-    st = AUDIO.status()
-    if st["takt"] and st["bpm"] and st["sicher"] >= 0.5:
-        return {"bpm": st["bpm"], "quelle": "Audio"}
-    return None
-
-
-def watch_loop(stop, current):
-    """Prüft alle 5 s den Titel in HA. Bei einem neuen Titel wird das Tempo geholt und der Takt neu gestartet.
-    Pausiert die Musik, läuft der Takt weiter (kein Flackern)."""
-    miss = {"at": 0.0, "since": 0.0}
-    while not stop.wait(2):
-        live = now_playing()
-        if not live:
-            continue
-        LIVE.update(live=live, at=time.time())
-        key = (live["title"], live["artist"])
-        if key == current:
-            # Gleicher Titel, aber der Takt ist nicht (mehr) aktiv: neu starten
-            # (auch, wenn noch die Show des vorigen Liedes läuft, weil das Tempo gefehlt hat)
-            stale = BEAT["start"] is not None and tuple(BEAT["start"][:2]) != key
-            if (BEAT["stop"] is None or stale) and live.get("playing"):
-                found = None
-                if time.time() - miss["at"] > 20:      # FreqBlog nicht im 2-s-Takt fragen
-                    miss["at"] = time.time()
-                    found = tempo(live["title"], live["artist"])
-                if not (found and found.get("bpm")):
-                    found = audio_tempo(miss["since"])
-                if found and found.get("bpm"):
-                    start_beat(live["title"], live["artist"], found, live.get("id"), live.get("duration"))
-            continue
-        current = key
-        found = tempo(live["title"], live["artist"])
-        if found and found.get("bpm"):
-            start_beat(live["title"], live["artist"], found, live.get("id"), live.get("duration"))
-        else:
-            # Tempo unbekannt: nicht dunkel stehen bleiben. Die Show läuft mit dem alten Lied weiter, bis das
-            # Audio das neue Tempo gefunden hat (ohne Vorgabe), dann startet sie damit
-            miss.update(at=time.time(), since=time.time())
-            if AUDIO is not None:
-                AUDIO.set_bpm_hint(None)
-            BEAT["info"] = f"{live['title']}: kein Tempo bei FreqBlog, warte auf das Audio …"
-            if AUDIO is None or not SETTINGS["audio"]:
-                halt_beat()
-
-
-def start_watch(title, artist):
-    if WATCH["stop"] is not None:
-        WATCH["stop"].set()
-    stop = threading.Event()
-    WATCH["stop"] = stop
-    threading.Thread(target=watch_loop, args=(stop, (title, artist)), daemon=True).start()
+WEB = Path(__file__).resolve().parent / "web"
+STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
+          "/index.html": ("index.html", "text/html; charset=utf-8"),
+          "/style.css": ("style.css", "text/css; charset=utf-8"),
+          "/app.js": ("app.js", "text/javascript; charset=utf-8")}
 
 
 def sender(stop):
+    """Sendet 40-mal pro Sekunde die DMX-Puffer per Art-Net an die Nodes."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     seq = 1
     while not stop.is_set():
-        for k, head in HEADS.items():
+        for k, head in heads.HEADS.items():
             with head.lock:
                 data = bytes(head.buf)
-            sock.sendto(artdmx(config.UNIVERSE[k], data, seq), (NODES[k], ART_PORT))
+            sock.sendto(artdmx(config.UNIVERSE[k], data, seq), (config.NODES[k], ART_PORT))
         if SETTINGS["laser"]:     # nur senden, wenn freigegeben; sonst behält HA den Laser
-            with LASER_LOCK:
-                ldata = bytes(LASER_BUF)
-            sock.sendto(artdmx(config.LASER[1], ldata, seq), (config.LASER[0], ART_PORT))
+            with laser.LOCK:
+                data = bytes(laser.BUF)
+            sock.sendto(artdmx(config.LASER[1], data, seq), (config.LASER[0], ART_PORT))
         seq = (seq + 1) % 256 or 1
         time.sleep(1.0 / FPS)
     sock.close()
 
 
-def lan_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("192.168.178.1", 80))  # sendet nichts, ermittelt nur die lokale Adresse
-        return s.getsockname()[0]
-    finally:
-        s.close()
+def state():
+    data = heads.snapshot()
+    live = engine.LIVE.get("live")
+    data.update(
+        info=engine.BEAT["info"], laeuft=engine.BEAT["stop"] is not None, szene=engine.BEAT["szene"],
+        erkannt=f"{live.get('title', '-')} ({time.time() - engine.LIVE['at']:.0f} s her)" if live else "noch nichts",
+        ueberwachung=engine.WATCH["stop"] is not None, settings=SETTINGS, laser=laser.snapshot())
+    return data
 
 
-HTML = """<!doctype html>
-<html lang="de"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Moving Heads</title>
-<style>
- body{font-family:-apple-system,system-ui,sans-serif;margin:0;padding:16px;background:#111;color:#eee;max-width:520px;margin:auto}
- h1{font-size:22px;margin:4px 0 12px} h2{font-size:17px;margin:0 0 8px}
- .card{background:#1d1d1f;border-radius:14px;padding:14px;margin-bottom:12px}
- label{display:block;font-size:15px;margin:12px 0 4px}
- .val{float:right;color:#9bd;font-variant-numeric:tabular-nums}
- input[type=range]{width:100%;height:34px}
- button{font-size:18px;padding:14px;border:0;border-radius:12px;background:#333;color:#eee;width:100%;margin-top:10px}
- button.primary{background:#0a84ff} button.danger{background:#8a1c1c}
- .row{display:flex;gap:10px}
- #room{display:block;width:100%;background:#0c0c0e;border-radius:12px;touch-action:none;user-select:none}
- .hint,.coords{font-size:13px;color:#aaa;margin:8px 0}
- .warn{background:#8a1c1c;color:#fff;border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:15px}
-</style></head><body>
-<h1>Moving Heads</h1>
-<p class="warn" id="warnung" hidden></p>
-
-<div class="card">
- <h2>Raum antippen</h2>
- <p class="hint">Mit dem Finger auf das Bild. Der Punkt springt auf die Fläche, die dort zu sehen ist: Boden, Wand oder Decke.</p>
- <canvas id="room"></canvas>
- <p class="coords" id="coords"></p>
- <button id="save">Punkt merken</button>
-</div>
-
-<div class="card">
- <h2>Show</h2>
- <div class="row"><button id="tStrobe">Strobe</button><button id="tNebel">Nebel</button></div>
- <div class="row"><button id="tempo1">Bewegung ×1</button><button id="tempo2">Bewegung ×2</button></div>
- <div class="row"><button id="tKick">Anschub</button><button id="tVor">Vorsteuerung</button></div>
- <div class="row"><button id="tLamp">Lampen</button><button id="tAudio">Audio</button></div>
- <div class="row"><button id="tTest">Takt-Test</button></div>
- <label>Lampen Decke <span class="val" id="ldv"></span>
-  <input type="range" id="ld" min="0" max="150" step="5"></label>
- <label>Lampen Vitrinen <span class="val" id="lvv"></span>
-  <input type="range" id="lv" min="0" max="150" step="5"></label>
- <label>Lampen-Vorlauf <span class="val" id="lvlv"></span>
-  <input type="range" id="lvl" min="0" max="2" step="0.1"></label>
- <p class="coords" id="audiostat">Audio: –</p>
- <label>Audio-Versatz <span class="val" id="avv">0 ms</span>
-  <input type="range" id="av" min="-300" max="300" step="10" value="0"></label>
- <p class="coords" id="szene">–</p>
- <label>Titel</label>
- <input id="ttl" placeholder="wird aus HA gelesen" style="width:100%;font-size:16px;padding:8px;border-radius:8px;border:0;background:#2a2a2d;color:#eee;box-sizing:border-box">
- <label>Interpret</label>
- <input id="art" placeholder="wird aus HA gelesen" style="width:100%;font-size:16px;padding:8px;border-radius:8px;border:0;background:#2a2a2d;color:#eee;box-sizing:border-box">
- <label>BPM (leer = aus der Datenbank)</label>
- <input id="bpm" placeholder="leer lassen" style="width:100%;font-size:16px;padding:8px;border-radius:8px;border:0;background:#2a2a2d;color:#eee;box-sizing:border-box">
- <div class="row"><button class="primary" id="start">Start</button><button class="danger" id="stop">Stopp</button></div>
- <p class="coords" id="beatinfo">aus</p>
-</div>
-
-<div class="card">
- <h2>Laser</h2>
- <p class="hint">„Senden an“: Läuft die Show, steuert sie den Laser (Form, Farbe, Drehung, Größe, Position im
-  Bereich der Grenzen). Ohne Show stellst du die Kanäle hier von Hand. „Senden aus“: Der Laser bleibt bei HA.</p>
- <div class="row"><button id="lSend">Senden</button><button id="lPower">Steckdose an</button></div>
- <button id="lPreset">Party-Standard laden</button>
- <p class="coords" id="lmsg"></p>
- <div id="lsliders"></div>
- <h2 style="margin-top:14px">Schutzgrenzen</h2>
- <div id="llimits"></div>
-</div>
-
-<div id="heads"></div>
-
-<div class="row">
- <button id="allon">Alle an</button>
- <button class="danger" id="alloff">Alle aus</button>
-</div>
-
-<script>
-const $ = id => document.getElementById(id);
-const timers = {};
-let state = {};
-
-// Farbtabelle Farbrad-Kanal (Beobachtung am Gerät): Startwert je Farbe, darüber gilt der Bereich
-const FARBEN = [[0, 'weiß'], [17, 'rot'], [22, 'grün'], [36, 'blau'], [44, 'gelb'], [54, 'orange'],
-  [64, 'eisblau'], [73, 'lila'], [85, 'eisblau/lila'], [93, 'eisblau/orange'], [101, 'orange/gelb'],
-  [113, 'gelb/blau'], [121, 'grün/blau'], [132, 'grün/rot']];
-function farbName(v) {
-  if (v >= 140) return 'Auto-Programm';
-  let name = 'weiß';
-  for (const [start, n] of FARBEN) if (v >= start) name = n;
-  return name;
-}
-// Gobo-Muster (Beobachtung am Gerät): Startwert je Muster
-const GOBOS = [[0, 'voll offen'], [13, 'Atom-Ring'], [21, 'Punkte-Ring'], [27, 'Punkte-Blume'], [34, 'grobe Löcher'],
-  [43, 'Blubberblasen'], [50, 'Swirl'], [57, 'Striche'], [58, 'unbekannt'],
-  // Zittern: je Muster drei Stufen, langsam bis schnell (nur Atom ist bestätigt, die anderen angenommen)
-  [73, 'Atom zittern langsam'], [74, 'Atom zittern mittel'], [76, 'Atom zittern schnell'],
-  [80, 'Punkte-Ring zittern 1'], [82, 'Punkte-Ring zittern 2'], [85, 'Punkte-Ring zittern 3'],
-  [89, 'Punkte-Blume zittern 1'], [90, 'Punkte-Blume zittern 2'], [93, 'Punkte-Blume zittern 3'],
-  [97, 'grobe Löcher zittern 1'], [99, 'grobe Löcher zittern 2'], [100, 'grobe Löcher zittern 3'],
-  [105, 'Blasen zittern 1'], [108, 'Blasen zittern 2'], [111, 'Blasen zittern 3'],
-  [113, 'Swirl zittern 1'], [115, 'Swirl zittern 2'], [117, 'Swirl zittern 3'],
-  [121, 'Striche zittern 1'], [123, 'Striche zittern 2'], [126, 'Striche zittern 3']];
-const GOBO_SCHNELL = GOBOS.map(([v, n]) => [n, v]);
-function goboName(v) {
-  let name = 'voll offen';
-  for (const [start, n] of GOBOS) if (v >= start) name = n;
-  return name;
-}
-// Strobe (Beobachtung am Gerät): 0 und 255 = Licht dauerhaft an, dazwischen blinkt es, je höher desto schneller
-function strobeName(v) {
-  if (v === 0 || v === 255) return 'kein Strobe (an)';
-  return v === 200 ? 'Strobe, guter Wert' : 'Strobe, schneller je höher';
-}
-const SCHNELL = [['weiß', 0], ['rot', 17], ['grün', 22], ['blau', 36], ['gelb', 44], ['orange', 54], ['eisblau', 64], ['lila', 73]];
-const MISCH = [['eisblau/lila', 85], ['eisblau/orange', 93], ['orange/gelb', 101], ['gelb/blau', 113], ['grün/blau', 121], ['grün/rot', 132]];
-function presets() {
-  for (const k of [1, 2]) {
-    let html = '';
-    for (const [n, v] of SCHNELL.concat(MISCH)) html += `<button data-v="${v}" style="width:auto;padding:8px 10px;font-size:14px;margin:4px 4px 0 0">${n}</button>`;
-    $('pr' + k).innerHTML = html;
-    $('pr' + k).querySelectorAll('button').forEach(b => b.addEventListener('click', () =>
-      post('api/set', {heads: {[k]: {farbe: +b.dataset.v}}})));
-    let gh = '';
-    for (const [n, v] of GOBO_SCHNELL) gh += `<button data-v="${v}" style="width:auto;padding:8px 10px;font-size:14px;margin:4px 4px 0 0">${n}</button>`;
-    $('gp' + k).innerHTML = gh;
-    $('gp' + k).querySelectorAll('button').forEach(b => b.addEventListener('click', () =>
-      post('api/set', {heads: {[k]: {gobo: +b.dataset.v}}})));
-  }
-}
-
-// --- Kamera: aus Sicht der Kopfwand (y = 6), leicht von oben, Blick Richtung TV-Wand ---
-const CAM = {pos: [2.5, 5.9, 2.2], target: [2.5, 0, 0.8], fov: 62 * Math.PI / 180};
-const BOX = {min: [0, 0, 0], max: [5, 6, 2.5]};
-const FACE = ['Wand x=5 bzw. x=0', 'Wand y=0 (TV) bzw. y=6 (Kopfwand)', 'Boden bzw. Decke'];
-let padXY = {x: 2.5, y: 3.0, z: 0};
-let spots = {}, settings = {strobe: true, nebel: false};
-const RADFARBE = {0: '#ffffff', 17: '#ff3b30', 22: '#34c759', 36: '#3a6bff', 44: '#ffd60a',
-  54: '#ff9500', 64: '#7fdcff', 73: '#bf5af2'};
-let canvas = $('room'), ctx = canvas.getContext('2d');
-let W = 300, H = 225;
-
-const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-const scale = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
-const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const norm = a => { const l = Math.hypot(a[0], a[1], a[2]); return [a[0] / l, a[1] / l, a[2] / l]; };
-
-function basis() {
-  const f = norm(sub(CAM.target, CAM.pos));
-  const r = norm(cross(f, [0, 0, 1]));  // Bild wie im Raum: Blick von der Kopfwand zum TV
-  const u = cross(r, f);
-  return {f, r, u};
-}
-
-// Raumpunkt -> Bildanteile (0..1), null wenn hinter der Kamera
-function project(P) {
-  const B = basis();
-  const v = sub(P, CAM.pos);
-  const zc = dot(v, B.f);
-  if (zc <= 0.01) return null;
-  const h = Math.tan(CAM.fov / 2), aspect = W / H;
-  return [0.5 + dot(v, B.r) / zc / (2 * h * aspect), 0.5 - dot(v, B.u) / zc / (2 * h)];
-}
-
-// Bildanteile -> Fläche des Raums, auf die der Strahl trifft (Kamera steht im Raum)
-function pick(fu, fv) {
-  const B = basis();
-  const h = Math.tan(CAM.fov / 2), aspect = W / H;
-  const a = (fu - 0.5) * 2 * h * aspect, b = (0.5 - fv) * 2 * h;
-  const d = add(add(B.f, scale(B.r, a)), scale(B.u, b));
-  let t = Infinity, axis = 0;
-  for (let i = 0; i < 3; i++) {
-    let ti = null;
-    if (d[i] > 1e-9) ti = (BOX.max[i] - CAM.pos[i]) / d[i];
-    else if (d[i] < -1e-9) ti = (BOX.min[i] - CAM.pos[i]) / d[i];
-    if (ti !== null && ti > 0 && ti < t) { t = ti; axis = i; }
-  }
-  const P = add(CAM.pos, scale(d, t));
-  for (let i = 0; i < 3; i++) P[i] = Math.min(BOX.max[i], Math.max(BOX.min[i], P[i]));
-  return {P, face: axis};
-}
-
-function drawRoom() {
-  ctx.clearRect(0, 0, W, H);
-  // Boden und Wände leicht getönt, damit die Flächen unterscheidbar sind
-  const corners = [];
-  for (const x of [0, 5]) for (const y of [0, 6]) for (const z of [0, 2.5]) corners.push([x, y, z]);
-  ctx.strokeStyle = '#4a4a52'; ctx.lineWidth = 1.5;
-  for (let i = 0; i < corners.length; i++) for (let j = i + 1; j < corners.length; j++) {
-    const a = corners[i], b = corners[j];
-    const diff = [0, 1, 2].filter(k => a[k] !== b[k]);
-    if (diff.length !== 1) continue;
-    const pa = project(a), pb = project(b);
-    if (!pa || !pb) continue;
-    ctx.beginPath(); ctx.moveTo(pa[0] * W, pa[1] * H); ctx.lineTo(pb[0] * W, pb[1] * H); ctx.stroke();
-  }
-  // TV-Wand als Rechteck (TV ca. 1,2 m breit, Mitte 2,5 m, Höhe 0,5 bis 1,3 m)
-  const tv = [[1.9, 0, 0.5], [3.1, 0, 0.5], [3.1, 0, 1.3], [1.9, 0, 1.3]].map(project);
-  if (tv.every(p => p)) {
-    ctx.fillStyle = '#1b2a3a'; ctx.beginPath();
-    tv.forEach((p, i) => i ? ctx.lineTo(p[0] * W, p[1] * H) : ctx.moveTo(p[0] * W, p[1] * H));
-    ctx.closePath(); ctx.fill();
-  }
-  // Spots der laufenden Show (Vorschau), in der Farbe des Farbrads, Deckkraft nach Helligkeit
-  for (const k of ['1', '2']) {
-    const s = spots[k];
-    if (!s) continue;
-    const p = project([s.x, s.y, s.z]);
-    if (!p) continue;
-    ctx.globalAlpha = s.hell > 0 ? 0.25 + 0.75 * s.hell / 255 : 0.08;
-    ctx.fillStyle = RADFARBE[s.farbe] || '#ffffff';
-    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 20;
-    ctx.beginPath(); ctx.arc(p[0] * W, p[1] * H, 13, 0, 2 * Math.PI); ctx.fill();
-    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-    ctx.fillStyle = '#000'; ctx.font = '11px sans-serif'; ctx.fillText(k, p[0] * W - 3, p[1] * H + 4);
-  }
-  // Aktueller Zielpunkt
-  const c = project([padXY.x, padXY.y, padXY.z]);
-  if (c) {
-    ctx.fillStyle = '#0a84ff'; ctx.shadowColor = '#0a84ff'; ctx.shadowBlur = 16;
-    ctx.beginPath(); ctx.arc(c[0] * W, c[1] * H, 9, 0, 2 * Math.PI); ctx.fill();
-    ctx.shadowBlur = 0;
-  }
-}
-
-function resize() {
-  const w = Math.min(canvas.parentElement.clientWidth - 32, 520);
-  W = Math.max(240, Math.round(w)); H = Math.round(W * 0.75);
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.height = H + 'px';
-  canvas.width = W * dpr; canvas.height = H * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawRoom();
-}
-
-function post(path, body) {
-  return fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'},
-                      body: JSON.stringify(body)})
-    .then(r => r.json()).then(s => { state = s; showState(); });
-}
-function throttled(key, fn) {
-  clearTimeout(timers[key]); timers[key] = setTimeout(fn, 60);
-}
-
-let lastSend = 0, pendingTimer = null;
-// Das Modell in ziel.py/kalibrierung_fit.py hat die x-Achse gespiegelt gegenüber dem Raum
-// (Messpunkte allein unterscheiden das nicht). Deshalb wird x hier zurückgespiegelt.
-function sendTarget() { post('api/target', {x: 5 - padXY.x, y: padXY.y, z: padXY.z}); }
-$('save').addEventListener('click', () => {
-  fetch('api/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
-    .then(r => r.json()).then(s => {
-      $('coords').textContent = `gemerkt: Nr. ${s.count} (${s.ziel ? 'Ziel ' + s.ziel.x.toFixed(2) + ' / ' + s.ziel.y.toFixed(2) + ' / ' + s.ziel.z.toFixed(2) : 'ohne Zielpunkt'})`;
-    });
-});
-function touchRoom(e) {
-  const r = canvas.getBoundingClientRect();
-  const fu = (e.clientX - r.left) / r.width, fv = (e.clientY - r.top) / r.height;
-  const {P, face} = pick(Math.min(1, Math.max(0, fu)), Math.min(1, Math.max(0, fv)));
-  padXY = {x: P[0], y: P[1], z: P[2]};
-  $('coords').textContent =
-    `x ${P[0].toFixed(2)} m, y ${P[1].toFixed(2)} m, z ${P[2].toFixed(2)} m · ${FACE[face]}`;
-  drawRoom();
-  const now = Date.now();
-  if (now - lastSend >= 50) { lastSend = now; sendTarget(); }
-  else { clearTimeout(pendingTimer); pendingTimer = setTimeout(() => { lastSend = Date.now(); sendTarget(); }, 50); }
-}
-canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); touchRoom(e); });
-canvas.addEventListener('pointermove', e => { if (canvas.hasPointerCapture(e.pointerId)) touchRoom(e); });
-canvas.addEventListener('pointerup', e => { canvas.releasePointerCapture(e.pointerId); });
-window.addEventListener('resize', resize);
-
-function buildHeads() {
-  let html = '';
-  for (const k of [1, 2]) {
-    html += `<div class="card"><h2>Kopf ${k}</h2>
-      <label>Pan <span class="val" id="pv${k}"></span>
-        <input type="range" min="0" max="65535" id="p${k}"></label>
-      <label>Tilt <span class="val" id="tv${k}"></span>
-        <input type="range" min="0" max="65535" id="t${k}"></label>
-      <label>Helligkeit <span class="val" id="hv${k}"></span>
-        <input type="range" min="0" max="255" id="h${k}"></label>
-      <label>Farbe <span class="val" id="fv${k}"></span>
-        <input type="range" min="0" max="255" id="f${k}"></label>
-      <div id="pr${k}"></div>
-      <label>Gobo <span class="val" id="gv${k}"></span>
-        <input type="range" min="0" max="255" id="g${k}"></label>
-      <div id="gp${k}"></div>
-      <label>Strobe <span class="val" id="sv${k}"></span>
-        <input type="range" min="0" max="255" id="s${k}"></label>
-      <p class="hint">Achtung: Blitzlicht. Nur kurz und vorsichtig testen.</p>
-      <button id="b${k}"></button></div>`;
-  }
-  $('heads').innerHTML = html;
-  for (const k of [1, 2]) {
-    $('p' + k).addEventListener('input', () =>
-      throttled('p' + k, () => post('api/set', {heads: {[k]: {pan: +$('p' + k).value}}})));
-    $('t' + k).addEventListener('input', () =>
-      throttled('t' + k, () => post('api/set', {heads: {[k]: {tilt: +$('t' + k).value}}})));
-    $('h' + k).addEventListener('input', () =>
-      throttled('h' + k, () => post('api/set', {heads: {[k]: {hell: +$('h' + k).value}}})));
-    $('s' + k).addEventListener('input', () =>
-      throttled('s' + k, () => post('api/set', {heads: {[k]: {strobe: +$('s' + k).value}}})));
-    $('g' + k).addEventListener('input', () =>
-      throttled('g' + k, () => post('api/set', {heads: {[k]: {gobo: +$('g' + k).value}}})));
-    $('f' + k).addEventListener('input', () =>
-      throttled('f' + k, () => post('api/set', {heads: {[k]: {farbe: +$('f' + k).value}}})));
-    $('b' + k).addEventListener('click', () =>
-      post('api/set', {heads: {[k]: {on: !state[k].on}}}));
-  }
-}
-
-function showState() {
-  for (const k of [1, 2]) {
-    const s = state[k];
-    if (!s) continue;
-    if (document.activeElement !== $('p' + k)) $('p' + k).value = s.pan;
-    if (document.activeElement !== $('t' + k)) $('t' + k).value = s.tilt;
-    $('pv' + k).textContent = s.pan;
-    if (document.activeElement !== $('f' + k)) $('f' + k).value = s.farbe;
-    $('fv' + k).textContent = s.farbe + ' · ' + farbName(s.farbe);
-    if (document.activeElement !== $('g' + k)) $('g' + k).value = s.gobo;
-    $('gv' + k).textContent = s.gobo + ' · ' + goboName(s.gobo);
-    if (document.activeElement !== $('h' + k)) $('h' + k).value = s.hell;
-    $('hv' + k).textContent = s.hell;
-    if (document.activeElement !== $('s' + k)) $('s' + k).value = s.strobe;
-    $('sv' + k).textContent = s.strobe + ' · ' + strobeName(s.strobe);
-    $('tv' + k).textContent = s.tilt;
-    $('b' + k).textContent = s.on ? `Kopf ${k} aus` : `Kopf ${k} an`;
-    $('b' + k).className = s.on ? '' : 'primary';
-  }
-}
-
-$('allon').addEventListener('click', () =>
-  post('api/set', {heads: {1: {on: true}, 2: {on: true}}}));
-$('alloff').addEventListener('click', () =>
-  post('api/set', {heads: {1: {on: false}, 2: {on: false}}}));
-
-$('start').addEventListener('click', () => {
-  $('beatinfo').textContent = 'lade …';
-  fetch('api/start', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({title: $('ttl').value, artist: $('art').value, bpm: $('bpm').value})})
-    .then(r => r.json()).then(s => { $('beatinfo').textContent = s.info; });
-});
-$('stop').addEventListener('click', () =>
-  fetch('api/stop', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
-    .then(r => r.json()).then(s => { $('beatinfo').textContent = s.info; }));
-
-// Schalter Strobe und Nebel
-function showSettings() {
-  $('tStrobe').textContent = 'Strobe ' + (settings.strobe ? 'an' : 'aus');
-  $('tStrobe').className = settings.strobe ? 'primary' : '';
-  $('tNebel').textContent = 'Nebel ' + (settings.nebel ? 'an' : 'aus');
-  $('tNebel').className = settings.nebel ? 'primary' : '';
-  $('tVor').textContent = 'Vorsteuerung ' + (settings.vorsteuerung ? settings.vorsteuerung + ' s' : 'aus');
-  $('tVor').className = settings.vorsteuerung ? 'primary' : '';
-  for (const [id, key] of [['ld', 'lampen_decke'], ['lv', 'lampen_vitrine']]) {
-    if (document.activeElement !== $(id)) $(id).value = settings[key];
-    $(id + 'v').textContent = settings[key] + ' %';
-  }
-  if (document.activeElement !== $('lvl')) $('lvl').value = settings.lampen_vorlauf;
-  $('lvlv').textContent = settings.lampen_vorlauf + ' s';
-  $('tTest').textContent = 'Takt-Test ' + (settings.takttest ? 'an' : 'aus');
-  $('tTest').className = settings.takttest ? 'primary' : '';
-  $('tAudio').textContent = 'Audio ' + (settings.audio ? 'an' : 'aus');
-  $('tAudio').className = settings.audio ? 'primary' : '';
-  if (document.activeElement !== $('av')) $('av').value = settings.audio_versatz || 0;
-  $('avv').textContent = (settings.audio_versatz || 0) + ' ms';
-  $('tLamp').textContent = 'Lampen ' + (settings.lampen ? 'an' : 'aus');
-  $('tLamp').className = settings.lampen ? 'primary' : '';
-  $('tKick').textContent = 'Anschub ' + (settings.anschub ? 'an' : 'aus');
-  $('tKick').className = settings.anschub ? 'primary' : '';
-  $('tempo1').className = settings.tempo === 1 ? 'primary' : '';
-  $('tempo2').className = settings.tempo === 2 ? 'primary' : '';
-}
-$('tKick').addEventListener('click', () => setSetting({anschub: !settings.anschub}));
-$('tLamp').addEventListener('click', () => setSetting({lampen: !settings.lampen}));
-$('tAudio').addEventListener('click', () => setSetting({audio: !settings.audio}));
-$('tTest').addEventListener('click', () => setSetting({takttest: !settings.takttest}));
-for (const [id, key] of [['ld', 'lampen_decke'], ['lv', 'lampen_vitrine']]) {
-  $(id).addEventListener('input', () => { $(id + 'v').textContent = $(id).value + ' %'; });
-  $(id).addEventListener('change', () => setSetting({[key]: +$(id).value}));
-}
-$('lvl').addEventListener('input', () => { $('lvlv').textContent = $('lvl').value + ' s'; });
-$('lvl').addEventListener('change', () => setSetting({lampen_vorlauf: +$('lvl').value}));
-$('av').addEventListener('change', () => setSetting({audio_versatz: +$('av').value}));
-$('av').addEventListener('input', () => { $('avv').textContent = $('av').value + ' ms'; });
-const VOR = [0, 0.2, 0.3, 0.45];
-$('tVor').addEventListener('click', () => {
-  const i = VOR.indexOf(settings.vorsteuerung);
-  setSetting({vorsteuerung: VOR[(i + 1) % VOR.length]});
-});
-$('tempo1').addEventListener('click', () => setSetting({tempo: 1}));
-$('tempo2').addEventListener('click', () => setSetting({tempo: 2}));
-function setSetting(body) {
-  fetch('api/settings', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)}).then(r => r.json()).then(s => { settings = s; showSettings(); });
-}
-$('tStrobe').addEventListener('click', () => setSetting({strobe: !settings.strobe}));
-$('tNebel').addEventListener('click', () => setSetting({nebel: !settings.nebel}));
-
-// Vorschau: Spots 5x pro Sekunde holen und ins Raumbild zeichnen
-setInterval(() => {
-  fetch('api/spots').then(r => r.json()).then(d => {
-    spots = d.spots || {};
-    const a = d.audio;
-    $('audiostat').textContent = !a ? 'Audio: nicht eingerichtet'
-      : a.an ? `Audio: ${a.takt ? 'Takt eingerastet' : 'sucht Takt'} · ${a.bpm || '–'} BPM · Sicherheit ${Math.round(a.sicher * 100)} % · Pegel ${Math.round(a.pegel * 100)} %`
-               + (a.break ? ' · Break' : '') + (a.drop ? ' · DROP' : '')
-      : 'Audio: kein Signal (Lichtregie in der AirPlay-Gruppe in MA?)';
-    $('szene').textContent = d.szene || '–';
-    $('warnung').hidden = !d.warnung;
-    $('warnung').textContent = '⚠ ' + (d.warnung || '');
-    drawRoom();
-  }).catch(() => {});
-}, 200);
-
-// Status alle 2 s holen, damit Anzeige und Köpfe zum Server passen
-setInterval(() => {
-  fetch('api/state').then(r => r.json()).then(s => {
-    state = s; showState();
-    if (s.settings) { settings = s.settings; showSettings(); showLaserSettings(); }
-    if (s.laser) showLaser(s.laser);
-    if (s.info) $('beatinfo').textContent = s.info + ' · erkannt: ' + s.erkannt + ' · Überwachung ' + (s.ueberwachung ? 'an' : 'aus');
-  }).catch(() => {});
-}, 2000);
-
-// --- Laser-Karte -------------------------------------------------------------------------------------
-const LASER = [['mode', 'Modus'], ['shape', 'Form'], ['rotate', 'Rotation'], ['mirror_h', 'Spiegel waagerecht'],
-  ['mirror_v', 'Spiegel senkrecht'], ['up_down', 'Hoch/runter'], ['left_right', 'Links/rechts'], ['size', 'Größe'],
-  ['color', 'Farbe'], ['dots', 'Punkte-Geschwindigkeit']];
-const LSHAPES = [[0, 'Quadrat'], [8, 'Kreis'], [13, 'senkrechter Strich'], [17, 'waagerechter Strich'],
-  [21, 'Diagonale'], [27, 'Halbkreis unten'], [34, 'Halbkreis links'], [37, 'Dreieck'], [43, 'V-Form'],
-  [48, 'zwei senkrechte Striche'], [52, 'zwei waagerechte Striche'], [59, 'senkrecht mit Lücke'],
-  [64, 'waagerecht mit Lücke'], [67, 'Welle'], [73, 'invertierte Welle'], [79, 'Musiknote'],
-  [82, 'Kreis rechts oben'], [87, 'Tannenbaum'], [92, 'Zahl 3'], [96, '<'], [102, 'Stern'],
-  [108, 'senkrechte Welle'], [113, 'Zahl 2'], [116, 'Zahl 1'], [122, 'Herz'], [128, 'Punkte in den Ecken'],
-  [132, 'Apfel'], [136, 'gestrichelter Kreis'], [142, 'zwei Kreise'], [148, 'Doppelkreis'],
-  [152, 'Fluxkompensator'], [156, 'Plus'], [162, 'Kreis mit Quadrat'], [167, 'Doppeldreieck'],
-  [172, 'Striche-Swirl'], [176, 'drei Striche'], [181, 'drei versetzte Striche'], [187, 'Fünfeck'],
-  [191, 'Fadenkreuz'], [196, 'D-Pad'], [201, 'Pfeil'], [207, 'Unendlich'], [212, 'Wurfstern'],
-  [216, 'seltsames Dreieck'], [222, 'Quadrat auf Spitze'], [226, 'Dreieck mit Pfeil'], [231, 'Sims-Kristall'],
-  [238, 'Fliege']];
-function laserShapeName(v) {
-  let n = '';
-  for (const [st, name] of LSHAPES) if (v >= st) n = name;
-  return n;
-}
-const LIMITS = [['laser_ud_min', 'Hoch/runter min'], ['laser_ud_max', 'Hoch/runter max'],
-  ['laser_lr_min', 'Links/rechts min'], ['laser_lr_max', 'Links/rechts max'],
-  ['laser_ud_mitte', 'Show-Mitte hoch/runter']];
-let laserPower = false;
-function laserPost(body) {
-  fetch('api/laser', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
-    .then(r => r.json()).then(showLaser);
-}
-function buildLaser() {
-  $('lsliders').innerHTML = LASER.map(([k, n]) => `<label>${n} <span class="val" id="lzv_${k}"></span>
-    <input type="range" min="0" max="255" id="lz_${k}"></label>`).join('');
-  $('llimits').innerHTML = LIMITS.map(([k, n]) => `<label>${n} <span class="val" id="lgv_${k}"></span>
-    <input type="range" min="0" max="255" id="lg_${k}"></label>`).join('');
-  for (const [k] of LASER) {
-    $('lz_' + k).addEventListener('input', () => throttled('lz' + k, () => laserPost({values: {[k]: +$('lz_' + k).value}})));
-  }
-  for (const [k] of LIMITS) {
-    $('lg_' + k).addEventListener('input', () => { $('lgv_' + k).textContent = $('lg_' + k).value; });
-    $('lg_' + k).addEventListener('change', () => setSetting({[k]: +$('lg_' + k).value}));
-  }
-  $('lSend').addEventListener('click', () => setSetting({laser: !settings.laser}));
-  $('lPreset').addEventListener('click', () => laserPost({preset: true}));
-  $('lPower').addEventListener('click', () => {
-    laserPower = !laserPower;
-    fetch('api/laser_power', {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({on: laserPower})}).then(r => r.json()).then(d => {
-        $('lmsg').textContent = d.ok ? (laserPower ? 'Steckdose an, Laser braucht ca. 20 s' : 'Steckdose aus')
-                                     : 'Keine Steckdose eingestellt (Add-on-Option laser_schalter)';
-        $('lPower').textContent = laserPower ? 'Steckdose aus' : 'Steckdose an';
-      });
-  });
-}
-function showLaser(l) {
-  if (!l) return;
-  for (const [k] of LASER) {
-    if (document.activeElement !== $('lz_' + k)) $('lz_' + k).value = l.werte[k];
-    const sent = l.gesendet[k];
-    $('lzv_' + k).textContent = l.werte[k] + (k === 'shape' ? ' · ' + laserShapeName(l.werte[k]) : '')
-      + (sent !== l.werte[k] ? ` → ${sent} (Grenze)` : '');
-  }
-}
-function showLaserSettings() {
-  $('lSend').textContent = 'Senden ' + (settings.laser ? 'an' : 'aus');
-  $('lSend').className = settings.laser ? 'danger' : '';
-  for (const [k] of LIMITS) {
-    if (document.activeElement !== $('lg_' + k)) $('lg_' + k).value = settings[k];
-    $('lgv_' + k).textContent = settings[k];
-  }
-}
-
-buildHeads();
-presets();
-buildLaser();
-resize();
-fetch('api/state').then(r => r.json()).then(s => { state = s; showState(); });
-</script>
-</body></html>
-"""
+def status():
+    """Alles für die Startseite, mehrmals pro Sekunde abgefragt."""
+    live = engine.LIVE.get("live")
+    fresh = live is not None and time.time() - engine.LIVE["at"] < 20
+    warn = [engine.AUDIO_WARN["text"]] if engine.AUDIO_WARN["text"] else []
+    if party.PARTY["on"] and not fresh and time.time() - party.PARTY["since"] > 20:
+        warn.append("Home Assistant meldet keinen Titel (Spotify-Integration nicht erreichbar?). "
+                    "Die Show läuft nur nach dem Audio.")
+    return {"spots": engine.SPOTS, "szene": engine.BEAT["szene"], "info": engine.BEAT["info"],
+            "audio": engine.AUDIO.status() if engine.AUDIO is not None else None,
+            "party": party.status(), "lied": engine.BEAT["lied"],
+            "spielt": bool(fresh and live.get("playing")),
+            "titel": f"{live['title']} – {live['artist']}" if fresh else None,
+            "warnungen": warn}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1024,8 +79,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
+
+    def _json(self, data, code=200):
+        self._send(code, "application/json", json.dumps(data).encode("utf-8"))
 
     def _allowed(self):
         """Im Add-on (Host-Netzwerk) nur Anfragen über den HA-Ingress-Proxy annehmen."""
@@ -1037,24 +96,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._allowed():
             return
-        if self.path in ("/", "/index.html"):
-            self._send(200, "text/html; charset=utf-8", HTML.encode("utf-8"))
+        if self.path in STATIC:
+            name, ctype = STATIC[self.path]
+            self._send(200, ctype, (WEB / name).read_bytes())
         elif self.path == "/api/state":
-            data = snapshot()
-            data["info"] = BEAT["info"]
-            data["laeuft"] = BEAT["stop"] is not None
-            live = LIVE.get("live") or {}
-            data["erkannt"] = f"{live.get('title', '-')} ({time.time() - LIVE['at']:.0f} s her)" if LIVE.get("live") else "noch nichts"
-            data["ueberwachung"] = WATCH["stop"] is not None
-            data["szene"] = BEAT["szene"]
-            data["settings"] = SETTINGS
-            data["laser"] = laser_snapshot()
-            self._send(200, "application/json", json.dumps(data).encode("utf-8"))
-        elif self.path == "/api/spots":
-            self._send(200, "application/json",
-                       json.dumps({"spots": SPOTS, "szene": BEAT["szene"],
-                                   "audio": AUDIO.status() if AUDIO is not None else None,
-                                   "warnung": AUDIO_WARN["text"]}).encode("utf-8"))
+            self._json(state())
+        elif self.path == "/api/status":
+            self._json(status())
         else:
             self._send(404, "text/plain", b"nicht gefunden")
 
@@ -1066,113 +114,79 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
             return self._send(400, "text/plain", b"ungueltiges JSON")
-        if self.path == "/api/set":
-            for k, values in body.get("heads", {}).items():
-                apply(int(k), values.get("pan"), values.get("tilt"), values.get("on"), values.get("farbe"), values.get("gobo"), values.get("strobe"), values.get("hell"))
-        elif self.path == "/api/target":
-            x, y, z = float(body["x"]), float(body["y"]), float(body["z"])
-            for k in HEADS:
-                pan, tilt = pan_tilt(k, (x, y, z), current_pan=STATE[k]["pan"])
-                apply(k, pan, tilt, None)
-            # x kommt gespiegelt an (Modell), für die Datei zurück in Raumkoordinaten
-            LAST_TARGET["value"] = {"x": 5 - x, "y": y, "z": z}
+        if self.path == "/api/set":            # einzelne Kopf-Kanäle von Hand
+            for k, v in body.get("heads", {}).items():
+                heads.apply(int(k), v.get("pan"), v.get("tilt"), v.get("on"), v.get("farbe"), v.get("gobo"),
+                            v.get("strobe"), v.get("hell"))
+            self._json(heads.snapshot())
+        elif self.path == "/api/target":       # Punkt im Raumbild angetippt
+            heads.aim_manual(float(body["x"]), float(body["y"]), float(body["z"]))
+            self._json(heads.snapshot())
         elif self.path == "/api/save":
-            return self._send(200, "application/json", json.dumps(save_point()).encode("utf-8"))
-        elif self.path == "/api/start":
-            title = str(body.get("title", "")).strip()
-            artist = str(body.get("artist", "")).strip()
-            bpm_text = str(body.get("bpm", "")).strip()
-            live = now_playing()  # zuerst HA: was läuft gerade wirklich
-            if live:
-                title, artist = live["title"], live["artist"]
-                LIVE.update(live=live, at=time.time())
-            found = tempo(title, artist) if title and artist else None
-            if bpm_text:
-                info = dict(found or {}, bpm=float(bpm_text.replace(",", ".")))
-            elif found and found.get("bpm"):
-                info = found
+            self._json(heads.save_point())
+        elif self.path == "/api/party":        # Party-Schalter
+            if body.get("an"):
+                party.start()
             else:
-                return self._send(200, "application/json", json.dumps(
-                    {"info": "Tempo nicht gefunden, bitte BPM eingeben"}).encode("utf-8"))
-            start_beat(title or "ohne Titel", artist, info,
-                       live.get("id") if live else None, live.get("duration") if live else None)
-            start_watch(title, artist)
-            return self._send(200, "application/json", json.dumps({"info": BEAT["info"]}).encode("utf-8"))
+                party.stop()
+            self._json(status())
+        elif self.path == "/api/wuerfeln":     # neues Thema für das laufende Lied
+            self._json({"ok": engine.reroll()})
         elif self.path == "/api/settings":
-            for key in ("strobe", "nebel", "anschub", "lampen", "audio", "takttest", "laser"):
-                if key in body:
-                    SETTINGS[key] = bool(body[key])
-            if "offset" in body:
-                SETTINGS["offset"] = float(body["offset"])
-            for key in ("lampen_decke", "lampen_vitrine"):
-                if key in body:
-                    SETTINGS[key] = max(0, min(150, int(body[key])))
-            if "lampen_vorlauf" in body:
-                SETTINGS["lampen_vorlauf"] = max(0.0, min(2.0, round(float(body["lampen_vorlauf"]), 1)))
-            for key in ("laser_ud_min", "laser_ud_max", "laser_lr_min", "laser_lr_max", "laser_ud_mitte"):
-                if key in body:
-                    SETTINGS[key] = max(0, min(255, int(body[key])))
-            laser_apply({})   # neue Grenzen sofort anwenden
-            if "audio_versatz" in body:
-                SETTINGS["audio_versatz"] = max(-500.0, min(500.0, float(body["audio_versatz"])))
-            if "vorsteuerung" in body:
-                SETTINGS["vorsteuerung"] = max(0.0, min(1.0, float(body["vorsteuerung"])))
-            if "tempo" in body:
-                SETTINGS["tempo"] = max(0.25, min(4.0, float(body["tempo"])))
-            # Nebel ändert die Szenenauswahl: Show für den laufenden Titel neu aufbauen
-            if "nebel" in body and BEAT["stop"] is not None and BEAT["start"]:
-                start_beat(*BEAT["start"])
-            save_settings()
-            return self._send(200, "application/json", json.dumps(SETTINGS).encode("utf-8"))
-        elif self.path == "/api/laser":
+            changed = settings.update(body)
+            laser.apply({})                    # neue Grenzen sofort anwenden
+            if "nebel" in changed:             # Nebel ändert die Szenenauswahl
+                engine.restart_beat()
+            self._json(SETTINGS)
+        elif self.path == "/api/laser":        # Laserkanäle von Hand
             if body.get("preset"):
-                laser_apply(LASER_PRESET)
-            laser_apply(body.get("values", {}))
-            return self._send(200, "application/json", json.dumps(laser_snapshot()).encode("utf-8"))
+                laser.apply(laser.PRESET)
+            laser.apply(body.get("values", {}))
+            self._json(laser.snapshot())
         elif self.path == "/api/laser_power":
-            ok = bool(config.LASER_SWITCH) and ha_call(
+            ok = bool(config.LASER_SWITCH) and ha.call(
                 "switch", "turn_on" if body.get("on") else "turn_off", {"entity_id": config.LASER_SWITCH})
-            return self._send(200, "application/json", json.dumps({"ok": ok}).encode("utf-8"))
-        elif self.path == "/api/stop":
-            stop_all()
-            return self._send(200, "application/json", json.dumps({"info": BEAT["info"]}).encode("utf-8"))
+            self._json({"ok": ok})
         else:
-            return self._send(404, "text/plain", b"nicht gefunden")
-        self._send(200, "application/json", json.dumps(snapshot()).encode("utf-8"))
+            self._send(404, "text/plain", b"nicht gefunden")
 
     def log_message(self, *args):
         pass
 
 
 def main():
-    for k in HEADS:
-        apply(k, 32768, 32768, True)
+    for k in heads.HEADS:        # Mitte, dunkel: hell werden die Köpfe erst mit der Party
+        heads.apply(k, 32768, 32768, False)
     stop = threading.Event()
     threading.Thread(target=sender, args=(stop,), daemon=True).start()
-    threading.Thread(target=lamp_loop, daemon=True).start()
-    if AUDIO is not None:
-        threading.Thread(target=audio_watch_loop, daemon=True).start()
-        threading.Thread(target=audio.reader, args=(AUDIO, config.AUDIO_PIPE), daemon=True).start()
-    print(f"Audioanalyse: {'an, Pipe ' + config.AUDIO_PIPE if AUDIO is not None else 'aus'}", flush=True)
+    threading.Thread(target=lamps.lamp_loop, daemon=True).start()
+    threading.Thread(target=party.loop, daemon=True).start()
+    if engine.AUDIO is not None:
+        threading.Thread(target=engine.audio_watch_loop, daemon=True).start()
+        threading.Thread(target=engine.audio.reader, args=(engine.AUDIO, config.AUDIO_PIPE), daemon=True).start()
+    print(f"Audioanalyse: {'an, Pipe ' + config.AUDIO_PIPE if engine.AUDIO is not None else 'aus'}", flush=True)
+    print(f"Geräte der Party: {config.GERAETE or '-'}", flush=True)
     print(f"Lampen: Grundfarbe {config.LAMPEN_GRUND or '-'}, Akzent {config.LAMPEN_AKZENT or '-'}, "
-          f"aus während der Show {config.LAMPEN_AUS or '-'}", flush=True)
-    for k in HEADS:
-        print(f"Kopf {k}: Node {NODES[k]}, Universe {config.UNIVERSE[k]}, Kanäle {config.LAYOUT[k]} "
+          f"aus während der Party {config.LAMPEN_AUS or '-'}", flush=True)
+    for k in heads.HEADS:
+        print(f"Kopf {k}: Node {config.NODES[k]}, Universe {config.UNIVERSE[k]}, Kanäle {config.LAYOUT[k]} "
               f"({config.HEADS_SOURCE[k]})", flush=True)
     print(f"Spotify-Player: {config.PLAYER or 'nicht eingestellt'}, "
           f"Tempo-Schlüssel: {'gesetzt' if config.freqblog_key() else 'fehlt'}", flush=True)
-    print(f"Lichtregie läuft auf Port {PORT}", flush=True)
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    print(f"Lichtregie läuft auf Port {config.PORT}", flush=True)
+    server = ThreadingHTTPServer(("0.0.0.0", config.PORT), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        stop_all()
-        if LAMP["snapshot"]:   # Lampen beim Beenden zurück auf den Zustand vor der Show
-            ha_call("scene", "turn_on", {"entity_id": f"scene.{SCENE_ID}"})
-        for k in HEADS:
-            apply(k, on=False)
+        # Nur bei Strg+C (lokal). Im Add-on endet der Prozess sofort; der Party-Stand bleibt gespeichert und
+        # wird nach dem Neustart fortgesetzt
+        party.stop("beendet")
+        engine.stop_all()
+        lamps.restore()      # Lampen zurück auf den Zustand vor der Party
+        for k in heads.HEADS:
+            heads.apply(k, on=False)
         time.sleep(0.5)
         stop.set()
         server.server_close()

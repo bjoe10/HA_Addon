@@ -12,8 +12,11 @@ configuration:
     name: Lamps accent colour
     description: Lights in the accent colour, e.g. cabinets. Base and accent swap every phrase.
   lampen_aus:
-    name: Off during the show
-    description: Lights switched off during the show, e.g. main light. Their previous state is restored afterwards.
+    name: Off during the party
+    description: Lights and switches (light., switch., input_boolean.) turned off by party mode, e.g. the main light. Their previous state is restored afterwards.
+  geraete:
+    name: Party devices
+    description: Switches turned on by party mode and off again at the end, e.g. the moving heads' power outlets (switch., input_boolean., light.). The laser outlet is included automatically.
   airplay:
     name: AirPlay receiver
     description: Starts an AirPlay receiver for live audio analysis. Group it with the speaker in Music Assistant.

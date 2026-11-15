@@ -1,4 +1,4 @@
-"""Raumgeometrie: Raumpunkt → Pan/Tilt je Kopf (Kalibrier-Fit, siehe KONZEPT.md und dev/kalibrierung_fit.py).
+"""Raumgeometrie: Raumpunkt → Pan/Tilt je Kopf (Kalibrier-Fit, siehe KONZEPT.md und dev/messen/kalibrierung_fit.py).
 
 Achtung: Das Modell ist in x gespiegelt gegenüber den Raumkoordinaten der Show (x_modell = 5 - x).
 Die Umrechnung macht der Aufrufer (server.py), hier wird nur im Modell gerechnet.

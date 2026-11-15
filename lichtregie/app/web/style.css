@@ -1,0 +1,61 @@
+:root{--bg:#0e0e11;--card:#1b1b20;--card2:#26262d;--text:#f0f0f3;--dim:#9a9aa6;--accent:#0a84ff;
+ --ok:#30d158;--warn:#ffd60a;--bad:#ff453a;--off:#55555f}
+*{box-sizing:border-box}
+body{font-family:-apple-system,system-ui,"Segoe UI",sans-serif;margin:0 auto;padding:0 14px 40px;
+ background:var(--bg);color:var(--text);max-width:560px;-webkit-tap-highlight-color:transparent}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 0 8px}
+h1{font-size:22px;margin:0 0 10px;letter-spacing:.2px}
+h2{font-size:13px;margin:0 0 10px;color:var(--dim);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+nav{display:flex;gap:6px;background:var(--card);padding:4px;border-radius:12px}
+nav button{flex:1;margin:0;padding:9px 4px;font-size:14px;background:transparent;color:var(--dim);border-radius:9px}
+nav button.on{background:var(--card2);color:var(--text)}
+.card{background:var(--card);border-radius:16px;padding:14px;margin:12px 0}
+button{font:inherit;font-size:16px;padding:13px;border:0;border-radius:12px;background:var(--card2);
+ color:var(--text);width:100%;margin-top:10px;cursor:pointer}
+button:active{filter:brightness(1.25)}
+button.ghost{background:transparent;border:1px solid #3a3a44;color:var(--dim);font-size:15px}
+button.big{font-size:22px;font-weight:600;padding:22px;margin:0;background:var(--accent)}
+button.big.an{background:var(--bad)}
+.hero{text-align:center}
+.hero.an{box-shadow:0 0 0 1px #30d15855,0 0 28px #30d15822}
+.status{font-size:14px;color:var(--dim);margin:10px 0 0;min-height:1.3em}
+.status + .switches{margin-top:12px}
+.row{display:flex;gap:10px}
+.switches{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.switches.one{grid-template-columns:1fr}
+.switches button{margin:0}
+.switches + label,.switches + .switches{margin-top:14px}
+button.sw{text-align:left;padding-left:40px;position:relative;color:var(--dim)}
+button.sw::before{content:"";position:absolute;left:14px;top:50%;width:14px;height:14px;margin-top:-7px;
+ border-radius:50%;background:var(--off)}
+button.sw.on{color:var(--text);background:#17324f}
+button.sw.on::before{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+label{display:block;font-size:15px;margin:14px 0 2px}
+.val{float:right;color:#9bd;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;height:34px;accent-color:var(--accent)}
+.hint{font-size:13px;color:var(--dim);margin:10px 0 0;line-height:1.4}
+.note{font-size:14px;background:#3a2f0b;color:#ffe9a3;border-radius:12px;padding:10px 12px;margin:12px 0}
+.warn{background:#5c1512;color:#fff;border-radius:12px;padding:12px 14px;margin:10px 0;font-size:15px;line-height:1.35}
+.room{display:block;width:100%;background:#09090b;border-radius:12px;touch-action:none;user-select:none}
+/* Lied */
+.song{display:flex;gap:12px;align-items:center}
+.songtext{min-width:0;flex:1}
+.title{font-size:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font-size:13px;color:var(--dim);margin-top:3px;line-height:1.35}
+.beat{display:flex;gap:6px;flex:none;align-self:flex-start;margin-top:6px}
+.beat i{width:11px;height:11px;border-radius:50%;background:var(--card2);transition:background .08s}
+.beat i.on{background:var(--accent);box-shadow:0 0 10px var(--accent)}
+.beat i.on.eins{background:#fff;box-shadow:0 0 12px #fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{font-size:13px;background:var(--card2);border-radius:20px;padding:5px 10px;color:#d0d0d8;display:flex;
+ align-items:center;gap:6px}
+.chip b{width:11px;height:11px;border-radius:50%;display:inline-block}
+/* Status-Kacheln */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile{background:var(--card2);border-radius:12px;padding:10px 12px;min-width:0}
+.tile .k{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+.tile .k::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--off);flex:none}
+.tile.ok .k::before{background:var(--ok)} .tile.warn .k::before{background:var(--warn)}
+.tile.bad .k::before{background:var(--bad)}
+.tile .v{font-size:15px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.presets button{width:auto;padding:7px 10px;font-size:13px;margin:6px 6px 0 0}

@@ -116,15 +116,16 @@ LAYOUT = {k: v[2] for k, v in HEADS.items()}
 
 
 # --- Lampen über HA ---------------------------------------------------------------------------------
-def _entity_list(name):
+def _entity_list(name, domains=("light.",)):
     """Entitäten aus einer Umgebungsvariable: durch Zeilenumbruch, Komma oder Leerzeichen getrennt."""
     raw = os.environ.get(name, "")
-    return [e for e in re.split(r"[\s,\[\]\"']+", raw) if e.startswith("light.")]
+    return [e for e in re.split(r"[\s,\[\]\"']+", raw) if e.startswith(domains)]
 
 
 LAMPEN_GRUND = _entity_list("LICHTREGIE_LAMPEN_GRUND")   # Grundfarbe, z. B. Ambilight-Ringe
 LAMPEN_AKZENT = _entity_list("LICHTREGIE_LAMPEN_AKZENT") # Akzentfarbe, z. B. Vitrinen
-LAMPEN_AUS = _entity_list("LICHTREGIE_LAMPEN_AUS")       # während der Show aus, z. B. Hauptlicht
+SCHALTBAR = ("light.", "switch.", "input_boolean.")
+LAMPEN_AUS = _entity_list("LICHTREGIE_LAMPEN_AUS", SCHALTBAR)   # während der Party aus, z. B. Hauptlicht
 
 
 # --- Live-Audio vom AirPlay-Empfänger ---------------------------------------------------------------
@@ -154,4 +155,6 @@ def laser_from_text(text):
 
 LASER, LASER_SOURCE = laser_from_text(_read_ha_config())
 LASER_SWITCH = os.environ.get("LICHTREGIE_LASER_SWITCH", "").strip()   # Steckdose des Lasers, z. B. switch.…
+# Geräte, die der Party-Modus ein- und ausschaltet: Steckdosen der Köpfe, Laser, weitere (z. B. Astronaut)
+GERAETE = list(dict.fromkeys(_entity_list("LICHTREGIE_GERAETE", SCHALTBAR) + ([LASER_SWITCH] if LASER_SWITCH else [])))
 AIRPLAY_NAME = os.environ.get("LICHTREGIE_AIRPLAY_NAME", "").strip() or "Lichtregie"   # Name des Empfängers in MA

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.8.0
+
+- **Party-Modus** als Hauptschalter: an = Geräte einschalten (neue Option „Geräte der Party“ plus
+  Laser-Steckdose), Raum abdunkeln, Show; aus = Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück.
+- **Automatik:** an, sobald 3 s Musik ankommt; aus nach 15 Minuten ohne Musik (einstellbar). Ein Stopp von
+  Hand gilt, bis die Musik eine Minute aus war. Der Party-Stand überdauert einen Neustart des Add-ons.
+- **Neue Oberfläche** in drei Bereichen: Show (Party-Schalter, Lied und Thema, Status auf einen Blick,
+  Vorschau, Schalter für den Abend), Feinabstimmung, Einrichten.
+- **Thema neu würfeln** für das laufende Lied; die Variante bleibt für dieses Lied gespeichert.
+- Pause: Spots bleiben stehen und leuchten leise, Laser aus. Meldet HA keinen Titel, startet die Show mit dem
+  Tempo aus dem Audio; dazu ein Hinweis in der Oberfläche.
+- „Während der Party aus“ nimmt auch Schalter (`switch.`, `input_boolean.`). Die Lampen bleiben zwischen
+  zwei Liedern, wie sie sind, statt kurz auf den alten Zustand zu springen.
+- Beim Start des Add-ons bleiben die Köpfe dunkel, bis die Party läuft.
+- Entfallen: Start mit Titel/BPM von Hand.
+
+## 0.7.0
+
+Aufräumen ohne Änderung an der Show:
+
+- Server in Module zerlegt: `engine.py` (Show-Motor), `heads.py`, `laser.py`, `lamps.py`, `ha.py`,
+  `settings.py`; `server.py` ist nur noch Web-Schicht und Start. Die Oberfläche liegt als eigene Dateien in
+  `app/web/`.
+- Neuer Rauchtest (`dev/test_smoke.py`): Show-Motor und Web-Schnittstelle ohne Geräte und ohne HA;
+  `dev/test_all.sh` startet alle Tests. Messwerkzeuge aus der Einrichtung liegen in `dev/messen/`.
+- Doku auf den aktuellen Stand gebracht (SHOW.md: Aufbau der Software, Stand der Umsetzung).
+- Spulen im Lied: Springt die Liedposition um mehr als 5 s, setzt die Schlagzählung sofort neu auf
+  (bisher erst nach 8 s Abweichung). Überspringen wurde schon bisher nach spätestens 2 s erkannt.
+- Laser standardmäßig an: Das Senden an den Laser ist nicht mehr nach jedem Neustart aus, sondern behält die
+  Einstellung aus der Oberfläche (Standard: an). Ohne laufende Show bleibt der Laser aus (Modus 0); solange
+  das Senden an ist, kann HA den Laser nicht steuern.
+
 ## 0.6.1
 
 - Warnung, wenn kein Audio ankommt: Spielt Spotify und läuft die Show, aber am AirPlay-Empfänger kommt

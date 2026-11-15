@@ -107,7 +107,7 @@ die Kalibrierung, nicht der Kanal.
 | 4: kleiner Tisch im Raum | 38400 / 15104 | 27392 / 50176 |
 | 5: Mitte der Decke (nachgestellt) | 39168 / 768 | 26880 / 64512 |
 
-**Erster Fit** (`lichtregie/dev/kalibrierung_fit.py`, Zielkoordinaten geschätzt):
+**Erster Fit** (`lichtregie/dev/messen/kalibrierung_fit.py`, Zielkoordinaten geschätzt):
 - Kopf 1 steht vermutlich rechts (x ≈ 4,9 m, y ≈ 5,4 m, z ≈ 2,3 m), Kopf 2 links (x ≈ 0,1 m, y ≈ 5,1 m, z ≈ 2,2 m).
 - Die Abweichung liegt bei etwa 4° (Kopf 2) bis 7° (Kopf 1) im Pan. Das sind rund 0,4 bis 0,7 m auf 6 m Entfernung. Zu grob für die Show.
 - Kopf 1 hat bei Punkt 4 (Tisch) und 5 (Decke) denselben Pan-Wert (38400). Das passt geometrisch nicht zu zwei verschiedenen Zielen. Wahrscheinlich ist Punkt 5 für Pan von Kopf 1 nicht richtig eingestellt. Das muss neu gemessen werden.
@@ -123,7 +123,7 @@ die Kalibrierung, nicht der Kanal.
 - Sofa-Mitte ist nicht erreichbar, beide Köpfe kommen dort nicht hin. Das bleibt vorerst offen. Der Tilt-Bereich nach unten könnte zu klein sein, oder das Sofa liegt außerhalb des Schwenkbereichs. Für den Fit reichen die fünf Punkte.
 - Validierung: Zielpunkt Tisch und Zielpunkt links neben dem TV passen, ohne Nachjustieren.
 - Justieren nur über `halte.py`, nicht über HA-Slider. HA sendet bei jeder Änderung seinen eigenen Stand und überschreibt damit unsere Positionen. HA sieht die Werte von `halte.py` nicht, die Endwerte stehen im Terminal (`-> Pan …, Tilt …`).
-- **Achsenspiegelung:** Das Modell hat die x-Achse gespiegelt gegenüber dem Raum (Blick vom Sofa zum TV: rechts = −x). Die Messpunkte allein können das nicht unterscheiden. Die Web-App rechnet deshalb x → 5 − x um. Die Gleichungen in `ziel.py` bleiben unverändert. Beim nächsten Fit die Messpunkte im Raumkoordinatensystem prüfen.
+- **Achsenspiegelung:** Das Modell hat die x-Achse gespiegelt gegenüber dem Raum (Blick vom Sofa zum TV: rechts = −x). Die Messpunkte allein können das nicht unterscheiden. Die Lichtregie rechnet deshalb x → 5 − x um (`app/heads.py`). Die Gleichungen in `app/geometry.py` bleiben unverändert. Beim nächsten Fit die Messpunkte im Raumkoordinatensystem prüfen.
 
 Punkt 4 bestätigt die Tilt-Richtungen: Der Tisch liegt tiefer als die TV-Mitte. Kopf 1 steigt dafür von
 28 auf 59, Kopf 2 fällt von 227 auf 196. Gegenläufig, wie erwartet.
@@ -141,7 +141,7 @@ unter der rechten. Das ist vermutlich die Geometrie der Montage, nicht ein Fehle
 volle Strecke (gestoppt). Bei 255 erreicht er das Ziel in 4 s Hold nicht, also ist 255 das
 **langsamste** Ergebnis. Skala: 0 = schnellstens, 255 = langsamsten. Für den Takt brauchen wir niedrige
 Werte, die Feinabstimmung kommt in Phase 2. Gemessene Fahrzeiten (Pan 0 → Maximum): Speed 0 ca. 2,1 s, Speed 128 ca. 3,1 s, Speed 255 über 4 s.
-Test: `lichtregie/dev/artnet_test.py`.
+Test: `lichtregie/dev/messen/artnet_test.py`.
 
 **Bewegungsgeschwindigkeit:** Ein Kopf braucht Zeit, um zu schwenken. Zielwechsel im Takt werden
 darum geglättet (Rampe), und Sprünge laufen auf dem Beat, nicht dauernd.

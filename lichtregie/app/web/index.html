@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lichtregie</title>
+<link rel="stylesheet" href="style.css"></head><body>
+<header>
+ <h1>Lichtregie</h1>
+ <nav id="tabs">
+  <button data-tab="show" class="on">Show</button>
+  <button data-tab="fein">Feinabstimmung</button>
+  <button data-tab="einrichten">Einrichten</button>
+ </nav>
+</header>
+<div id="warnungen"></div>
+
+<!-- ===================== Show ===================== -->
+<main id="tab-show">
+ <section class="card hero" id="hero">
+  <button id="party" class="big">Party starten</button>
+  <p class="status" id="partystat">–</p>
+ </section>
+
+ <section class="card">
+  <div class="song">
+   <div class="songtext">
+    <div class="title" id="titel">Kein Lied</div>
+    <div class="sub" id="szene">–</div>
+   </div>
+   <div class="beat" id="beat" title="Schlag im Takt"><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="chips" id="chips"></div>
+  <button id="wuerfeln" class="ghost">Thema neu würfeln</button>
+ </section>
+
+ <section class="card">
+  <h2>Status</h2>
+  <div class="tiles" id="tiles"></div>
+ </section>
+
+ <section class="card">
+  <h2>Vorschau</h2>
+  <canvas id="preview" class="room"></canvas>
+ </section>
+
+ <section class="card">
+  <h2>Heute Abend</h2>
+  <div class="switches">
+   <button class="sw" data-set="strobe">Strobe</button>
+   <button class="sw" data-set="nebel">Nebel</button>
+   <button class="sw" data-set="laser">Laser</button>
+   <button class="sw" data-set="lampen">Lampen</button>
+  </div>
+  <label>Lampen Decke <span class="val" data-val="lampen_decke" data-unit=" %"></span>
+   <input type="range" data-set="lampen_decke" min="0" max="150" step="5"></label>
+  <label>Lampen Vitrinen <span class="val" data-val="lampen_vitrine" data-unit=" %"></span>
+   <input type="range" data-set="lampen_vitrine" min="0" max="150" step="5"></label>
+  <div class="switches one"><button class="sw" data-set="automatik">Automatik</button></div>
+  <p class="hint">Automatik: Die Party geht an, sobald Musik ankommt, und aus, wenn
+   <span id="ausmin">15</span> Minuten keine lief. Nebel an bevorzugt Strahl-Effekte.</p>
+ </section>
+</main>
+
+<!-- ===================== Feinabstimmung ===================== -->
+<main id="tab-fein" hidden>
+ <section class="card">
+  <h2>Audio und Takt</h2>
+  <p class="status" id="audiostat">–</p>
+  <div class="switches">
+   <button class="sw" data-set="audio">Audio</button>
+   <button class="sw" data-set="takttest">Takt-Test</button>
+  </div>
+  <label>Audio-Versatz <span class="val" data-val="audio_versatz" data-unit=" ms"></span>
+   <input type="range" data-set="audio_versatz" min="-300" max="300" step="10"></label>
+  <p class="hint">Takt-Test: Beide Köpfe blitzen weiß auf jedem Schlag. Den Versatz so stellen, dass der Blitz
+   auf dem Kick sitzt (gemessen: 80 ms).</p>
+ </section>
+
+ <section class="card">
+  <h2>Lampen</h2>
+  <label>Vorlauf <span class="val" data-val="lampen_vorlauf" data-unit=" s"></span>
+   <input type="range" data-set="lampen_vorlauf" min="0" max="2" step="0.1"></label>
+  <p class="hint">Die Lampen reagieren verzögert. Mit Vorlauf wechseln sie entsprechend früher.</p>
+ </section>
+
+ <section class="card">
+  <h2>Bewegung der Köpfe</h2>
+  <div class="switches">
+   <button class="sw" data-choice="tempo" data-value="1">Bewegung ×1</button>
+   <button class="sw" data-choice="tempo" data-value="2">Bewegung ×2</button>
+  </div>
+  <div class="switches one"><button class="sw" data-set="anschub">Anschub</button></div>
+  <label>Vorsteuerung <span class="val" data-val="vorsteuerung" data-unit=" s"></span>
+   <input type="range" data-set="vorsteuerung" min="0" max="0.6" step="0.05"></label>
+  <p class="hint">Anschub: Bei Sprüngen kurz über das Ziel hinaus, damit der Kopf schneller ankommt.
+   Vorsteuerung: Bei fließender Bewegung das Ziel vorausgeben (0 = aus).</p>
+ </section>
+
+ <section class="card">
+  <h2>Laser-Bereich</h2>
+  <label>Show-Mitte hoch/runter <span class="val" data-val="laser_ud_mitte"></span>
+   <input type="range" data-set="laser_ud_mitte" min="0" max="255"></label>
+  <label>Hoch/runter min <span class="val" data-val="laser_ud_min"></span>
+   <input type="range" data-set="laser_ud_min" min="0" max="255"></label>
+  <label>Hoch/runter max <span class="val" data-val="laser_ud_max"></span>
+   <input type="range" data-set="laser_ud_max" min="0" max="255"></label>
+  <label>Links/rechts min <span class="val" data-val="laser_lr_min"></span>
+   <input type="range" data-set="laser_lr_min" min="0" max="255"></label>
+  <label>Links/rechts max <span class="val" data-val="laser_lr_max"></span>
+   <input type="range" data-set="laser_lr_max" min="0" max="255"></label>
+  <p class="hint">Die Grenzen gelten für jeden gesendeten Wert. Die Show bewegt den Laser um die Show-Mitte,
+   damit er nicht auf dem TV liegt.</p>
+ </section>
+
+ <section class="card">
+  <h2>Automatik</h2>
+  <label>Aus nach <span class="val" data-val="party_aus_min" data-unit=" min ohne Musik"></span>
+   <input type="range" data-set="party_aus_min" min="1" max="60" step="1"></label>
+ </section>
+</main>
+
+<!-- ===================== Einrichten ===================== -->
+<main id="tab-einrichten" hidden>
+ <p class="note" id="einrichtenhint">Von Hand steuern geht nur, solange die Party aus ist. Sonst überschreibt die Show die Werte.</p>
+ <section class="card">
+  <h2>Raum antippen</h2>
+  <p class="hint">Mit dem Finger auf das Bild. Beide Köpfe zielen auf den Punkt auf Boden, Wand oder Decke.</p>
+  <canvas id="room" class="room"></canvas>
+  <p class="hint" id="coords"></p>
+  <button id="save">Punkt merken</button>
+ </section>
+
+ <div id="heads"></div>
+ <div class="row">
+  <button id="allon">Köpfe an</button>
+  <button id="alloff">Köpfe aus</button>
+ </div>
+
+ <section class="card">
+  <h2>Laser von Hand</h2>
+  <p class="hint">„Senden aus“: Der Laser bleibt bei Home Assistant. „Senden an“: Die Lichtregie steuert ihn,
+   ohne laufende Show mit den Reglern hier.</p>
+  <div class="switches">
+   <button class="sw" data-set="laser">Senden</button>
+   <button id="lPower">Steckdose an</button>
+  </div>
+  <button id="lPreset" class="ghost">Party-Standard laden</button>
+  <p class="hint" id="lmsg"></p>
+  <div id="lsliders"></div>
+ </section>
+</main>
+
+<script src="app.js"></script>
+</body></html>

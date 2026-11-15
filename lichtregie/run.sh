@@ -12,6 +12,7 @@ export LICHTREGIE_FREQBLOG_KEY="$(bashio::config 'freqblog_key')"
 export LICHTREGIE_LAMPEN_GRUND="$(bashio::config 'lampen_grund')"
 export LICHTREGIE_LAMPEN_AKZENT="$(bashio::config 'lampen_akzent')"
 export LICHTREGIE_LAMPEN_AUS="$(bashio::config 'lampen_aus')"
+export LICHTREGIE_GERAETE="$(bashio::config 'geraete')"
 export LICHTREGIE_LASER_SWITCH="$(bashio::config 'laser_schalter')"
 export LICHTREGIE_AIRPLAY_NAME="$(bashio::config 'airplay_name')"
 

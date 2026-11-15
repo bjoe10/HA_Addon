@@ -1,0 +1,67 @@
+"""Einstellungen aus der Oberfläche. Sie überdauern einen Neustart (DATA/settings.json)."""
+import json
+
+import config
+
+SETTINGS = {
+    # Party-Modus: automatisch an, wenn Musik ankommt; aus nach so vielen Minuten ohne Musik
+    "automatik": True, "party_aus_min": 15,
+    # Show
+    "strobe": True, "nebel": False, "tempo": 2.0,        # tempo = Bewegungstempo ×1/×2
+    "offset": 0.0,                                       # Phasen-Versatz in Schlägen (ohne Audio)
+    # Mechanik der Köpfe (gemessen, siehe SHOW.md)
+    "vorlauf": 0.4,                                      # Bewegung so viele Sekunden vorziehen
+    "anschub": True, "vorsteuerung": 0.45,
+    # Live-Audio
+    "audio": True, "audio_versatz": 80.0, "takttest": False,
+    # Lampen über HA
+    "lampen": True, "lampen_decke": 40, "lampen_vitrine": 100, "lampen_vorlauf": 0.8,
+    # Laser: Senden an/aus, Schutzgrenzen, Ruhepunkt über dem TV (auf dem TV sieht man ihn schlecht)
+    "laser": True, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90,
+    "laser_ud_mitte": 76,
+}
+FILE = config.DATA / "settings.json"
+try:
+    SETTINGS.update(json.loads(FILE.read_text(encoding="utf-8")))
+except (OSError, ValueError):
+    pass
+SETTINGS["takttest"] = False   # Takt-Test startet nie von selbst
+
+# Erlaubte Werte je Einstellung: bool oder (Typ, min, max)
+RULES = {
+    "strobe": bool, "nebel": bool, "anschub": bool, "lampen": bool, "audio": bool, "takttest": bool,
+    "laser": bool, "automatik": bool, "party_aus_min": (int, 1, 240),
+    "offset": (float, -64.0, 64.0), "tempo": (float, 0.25, 4.0), "vorsteuerung": (float, 0.0, 1.0),
+    "audio_versatz": (float, -500.0, 500.0), "lampen_vorlauf": (float, 0.0, 2.0),
+    "lampen_decke": (int, 0, 150), "lampen_vitrine": (int, 0, 150),
+    "laser_ud_min": (int, 0, 255), "laser_ud_max": (int, 0, 255), "laser_lr_min": (int, 0, 255),
+    "laser_lr_max": (int, 0, 255), "laser_ud_mitte": (int, 0, 255),
+}
+
+
+def save():
+    try:
+        config.DATA.mkdir(parents=True, exist_ok=True)
+        FILE.write_text(json.dumps(SETTINGS), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def update(body):
+    """Übernimmt bekannte Einstellungen aus einer Anfrage (geprüft und begrenzt) und speichert.
+    Gibt die Namen der geänderten Einstellungen zurück."""
+    changed = []
+    for key, rule in RULES.items():
+        if key not in body:
+            continue
+        if rule is bool:
+            value = bool(body[key])
+        else:
+            kind, lo, hi = rule
+            value = max(lo, min(hi, kind(float(body[key]))))
+            if kind is float:
+                value = round(value, 3)
+        SETTINGS[key] = value
+        changed.append(key)
+    save()
+    return changed

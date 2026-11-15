@@ -12,8 +12,11 @@ configuration:
     name: Lampen Akzentfarbe
     description: Lichter in der Akzentfarbe, z. B. Vitrinen. Grund und Akzent tauschen pro Phrase.
   lampen_aus:
-    name: Während der Show aus
-    description: Lichter, die während der Show ausgeschaltet werden, z. B. das Hauptlicht. Nach der Show kommt der alte Zustand zurück.
+    name: Während der Party aus
+    description: Lichter und Schalter (light., switch., input_boolean.), die der Party-Modus ausschaltet, z. B. das Hauptlicht. Danach kommt der alte Zustand zurück.
+  geraete:
+    name: Geräte der Party
+    description: Schalter, die der Party-Modus einschaltet und am Ende wieder ausschaltet, z. B. die Steckdosen der Moving Heads (switch., input_boolean., light.). Die Laser-Steckdose gehört automatisch dazu.
   airplay:
     name: AirPlay-Empfänger
     description: Startet einen AirPlay-Empfänger für die Live-Audioanalyse. In Music Assistant mit dem Lautsprecher gruppieren.

@@ -1,9 +1,11 @@
 # Lichtregie – Show-Design für die Moving Heads
 
-Ziel: aus zwei Moving Heads, ohne Audio, nur mit den Song-Daten aus Spotify/HA und der Tempo-Datenbank,
-eine Show machen, die musikalisch wirkt und nicht nach Zufallsgenerator aussieht.
+Ziel: aus zwei Moving Heads, Laser und Lampen eine Show machen, die musikalisch wirkt und nicht nach
+Zufallsgenerator aussieht. Grundlage sind die Song-Daten aus Spotify/HA und der Tempo-Datenbank; seit 0.3.0
+kommt Live-Audio dazu (siehe „Stand der Umsetzung“).
 
-Status: Entwurf. Was gemessen ist, steht als **gemessen**, was angenommen ist, als **Annahme**.
+Die Abschnitte 1–9 sind das Design mit den Messwerten: was gemessen ist, steht als **gemessen**, was
+angenommen ist, als **Annahme**. Was davon gebaut ist, steht unter „Stand der Umsetzung“.
 
 ---
 
@@ -212,17 +214,26 @@ Das Sofa ist ohnehin nicht erreichbar.
 ## 7. Aufbau der Software
 
 ```
-Song-Profil ──▶ Szenen-Planer ──▶ Effekt-Generatoren ──▶ Regeln ──▶ Art-Net (40 Bilder/s)
- (pro Titel)     (pro Phrase)      (pro Bild, je Kopf)     (Radwechsel, Strobe-Grenze, Pan-Kurzweg)
+Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ Köpfe/Laser per Art-Net (40 Bilder/s)
+                    Live-Audio ─▶ Schlagzählung ─┘          └▶ Lampen über HA (selten)
 ```
 
-- **Effekte als reine Funktionen** der Taktposition (z. B. „Schlag 37,25“) und ihrer Parameter.
-  Damit lassen sie sich ohne Raum testen und in der Web-App als **Vorschau** zeichnen: die Perspektive
-  haben wir schon, die Spots lassen sich darauf live anzeigen.
-- **Taktposition** = Liedposition × BPM / 60 + Phasen-Versatz (Tap optional).
+| Datei in `app/` | Aufgabe |
+|---|---|
+| `server.py` | Web-Server, Schnittstelle der Oberfläche, Art-Net-Sender, Start |
+| `party.py` | Party-Modus: Hauptschalter, Automatik, Geräte ein/aus |
+| `engine.py` | Show-Motor: Titel-Überwachung, Show-Schleife, Thema je Lied, Audio-Warnung |
+| `show.py` | Show-Regeln als reine Funktionen der Taktposition (ohne Raum testbar) |
+| `audio.py`, `beatcount.py` | Audioanalyse (Takt, Break, Drop, Klangwechsel) und Schlagzählung |
+| `heads.py`, `laser.py`, `lamps.py` | Geräte: Zustand, Grenzen, Anschub/Vorsteuerung, HA-Lampen |
+| `geometry.py`, `artnet.py` | Kalibriermodell Raumpunkt → Pan/Tilt, ArtDMX-Pakete |
+| `ha.py`, `tempo.py`, `config.py`, `settings.py` | HA-Zugriff, FreqBlog, Add-on-Optionen, Schalter der Oberfläche |
+| `web/` | Oberfläche (HTML, CSS, JavaScript) |
+
+- **Taktposition** = Liedposition × BPM / 60, mit Audio aus der eigenen Schlagzählung.
 - **Vorziehen der Bewegung** um die Laufzeit des Kopfes, damit die Spots auf dem Schlag ankommen.
-- **Radwechsel-Planer:** Farbe/Gobo nur im Dunkeln oder zu Nachbarn, höchstens 1 Wechsel pro Takt.
-- **Alles einstellbar:** Energie-Schwellen, Master-Intensität, Strobe an/aus, Phrasenlänge, Vorlauf.
+- **Radwechsel:** Farbe/Gobo nur im Dunkeln oder zu Nachbarn.
+- **Tests:** `dev/test_all.sh` (Konfiguration, Audioanalyse, Schlagzählung, Rauchtest von Motor und Web).
 
 ---
 
@@ -247,49 +258,47 @@ Song-Profil ──▶ Szenen-Planer ──▶ Effekt-Generatoren ──▶ Regel
    bevorzugt der Szenen-Planer Strahl-Effekte (Kreuzen, Fächer, Spiegel); ist er aus, Flecken-Effekte.
 2. **Strobe:** gehört zur Show, immer mit dem festen Wert 200, höchstens 1 Takt am Stück. Schalter in der Web-App zum Abschalten.
 3. **Sperrzonen:** keine.
-4. **Automatischer Start:** kommt ganz zum Schluss.
+4. **Automatischer Start:** über den Party-Modus (siehe „Stand der Umsetzung“).
 5. Offen: Ruhezeiten (z. B. ab 22 Uhr nur ruhige Stufe).
 
 ---
 
-## Stand der Umsetzung
+## Stand der Umsetzung (0.7.0)
 
-**Effekt-Motor, erste Fassung** (`dev/show.py`, eingebunden in `dev/webapp.py`):
-- Song-Thema aus der Track-ID: Grund- und Akzentfarbe aus der Tonart, Signatur-Gobo, Motiv-Punkt, 3 Szenen in
-  fester Folge, Refrain-Szene.
-- Ablauf: Intro (1 Phrase, Sternhimmel), Hauptteil mit Motiv am Phrasenanfang, jede 4. Phrase Höhepunkt
-  (Refrain, Gobo-Zittern, bei druckvoll Strobe im ersten Takt), Outro (Fokus, ausblenden).
-- Dunkler Schlag vor der Phrase, wenn Farb- oder Goborad wechseln muss.
-- 9 Bahnen, 6 Kopf-Verhältnisse (inkl. Kreuz für Nebel), 4 Dimmer-Muster.
-- Bewegung 0,4 s vorgezogen, Takt an die Liedposition gekoppelt.
-- Mindestdauer je Bahn (Sprünge höchstens ca. 1/s), bei schnellen Liedern verdoppelt.
-- **Anschub:** bei Sprüngen ab ca. 4° für 0,12 s das 2,5-fache Ziel vorgeben, dann das echte
-  (getestet: schneller, leichtes Nachwackeln). In der Web-App abschaltbar.
-- Web-App: Schalter Strobe und Nebel, Szenen-Anzeige, Live-Vorschau der Spots im Raumbild.
+**Show-Regeln** (`app/show.py`, reine Funktionen der Taktposition):
+- Song-Thema aus der Track-ID: Grund- und Akzentfarbe aus der Tonart, zwei Gobos, Motiv-Punkt, 5 Szenen
+  (mind. 2× Boden) in fester Folge, Refrain-Szene, Laser-Thema, Lampen-Rhythmus, Laser-Rolle.
+- Szenen aus Bausteinen: 15 Formen (Kreis, Acht, Pendel waagerecht/senkrecht, Diagonale, Spirale, Welle,
+  Zickzack, Zufallsflug, Stern, Quadrat, Sprungpunkte, Wand–Boden, Wandlauf, Fokus) auf Wand, Boden, Decke;
+  8 Kopf-Verhältnisse; Dimmer-Muster; Farbverhalten Grund/Akzent/getrennt/Wechsel; Richtungswechsel alle
+  2–4 Schläge. Testlauf über 360 Lieder: 1175 verschiedene Kombinationen, Wand 44 %, Boden 42 %, Decke 14 %.
+- Ablauf: Intro (entfällt, wenn das Lied voll einsetzt), Motiv am Phrasenanfang, Szenen, Aufbau, jede
+  4. Phrase Höhepunkt (Refrain, Gobo-Zittern, Strobe), Atempause, Outro in den letzten 2 Takten.
+- Dunkler Schlag vor der Phrase, wenn Farb- oder Goborad wechseln muss; 0,6 s dunkel beim Liedwechsel.
 
-**Zweite Fassung (Abwechslung):** Szenen werden aus Bausteinen erzeugt statt aus festen Listen:
-15 Formen (Kreis, Acht, Pendel waagerecht/senkrecht, Diagonale, Spirale, Welle, Zickzack, Zufallsflug,
-Stern, Quadrat, Sprungpunkte, Wand–Boden, Wandlauf, Fokus) auf Wand, Boden, Decke, mit zufälliger Lage
-und Größe; 8 Kopf-Verhältnisse (neu: folgen, Kanon); 9 Dimmer-Muster (neu: Doppelpuls, Offbeat, Wechsel,
-Blinken); Farbverhalten Grund/Akzent/getrennt/Wechsel pro Takt/Halbfarbe; Richtungswechsel alle 2–4 Schläge.
-Pro Lied 5 Szenen (mind. 2× Boden), Variation in der zweiten Phrasenhälfte, Aufbau vor dem Höhepunkt,
-Atempause danach. Testlauf über 360 Lieder: 1175 verschiedene Kombinationen, Wand 44 %, Boden 42 %, Decke 14 %.
+**Mechanik** (`app/heads.py`): Bewegung 0,4 s vorgezogen; Mindestdauer je Bahn; Anschub (bei Sprüngen ab ca.
+4° für 0,12 s das 2,5-fache Ziel) und Vorsteuerung (Ziel um Geschwindigkeit × 0,45 s voraus).
 
-**Noch offen:** Phasen-Abgleich (Tap/Versatz-Regler), „Thema neu würfeln/behalten“, Feinabstimmung der Bahnen
-nach Sichtung, Tanzbarkeit und Lautheit noch ungenutzt.
+**Live-Audio** (`app/audio.py`, ab 0.3.0): AirPlay-Empfänger im Add-on, in Music Assistant mit dem Phantom
+gruppiert. Gemessen am Gerät: Audio-Versatz **80 ms** (Licht 80 ms vor der analysierten Phase), danach sitzen
+die Blitze auf dem Kick. Mit eingerastetem Takt: Puls durch Abdunkeln kurz vor dem Schlag.
 
-**Live-Audio (ab 0.3.0):** AirPlay-Empfänger im Add-on, in Music Assistant mit dem Phantom gruppiert.
-Gemessen am Gerät: Audio-Versatz **80 ms** (Licht 80 ms vor der analysierten Phase), danach sitzen die
-Blitze auf dem Kick.
+**Takt- und Phrasen-Sync** (`app/beatcount.py`, ab 0.6.0): Mit eingerastetem Audio zählt die Lichtregie die
+Schläge selbst (Phase aus der Analyse), HA liefert nur die Grobposition. Anker: Drop → nächste Phrasengrenze
+(±12 Schläge), erkannter Klangwechsel → Phrasengrenze, wenn höchstens 3 Schläge daneben. Spulen (Sprung der
+Liedposition über 5 s) setzt die Zählung sofort neu auf. Synthetischer Test (`dev/test_beatcount.py`, HA
+5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
 
-**Takt- und Phrasen-Sync (ab 0.6.0):** Mit eingerastetem Audio zählt `beatcount.py` die Schläge selbst
-(Phase aus der Analyse), HA liefert nur die Grobposition. Anker: Drop → nächste Phrasengrenze (±12 Schläge),
-erkannter Klangwechsel → Phrasengrenze, wenn höchstens 3 Schläge daneben. Synthetischer Test
-(`dev/test_beatcount.py`, HA 5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
-Lampen wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen.
-Puls ab 0.6.1 mit Audio: kurz vor dem Schlag dunkel, auf dem Kick voll (Kontrast statt Hochdimmen). Laser je Lied: aus / nur Höhepunkte /
-jede zweite Phrase / durchgehend (Anteil an der Liedzeit ca. 0 / 28 / 58 / 100 %). Ruhepunkt hoch/runter 76 (über dem TV), Bahnen nur
-zwischen 66 und 86.
+**Lampen** (`app/lamps.py`): wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen.
+
+**Laser** (`app/laser.py`): Rolle je Lied aus / nur Höhepunkte / jede zweite Phrase / durchgehend (Anteil an
+der Liedzeit ca. 0 / 28 / 58 / 100 %). Ruhepunkt hoch/runter 76 (über dem TV), Bahnen nur zwischen 66 und 86.
+
+**Party-Modus** (`app/party.py`, ab 0.8.0): Hauptschalter mit Automatik (an bei Musik, aus nach 15 min
+Ruhe), schaltet Geräte und dunkelt den Raum ab. „Thema neu würfeln“ merkt die Variante je Lied.
+
+**Noch offen:** Bootzeit der Köpfe nach dem Einschalten messen; Tanzbarkeit und Lautheit aus FreqBlog noch
+ungenutzt.
 
 ## Laser (gemessen)
 
@@ -322,14 +331,4 @@ zwischen 66 und 86.
   (129 schnell, 255 langsam).
 - **Aufrecht:** Die Symbole stehen bei Rotation 93 richtig (Spiegel beide 0). Modus 65 wirkt ebenfalls als
   Handbetrieb.
-- Idee: „3, 2, 1“ (Formen 92, 113, 116) als Countdown in den letzten drei Schlägen vor einem Höhepunkt.
-
-## 10. Reihenfolge der Umsetzung
-
-1. Messungen aus Abschnitt 8 (Rad, Strobe, Dimmer, Glätte).
-2. Effekt-Motor mit Taktposition, Vorlauf und Dimmer-Mustern; Vorschau in der Web-App.
-3. Bahnen und Kopf-Verhältnisse als Bibliothek.
-4. Song-Profil, Palette und Szenen-Planer mit Phrasen.
-5. Radwechsel-Planer, Strobe-Grenze.
-6. Automatischer Start/Stopp, Steckdosen, Pausen.
-7. Umzug als Add-on auf den Pi.
+- Countdown „3, 2, 1“: Formen 92, 113, 116 in den letzten drei Schlägen vor einem Höhepunkt (in der Show).
