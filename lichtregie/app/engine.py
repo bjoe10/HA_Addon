@@ -10,6 +10,7 @@ import ha
 import heads
 import lamps
 import laser
+import record
 import show
 try:            # numpy fehlt lokal ggf.; dann ohne Audioanalyse
     import audio
@@ -114,6 +115,7 @@ def show_loop(prof, t0, stop):
         blackout = now - started < BLACKOUT_SEC
         pos = song_position()
         b = (pos if pos is not None else now - t0) * bpm / 60.0 + SETTINGS["offset"]
+        b_ha = b
         live = None
         locked = False
         if AUDIO is not None and SETTINGS["audio"] and AUDIO.signal(now):
@@ -173,6 +175,11 @@ def show_loop(prof, t0, stop):
             BEAT["fps"] = round(frames / (now - fps_t), 1)
             frames, fps_t = 0, now
         BEAT["b"] = b
+        if record.REC["on"]:
+            record.trace(now, {"b": round(b, 3), "b_ha": round(b_ha, 3), "pos": pos, "bpm": bpm, "locked": locked,
+                               "break": bool(live and live["break"]), "drop": bool(live and live["drop"]),
+                               "info": info, "eins": counter.bar_info(), "bins": [round(x, 3) for x in counter.bar_bins],
+                               "ereignisse": [e[1] for e in counter.events[-3:]]})
         recent = [f"{e[1]} (vor {int(now - e[0])} s)" for e in counter.events[-3:] if now - e[0] < 60]
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
                         "audio": locked, "ereignisse": recent,

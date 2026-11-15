@@ -68,6 +68,7 @@ class Analyzer:
         self.quiet_since = None
         self.drop_at = 0.0
         self._last_tempo = 0.0
+        self.tap = None                                        # Abgriff für die Aufnahme
         self.rest = b""                                        # angefangener Stereo-Frame aus dem letzten Lesen
         self.inputs = deque(maxlen=4000)                       # (Zeit, Samples) je Lesen: Eingangsrate prüfen
         # Klangwechsel je Schlag (für die „1“ im Takt): 12 Bänder 100–4000 Hz (Bass-Töne, Akkorde, Flächen),
@@ -95,6 +96,8 @@ class Analyzer:
             return
         x = np.frombuffer(data, dtype="<i2").astype(np.float32).reshape(-1, 2).mean(axis=1) / 32768.0
         self.inputs.append((t_end, len(x)))
+        if self.tap is not None:
+            self.tap(x, t_end)               # Aufnahme für die Fehlersuche (record.py)
         self.data_at = t_end                     # Diagnose: kommen überhaupt Daten an (auch stumme)?
         self.data_peak = max(self.data_peak * 0.98, float(np.abs(x).max()))
         self.feed(x, t_end)

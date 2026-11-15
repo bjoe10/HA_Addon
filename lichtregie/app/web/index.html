@@ -146,6 +146,19 @@
  </section>
 
  <section class="card">
+  <h2>Aufnahme für die Fehlersuche</h2>
+  <p class="status" id="recstat">–</p>
+  <div class="switches">
+   <button id="recstart">Aufnahme starten (90 s)</button>
+   <button id="recmark" disabled>Hier ist die 1</button>
+  </div>
+  <p class="hint">Schneidet 90 s Ton am Empfänger mit und dazu, was die Erkennung entscheidet. Während der Aufnahme
+   möglichst oft auf der „1“ des Takts „Hier ist die 1“ tippen (ändert die Show nicht, markiert nur). Danach die
+   Datei herunterladen. Am besten bei Liedern aufnehmen, bei denen die Show nicht passt.</p>
+  <p class="hint" id="recfiles"></p>
+ </section>
+
+ <section class="card">
   <h2>Automatik</h2>
   <label>Aus nach <span class="val" data-val="party_aus_min" data-unit=" min ohne Musik"></span>
    <input type="range" data-set="party_aus_min" min="1" max="60" step="1"></label>

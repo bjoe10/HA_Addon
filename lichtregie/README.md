@@ -5,7 +5,8 @@ direkt angesteuert; Titel, Tempo und Stimmung kommen aus Spotify (über HA) und 
 
 - Anleitung: [DOCS.md](DOCS.md)
 - Show-Design: [SHOW.md](SHOW.md), Konzept und Messwerte: [KONZEPT.md](KONZEPT.md)
-- Entwicklung: `dev/test_all.sh` (Tests ohne Geräte), `dev/run_local.sh` (lokal starten), `dev/messen/`
+- Entwicklung: `dev/test_all.sh` (Tests ohne Geräte), `dev/run_local.sh` (lokal starten), `dev/nachspielen.py` (Aufnahme vom Gerät
+  durch die Analyse spielen), `dev/messen/`
   (Werkzeuge aus der Kalibrierung)
 
 ## Tempo-Daten

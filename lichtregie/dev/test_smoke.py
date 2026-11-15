@@ -221,23 +221,41 @@ SENT = []
 ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
 lamps.LAMP["last"], lamps.SPENT = {}, {}
 lamps.groups = lambda: [("grund", ["light.amb"]), ("links", ["light.s1"]), ("rechts", ["light.s2"])]
-base = {"grund": ((255, 0, 0), 40), "akzent": ((0, 0, 255), 100), "links": ((0, 0, 255), 100),
+lampen_soll = {"grund": ((255, 0, 0), 40), "akzent": ((0, 0, 255), 100), "links": ((0, 0, 255), 100),
         "rechts": ((0, 0, 255), 20)}
-lamps.send(base)
+lamps.send(lampen_soll)
 assert len(SENT) == 3 and all("rgb_color" in d and "brightness_pct" in d for _, d in SENT), SENT
 SENT.clear()
-lamps.send(dict(base, grund=((0, 255, 0), 40), links=((0, 0, 255), 20), rechts=((0, 0, 255), 100)))
+lamps.send(dict(lampen_soll, grund=((0, 255, 0), 40), links=((0, 0, 255), 20), rechts=((0, 0, 255), 100)))
 amb = [d for _, d in SENT if d["entity_id"] == ["light.amb"]][0]
 schrank = [d for _, d in SENT if d["entity_id"] == ["light.s1"]][0]
 assert "rgb_color" in amb and "brightness_pct" not in amb, "Farbwechsel schickt unnötig die Helligkeit"
 assert "brightness_pct" in schrank and "rgb_color" not in schrank, "Schrank-Wechsel schickt unnötig die Farbe"
 SENT.clear()
 for k in range(80):                        # viel zu schnell: das Budget hält die Lampe unter ihrer Grenze
-    lamps.send(dict(base, grund=(((k * 37) % 256, 0, 0), 40)))
+    lamps.send(dict(lampen_soll, grund=(((k * 37) % 256, 0, 0), 40)))
 amb_sent = sum(1 for _, d in SENT if d["entity_id"] == ["light.amb"])
 assert amb_sent <= lamps.QUOTA, amb_sent
 st = lamps.stats()
 assert st and st["fehler"] == 0, st
 print(f"Lampen: Wechsel auf der 1, nur geänderte Werte, Budget hält ({amb_sent} von 80 Wechseln gesendet)")
+# --- Aufnahme: Ton und Entscheidungen landen in einer ZIP-Datei, die sich herunterladen lässt -------------
+import io, zipfile  # noqa: E402,E401
+import numpy as np  # noqa: E402
+import record  # noqa: E402
+record.start({"titel": "Test"}, seconds=2)
+t = time.time()
+for i in range(20):
+    record.tap(np.full(512, 0.25, dtype=np.float32), t + i * 0.01)
+    record.trace(t + i * 0.05, {"b": i / 2})
+assert record.mark() and record.status()["laeuft"]
+record.tap(np.zeros(512, dtype=np.float32), t + 3.0)
+time.sleep(0.5)
+st = record.status()
+assert not st["laeuft"] and len(st["dateien"]) == 1, st
+z = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(f"{base}/aufnahme/{st['dateien'][0]}").read()))
+daten = json.loads(z.read("daten.json"))
+assert len(daten["blocks"]) == 21 and daten["marks"] and daten["trace"] and len(z.read("ton.wav")) > 20000
+print(f"Aufnahme: {st['dateien'][0]} mit Ton, {len(daten['trace'])} Bildern, {len(daten['marks'])} Markierung")
 httpd.shutdown()
 print("Rauchtest ok")

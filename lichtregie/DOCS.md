@@ -78,7 +78,8 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   verschieben; das gilt dann für das ganze Lied), Audio und
   Takt-Test mit Audio-Versatz, Lampen (Rhythmus der Farbwechsel ab einem Takt, harter Wechsel, Vorlauf,
   Lampen-Test mit Messwerten), Bewegungstempo, Anschub und
-  Vorsteuerung, Laser-Bereich (Grenzen und Show-Mitte), Zeit bis zum automatischen Aus.
+  Vorsteuerung, Laser-Bereich (Grenzen und Show-Mitte), Zeit bis zum automatischen Aus, Aufnahme für die Fehlersuche
+  (90 s Ton und Entscheidungen der Erkennung als ZIP zum Herunterladen).
 - **Einrichten:** Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe und des Lasers
   von Hand, Laser-Steckdose. Nur sinnvoll, solange die Party aus ist.
 

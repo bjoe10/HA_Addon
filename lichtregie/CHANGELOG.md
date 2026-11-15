@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.14
+
+- **Aufnahme für die Fehlersuche** (Feinabstimmung): schneidet 90 s Ton am Empfänger mit und dazu, was die
+  Erkennung in jedem Bild entschieden hat (Schlagnummer, HA-Schätzung, Break, Drop, Korrekturen). Mit „Hier ist
+  die 1“ lässt sich während der Aufnahme die echte „1“ markieren, ohne die Show zu ändern. Die Aufnahme lässt
+  sich als ZIP herunterladen; die letzten 12 bleiben auf dem Gerät.
+- Werkzeug `dev/nachspielen.py`: spielt eine Aufnahme auf dem Mac durch Analyse und Schlagzählung, mit denselben
+  Blöcken und Zeitstempeln wie am Gerät, und vergleicht die gezählte „1“ mit den Markierungen.
+
 ## 0.8.13
 
 - **Die „1“ im Takt aus dem Audio:** Tempo und Schlag kamen schon aus dem Audio, welcher Schlag die „1“ ist

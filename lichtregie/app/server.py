@@ -19,6 +19,7 @@ import heads
 import lamps
 import laser
 import party
+import record
 import settings
 from artnet import ART_PORT, FPS, artdmx
 from settings import SETTINGS
@@ -69,7 +70,7 @@ def status():
     return {"spots": engine.SPOTS, "szene": engine.BEAT["szene"], "info": engine.BEAT["info"],
             "audio": engine.AUDIO.status() if engine.AUDIO is not None else None,
             "party": party.status(), "lied": engine.BEAT["lied"], "sync": engine.BEAT["sync"],
-            "fps": engine.BEAT.get("fps"), "lampen": lamps.stats(),
+            "fps": engine.BEAT.get("fps"), "lampen": lamps.stats(), "aufnahme": record.status(),
             "spielt": bool(fresh and live.get("playing")),
             "titel": f"{live['title']} – {live['artist']}" if fresh else None,
             "warnungen": warn}
@@ -106,6 +107,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json(state())
         elif self.path == "/api/status":
             self._json(status())
+        elif self.path.startswith("/aufnahme/"):      # Aufnahme herunterladen
+            data = record.read(self.path.rsplit("/", 1)[1])
+            if data is None:
+                return self._send(404, "text/plain", b"nicht gefunden")
+            self._send(200, "application/zip", data)
         else:
             self._send(404, "text/plain", b"nicht gefunden")
 
@@ -139,6 +145,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             else:
                 self._json({"ok": engine.mark_one(32 if body.get("eins") == 32 else 4)})
+        elif self.path == "/api/aufnahme":     # Aufnahme für die Fehlersuche: starten, stoppen, „1“ markieren
+            if body.get("marke"):
+                return self._json({"ok": record.mark()})
+            if body.get("an"):
+                record.start({"lied": engine.BEAT["lied"], "titel": status()["titel"],
+                              "audio_versatz": SETTINGS["audio_versatz"], "offset": SETTINGS["offset"]})
+            else:
+                record.stop()
+            self._json(record.status())
         elif self.path == "/api/wuerfeln":     # neues Thema für das laufende Lied
             self._json({"ok": engine.reroll()})
         elif self.path == "/api/settings":
@@ -172,6 +187,7 @@ def main():
     threading.Thread(target=party.loop, daemon=True).start()
     threading.Thread(target=engine.idle_loop, daemon=True).start()
     if engine.AUDIO is not None:
+        engine.AUDIO.tap = record.tap
         threading.Thread(target=engine.audio_watch_loop, daemon=True).start()
         if config.AUDIO_CMD:
             threading.Thread(target=engine.audio.reader_cmd, args=(engine.AUDIO, config.AUDIO_CMD), daemon=True).start()
