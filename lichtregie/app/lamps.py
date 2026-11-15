@@ -12,6 +12,7 @@ from settings import SETTINGS
 # Die Show-Schleife schreibt hier Thema, Taktposition und Live-Audio hinein; lamp_loop liest mit
 LAMP = {"prof": None, "b": 0.0, "at": 0.0, "live": None, "last": {}, "snapshot": False, "again": None}
 TICK = 0.02                # so oft rechnet lamp_loop nach: Wechsel liegen auf ±20 ms am geplanten Zeitpunkt
+LIVE_AT = {"fn": None}     # von der Show gesetzt: Zustand des Tons zu einer Zeit der Analyse (Drop, Break, Pegel)
 TEST_COLORS = (17, 36)     # Lampen-Test: rot und blau im Wechsel, im eingestellten Rhythmus
 CALLS = deque(maxlen=2000)  # (Zeit, Dauer s, ok, Gruppe) je Befehl an HA: wie schnell geht es wirklich?
 # Yeelights nehmen nur ca. 60 Befehle pro Minute je Lampe an („client quota exceeded“). HA schickt Farbe und
@@ -116,7 +117,13 @@ def want_now():
     Verzögerung, deshalb wird die Lage um den Vorlauf vorausgerechnet; so kommt der Wechsel auf dem Schlag an."""
     bps = LAMP["prof"]["bpm"] / 60.0
     b_lamp = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["lampen_vorlauf"]) * bps
-    want = show.lamps(LAMP["prof"], b_lamp, LAMP["live"], SETTINGS["lampen_wechsel"])
+    live = LAMP["live"]
+    if live is not None and LIVE_AT["fn"] is not None:
+        # Die Analyse hat den Ton um den Ton-Vorlauf früher als der Lautsprecher: Drop und Break sind also schon
+        # bekannt, bevor man sie hört. Die Lampen nehmen den Zustand um ihren Vorlauf voraus (höchstens bis jetzt)
+        ahead = min(SETTINGS["lampen_vorlauf"], SETTINGS["ton_vorlauf"])
+        live = LIVE_AT["fn"](time.time() - SETTINGS["ton_vorlauf"] + ahead, LAMP["prof"]["bpm"]) or live
+    want = show.lamps(LAMP["prof"], b_lamp, live, SETTINGS["lampen_wechsel"])
     if SETTINGS["lampentest"]:
         per = show.lamp_period(LAMP["prof"], SETTINGS["lampen_wechsel"] or show.LAMP_MIN_BEATS)
         want["grund"] = (show.RGB[TEST_COLORS[int(b_lamp // per) % 2]], 100)
@@ -142,7 +149,7 @@ def send(want):
         if pct == 0:
             service, cost = "turn_off", 1
         else:
-            service, cost = "turn_on", 0
+            service, cost = "turn_on", 1        # HA schickt vor Farbe/Helligkeit ein Einschalten (zählt bei Yeelight mit)
             if prev is None or prev[1] == 0 or prev[0] != rgb:
                 data["rgb_color"] = list(rgb)
                 cost += 1

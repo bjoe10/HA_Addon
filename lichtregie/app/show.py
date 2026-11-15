@@ -627,14 +627,18 @@ def _wheel_color(idx):
 
 
 def _lamp_colors(prof, b, teil, per):
-    pal = [_wheel_color(prof["base"] - 1), _wheel_color(prof["accent"] - 1), _wheel_color(prof["base"] + 3)]
-    step = int(b // per)
+    """Lampen in den beiden Farben der Köpfe (Grund- und Akzentfarbe des Liedes), im Wechsel: zeigen die Ambilights
+    die eine, zeigen die Schränke die andere. Höhepunkt und Drop: alles in der Akzentfarbe. (Bis 0.9.5 kam eine
+    dritte Farbe dazu, die die Köpfe nie zeigen: Raum und Show passten nicht zusammen.)"""
+    pal = [_wheel_color(prof["base"] - 1), _wheel_color(prof["accent"] - 1)]
     if teil in ("Höhepunkt", "Drop"):
         return pal[1], pal[1]
-    return pal[step % 3], pal[(step + 1) % 3]
+    step = int(b // per)
+    return pal[step % 2], pal[(step + 1) % 2]
 
 
-LAMP_MIN_BEATS = BAR   # schneller als ein Takt geht nicht: Yeelights nehmen nur ca. 60 Befehle/min je Lampe an
+LAMP_MIN_BEATS = 2 * BAR   # schneller nicht: Yeelights nehmen nur ca. 60 Befehle/min je Lampe an, HA schickt je
+                           # Farbwechsel zwei (Einschalten und Farbe); bei 130 BPM sind 2 Takte 32 pro Minute
 
 
 def lamp_period(prof, wechsel):
@@ -646,7 +650,7 @@ def lamps(prof, b, live=None, wechsel=0):
     """Farben und Helligkeit der Lampen. Die Ambilights wechseln hart auf dem Schlag durch die Farben des Liedes
     (Grund, Akzent, Gegenfarbe), alle `wechsel` Schläge (0 = nach dem Lied: 8 oder 16 Takte, mindestens ein Takt);
     die Schränke laufen einen Schritt versetzt. Schrank 1 (links vom TV) und Schrank 2 (rechts) spielen im
-    Wechsel: pro Takt ist einer hell, der andere gedimmt. Auf Höhepunkt und Drop leuchtet alles in der
+    Wechsel: alle 2 Takte ist einer hell, der andere gedimmt. Auf Höhepunkt und Drop leuchtet alles in der
     Akzentfarbe. Grenze: Yeelights nehmen nur ca. 60 Befehle pro Minute je Lampe an (gemessen: „client quota
     exceeded“ bei Wechseln schneller als ein Takt oder mit Dunkel davor)."""
     st = look(prof, b, live)
@@ -661,7 +665,7 @@ def lamps(prof, b, live=None, wechsel=0):
     links = rechts = pct
     if teil not in ("Höhepunkt", "Drop", "Break", "Atempause", "Outro"):
         dim = max(3, int(pct * 0.2))                   # Wechselspiel: ein Schrank hell, der andere gedimmt
-        links, rechts = (pct, dim) if int(b // BAR) % 2 == 0 else (dim, pct)
+        links, rechts = (pct, dim) if int(b // (2 * BAR)) % 2 == 0 else (dim, pct)   # alle 2 Takte (Befehlsgrenze)
     return {"grund": (RGB[grund], pct), "akzent": (RGB[akzent], pct),
             "links": (RGB[akzent], links), "rechts": (RGB[akzent], rechts), "teil": teil}
 

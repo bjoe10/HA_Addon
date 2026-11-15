@@ -21,7 +21,7 @@ SETTINGS = {
     "lampen": True, "lampen_decke": 40, "lampen_vitrine": 100, "lampen_vorlauf": 0.8,
     # Ambilights: Farbwechsel alle so viele Schläge (0 = nach dem Lied: 8 oder 16 Takte; mindestens ein Takt),
     # hart (ohne Übergang); Lampen-Test zum Einstellen des Vorlaufs
-    "lampen_wechsel": 4.0, "lampen_hart": True, "lampentest": False,
+    "lampen_wechsel": 8.0, "lampen_hart": True, "lampentest": False,
     # Laser: Senden an/aus, Schutzgrenzen, Ruhepunkt über dem TV (auf dem TV sieht man ihn schlecht)
     "laser": True, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90,
     "laser_ud_mitte": 76,

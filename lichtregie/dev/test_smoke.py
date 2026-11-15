@@ -217,6 +217,12 @@ for wechsel in (4, 1):                     # 1 (schneller als ein Takt) wird auf
         b = i / 40
         seen.setdefault(int(b // 4), set()).add(show.lamps(prof, b, None, wechsel)["grund"][0])
     assert all(len(v) == 1 for v in seen.values()), "Farbe wechselt mitten im Takt"
+colors = {show.RGB[show.WHEEL[prof["base"]]], show.RGB[show.WHEEL[prof["accent"]]]}
+for i in range(0, 64 * 40, 7):
+    w = show.lamps(prof, i / 40, None, 8)
+    assert {w["grund"][0], w["akzent"][0]} <= colors, "Lampenfarbe, die die Köpfe nicht zeigen"
+    if w["teil"] not in ("Höhepunkt", "Drop"):
+        assert w["grund"][0] != w["akzent"][0], "Ambilights und Schränke in derselben Farbe"
 SENT = []
 ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
 lamps.LAMP["last"], lamps.SPENT = {}, {}

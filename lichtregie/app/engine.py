@@ -95,6 +95,7 @@ def show_loop(prof, t0, stop):
     frame_times = deque(maxlen=600)
     seeks = LIVE["seeks"]
     last_sound = started
+    lamps.LIVE_AT["fn"] = (lambda t, bpm_: AUDIO.live(t, bpm_)) if AUDIO is not None else None
     seen_model = downbeat.STATE["letzte"]
     prev_model = None                  # Tempo der vorigen Messung von Beat This (für die Bestätigung)
     if AUDIO is not None:        # Ereignisse aus dem vorigen Lied nicht als Anker nehmen

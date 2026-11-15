@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.6
+
+- **Lampenfarben passen zur Show:** Ambilights und Schränke zeigen nur noch die beiden Farben der Köpfe (Grund-
+  und Akzentfarbe des Liedes), im Wechsel: Zeigen die Ambilights die eine, zeigen die Schränke die andere.
+  Höhepunkt und Drop: alles in der Akzentfarbe. Bisher kam eine dritte Farbe dazu, die die Köpfe nie zeigen.
+- **Grenze der Yeelights:** HA meldete wieder „client quota exceeded“ (Schrank-Streifen). HA schickt vor Farbe
+  oder Helligkeit ein Einschalten mit, das zählt jetzt im Budget. Die Schränke wechseln alle 2 Takte statt
+  jeden Takt, die Ambilights höchstens alle 2 Takte (Standard 2 Takte, auch 4 und 8 Takte oder nach Lied).
+- **Drop und Break rechtzeitig bei den Lampen:** Die Analyse hat den Ton 1 s vor dem Lautsprecher. Die Lampen
+  nehmen den Zustand (Drop, Break, Pegel) um ihren Vorlauf voraus und reagieren so trotz Verzögerung auf dem
+  Schlag.
+
 ## 0.9.5
 
 - **Gemessenes Tempo greift auch ohne eingerasteten Takt:** Bei „Drifting (SISTEK Remix)“ meldete FreqBlog
