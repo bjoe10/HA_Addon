@@ -7,7 +7,7 @@ SETTINGS = {
     # Party-Modus: automatisch an, wenn Musik ankommt; aus nach so vielen Minuten ohne Musik
     "automatik": True, "party_aus_min": 15,
     # Show
-    "strobe": True, "nebel": False, "tempo": 2.0,        # tempo = Bewegungstempo ×1/×2
+    "strobe": True, "strobe_menge": 100, "nebel": False, "tempo": 2.0,        # tempo = Bewegungstempo ×1/×2
     "offset": 0.0,                                       # Phasen-Versatz in Schlägen (ohne Audio)
     # Mechanik der Köpfe (gemessen, siehe SHOW.md)
     "vorlauf": 0.4,                                      # Bewegung so viele Sekunden vorziehen
@@ -31,6 +31,7 @@ SETTINGS["takttest"] = False   # Takt-Test startet nie von selbst
 RULES = {
     "strobe": bool, "nebel": bool, "anschub": bool, "lampen": bool, "audio": bool, "takttest": bool,
     "laser": bool, "automatik": bool, "party_aus_min": (int, 1, 240),
+    "strobe_menge": (int, 0, 200),
     "offset": (float, -64.0, 64.0), "tempo": (float, 0.25, 4.0), "vorsteuerung": (float, 0.0, 1.0),
     "audio_versatz": (float, -500.0, 500.0), "lampen_vorlauf": (float, 0.0, 2.0),
     "lampen_decke": (int, 0, 150), "lampen_vitrine": (int, 0, 150),

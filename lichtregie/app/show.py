@@ -525,7 +525,27 @@ def _wheels(prof, st, b, k):
 
 
 # --- Ein Bild ---------------------------------------------------------------------------------------
-def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=False):
+def _strobe_amount(prof, st, b, strobe, amount):
+    """Strobe-Menge in Prozent: 100 = wie geplant, darunter fallen einzelne Blitze weg (0 = keine), darüber
+    kommen kurze Blitze auf der „1“ dazu: mehr in Aufbau, Höhepunkt und Drop, bei 200 auch in normalen Szenen.
+    Die Blitze sind kurz (höchstens ein halber Schlag), nie länger als bisher."""
+    bar = int(b // BAR)
+    luck = random.Random(prof["seed"] * 31 + bar).random()
+    if amount <= 0:
+        return False
+    if amount < 100:
+        return strobe and luck < amount / 100.0
+    extra = (amount - 100) / 100.0
+    in_bar = b % BAR
+    big = st["teil"] in ("Aufbau", "Höhepunkt", "Drop")
+    if big and in_bar < 0.5 * extra:
+        return True
+    if st["teil"] in ("Szene", "Motiv") and luck < 0.5 * extra and in_bar < 0.25:
+        return True
+    return strobe
+
+
+def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=False, strobe_amount=100):
     """Ein Bild für beide Köpfe. b = Taktposition jetzt, b_move = Taktposition für die Bewegung
     (vorgezogen um die Laufzeit des Kopfes). tempo = Faktor für die Bahnen (2 = doppelt so schnell).
     Rückgabe: {kopf: {ziel, hell, farbe, gobo, strobe}}, Info-Text."""
@@ -566,6 +586,7 @@ def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=Fal
             strobe = strobe or (b % BAR) < 0.5                # halber Schlag Strobe auf jeder „1“
         if st["teil"] == "Aufbau" and in_ph >= PHRASE - BAR:
             strobe = strobe or (b % 1.0) < 0.25               # Wirbel im letzten Takt vor dem Höhepunkt
+    strobe = _strobe_amount(prof, st, b, strobe, strobe_amount)
     out = {}
     for k in (1, 2):
         farbe, gobo = wheels[k]

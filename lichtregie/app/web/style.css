@@ -50,6 +50,14 @@ input[type=range]{width:100%;height:34px;accent-color:var(--accent)}
 .chip{font-size:13px;background:var(--card2);border-radius:20px;padding:5px 10px;color:#d0d0d8;display:flex;
  align-items:center;gap:6px}
 .chip b{width:11px;height:11px;border-radius:50%;display:inline-block}
+/* Takt-Sync */
+.phrase{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.bar{display:flex;justify-content:space-between;background:var(--card2);border-radius:8px;padding:6px 4px}
+.bar.cur{outline:1px solid #4a4a5c}
+.bar.first{border-top:3px solid #8e8ef0}
+.bar i{width:7px;height:7px;border-radius:50%;background:#3b3b45}
+.bar i.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.bar i.on.eins{background:#fff;box-shadow:0 0 10px #fff}
 /* Status-Kacheln */
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tile{background:var(--card2);border-radius:12px;padding:10px 12px;min-width:0}

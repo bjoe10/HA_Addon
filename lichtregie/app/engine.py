@@ -23,9 +23,10 @@ from tempo import tempo
 AUDIO = audio.Analyzer() if (audio is not None and config.AUDIO_PIPE) else None
 LIVE = {"live": None, "at": 0.0, "seeks": 0}   # letzter Stand des Spotify-Players aus HA; seeks zählt Spulen
 SEEK_SEC = 5.0                       # Sprung der Liedposition ab dieser Größe gilt als Spulen
-BEAT = {"stop": None, "info": "aus", "szene": "", "start": None, "lied": None}   # laufende Show
+BEAT = {"stop": None, "info": "aus", "szene": "", "start": None, "lied": None, "b": None, "sync": None}   # laufende Show
 WATCH = {"stop": None}               # Titel-Überwachung
 SPOTS = {}                           # aktuelle Zielpunkte für die Vorschau im Raumbild
+SYNC = {"pending": 0}                # Verschiebung der Schlagzählung von Hand (Schläge), wird im Bild übernommen
 BLACKOUT_SEC = 0.6                   # Liedwechsel: so lange dunkel, damit Farb- und Goborad unsichtbar laufen
 
 
@@ -35,6 +36,23 @@ def song_position():
     if not live or live.get("pos") is None or not live.get("playing"):
         return None
     return float(live["pos"]) + (time.time() - LIVE["at"])
+
+
+def shift_beats(n):
+    """Schlagzählung von Hand um n Schläge verschieben (4 = ein Takt)."""
+    SYNC["pending"] += int(n)
+
+
+def mark_one(grid):
+    """„Jetzt ist die 1“: Der Schlag, der gerade läuft, wird zur 1 des Takts (grid 4) oder der Phrase (32)."""
+    b = BEAT.get("b")
+    if b is None:
+        return False
+    s = -(round(b) % grid)
+    if s < -grid // 2:
+        s += grid
+    SYNC["pending"] += s
+    return True
 
 
 def update_live(live):
@@ -66,6 +84,9 @@ def show_loop(prof, t0, stop):
             counter.reset()
             counter.seen_drop, counter.seen_change = drop, change
             counter.events.append((now, "gespult: Zählung neu"))
+        if SYNC["pending"]:                    # von Hand verschoben
+            n, SYNC["pending"] = SYNC["pending"], 0
+            counter.shift(n, now, "von Hand")
         blackout = now - started < BLACKOUT_SEC
         pos = song_position()
         b = (pos if pos is not None else now - t0) * bpm / 60.0 + SETTINGS["offset"]
@@ -88,16 +109,23 @@ def show_loop(prof, t0, stop):
         last_b = b
         b_move = b + SETTINGS["vorlauf"] * bpm / 60.0   # Bewegung vorziehen, damit sie auf dem Schlag ankommt
         out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"],
+                               strobe_amount=SETTINGS["strobe_menge"],
                                live=live, locked=locked)
         if paused:
             glow = int(show.MIN_DIM + 50 + 30 * math.sin(now * 2 * math.pi / 6))
             out = {k: dict(v, hell=glow, strobe=0) for k, v in out.items()}
             info = "Pause"
         if SETTINGS["takttest"]:
-            # Takt-Test zum Einstellen des Audio-Versatzes: weiß auf TV-Wand-Mitte, kurzer Blitz auf jedem Schlag
-            flash = (b % 1.0) < 0.15
-            out = {k: {"ziel": (2.5, 0.0, 1.6), "hell": 255 if flash else show.MIN_DIM, "farbe": 0, "gobo": 0,
-                       "strobe": 0} for k in (1, 2)}
+            # Takt-Test zum Einstellen von Audio-Versatz und Takt-Sync: weiß auf TV-Wand-Mitte, Blitz auf jedem
+            # Schlag. Die „1“ des Takts blitzt auf beiden Köpfen, die Schläge 2–4 nur auf Kopf 1 und schwächer,
+            # die „1“ der Phrase (alle 8 Takte) auf beiden Köpfen und doppelt so lang.
+            beat_no = int(b)
+            long_flash = beat_no % 32 == 0
+            flash = (b % 1.0) < (0.5 if long_flash else 0.15)
+            one = beat_no % 4 == 0
+            out = {k: {"ziel": (2.5, 0.0, 1.6), "farbe": 0, "gobo": 0, "strobe": 0,
+                       "hell": (255 if (one or k == 1) and flash else show.MIN_DIM) if one else
+                               (120 if k == 1 and flash else show.MIN_DIM)} for k in (1, 2)}
             info, live = "Takt-Test", None
         for k, v in out.items():
             pan, tilt = heads.aim_show(k, v["ziel"])
@@ -113,6 +141,10 @@ def show_loop(prof, t0, stop):
             laser.off()
         elif SETTINGS["laser"] and not SETTINGS["takttest"]:
             laser.apply_show(show.laser_frame(prof, b, live, locked))
+        BEAT["b"] = b
+        recent = [f"{e[1]} (vor {int(now - e[0])} s)" for e in counter.events[-3:] if now - e[0] < 60]
+        BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
+                        "audio": locked, "ereignisse": recent}
         szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
         if counter.events and now - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
             szene += f" · {counter.events[-1][1]}"
@@ -189,7 +221,7 @@ def halt_beat():
             heads.apply(k, strobe=0)
         laser.off()
     SPOTS.clear()
-    BEAT.update(szene="", lied=None)
+    BEAT.update(szene="", lied=None, b=None, sync=None)
 
 
 def stop_all():

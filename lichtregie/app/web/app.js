@@ -113,7 +113,27 @@ function showStatus(d) {
              + (a.break ? ' · Break' : '') + (a.drop ? ' · Drop' : '') + (a.wechsel ? ' · Klangwechsel' : '')
     : 'Kein Signal am Empfänger';
   spots = d.spots || {};
+  showSync(d.sync);
   draw();
+}
+// --- Takt-Sync: 8 Takte à 4 Schläge, aktueller Schlag leuchtet ---------------------------------------
+$('phrase').innerHTML = Array.from({length: 8}, (_, i) => `<div class="bar${i === 0 ? ' first' : ''}"><i></i><i></i><i></i><i></i></div>`).join('');
+function showSync(s) {
+  const bars = all('#phrase .bar');
+  bars.forEach((bar, bi) => {
+    bar.classList.toggle('cur', !!s && s.takt === bi + 1);
+    all('i', bar).forEach((dot, di) => {
+      dot.classList.toggle('on', !!s && s.takt === bi + 1 && s.schlag === di + 1);
+      dot.classList.toggle('eins', di === 0);
+    });
+  });
+  $('syncstat').textContent = !s ? 'Keine Show läuft.'
+    : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Spotify-Position (ungenau)')
+      + (s.ereignisse.length ? ' · ' + s.ereignisse.join(', ') : '');
+}
+for (const [id, body] of [['syncm4', {schlaege: -4}], ['syncp4', {schlaege: 4}], ['syncm1', {schlaege: -1}],
+                          ['syncp1', {schlaege: 1}], ['eins', {eins: 4}], ['einsphrase', {eins: 32}]]) {
+  $(id).addEventListener('click', () => api('api/sync', body));
 }
 
 // --- Raumbild: aus Sicht der Kopfwand (y = 6), leicht von oben, Blick Richtung TV-Wand ----------------

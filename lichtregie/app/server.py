@@ -68,7 +68,7 @@ def status():
                     "Die Show läuft nur nach dem Audio.")
     return {"spots": engine.SPOTS, "szene": engine.BEAT["szene"], "info": engine.BEAT["info"],
             "audio": engine.AUDIO.status() if engine.AUDIO is not None else None,
-            "party": party.status(), "lied": engine.BEAT["lied"],
+            "party": party.status(), "lied": engine.BEAT["lied"], "sync": engine.BEAT["sync"],
             "spielt": bool(fresh and live.get("playing")),
             "titel": f"{live['title']} – {live['artist']}" if fresh else None,
             "warnungen": warn}
@@ -130,6 +130,12 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 party.stop()
             self._json(status())
+        elif self.path == "/api/sync":         # Schlagzählung von Hand korrigieren
+            if "schlaege" in body:
+                engine.shift_beats(int(body["schlaege"]))
+                self._json({"ok": True})
+            else:
+                self._json({"ok": engine.mark_one(32 if body.get("eins") == 32 else 4)})
         elif self.path == "/api/wuerfeln":     # neues Thema für das laufende Lied
             self._json({"ok": engine.reroll()})
         elif self.path == "/api/settings":

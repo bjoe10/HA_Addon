@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.3
+
+- **Takt-Sync-Anzeige** unter Feinabstimmung: eine Phrase als 8 Takte à 4 Schläge, der aktuelle Schlag
+  leuchtet (die 1 jedes Takts weiß, der Phrasenanfang markiert), dazu Quelle (Audio oder Spotify-Position)
+  und die letzten Korrekturen („Drop-Anker +3“). Stimmt der Einsatz nicht, z. B. nach einem Break: im Moment
+  der echten 1 „Jetzt ist die 1“ tippen (Takt oder Phrase) oder um ±1 Takt / ±1 Schlag verschieben. Die
+  Verschiebung gilt für das laufende Lied.
+- Der Takt-Test zeigt jetzt auch den Takt: die 1 blitzt auf beiden Köpfen, die Schläge 2–4 nur auf Kopf 1
+  und schwächer, die 1 der Phrase (alle 8 Takte) doppelt so lang.
+- Strobe-Menge als Regler (0–200 %, Standard 100 %) unter „Heute Abend“: darunter fallen geplante Blitze
+  weg (0 = keine), darüber kommen kurze Blitze auf der „1“ dazu, mehr in Aufbau, Höhepunkt und Drop, bei
+  200 % auch in normalen Szenen. Anteil der Zeit mit Strobe im Test bei druckvollen Liedern: 0 / 2 / 6 / 8 / 9 %
+  bei 0 / 50 / 100 / 150 / 200 %. Der Schalter „Strobe“ bleibt der Hauptschalter.
+
 ## 0.8.2
 
 - Party aus: Die Köpfe fahren erst dunkel in die Parkposition (Pan 0, Tilt 0, wie im alten Skript „Moving Head

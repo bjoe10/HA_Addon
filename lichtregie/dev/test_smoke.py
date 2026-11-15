@@ -86,6 +86,20 @@ assert st["laeuft"] and "settings" in st and "laser" in st and "1" in st
 sp = json.loads(get("/api/status"))
 assert {"spots", "szene", "audio", "warnungen", "party", "lied"} <= set(sp), sp.keys()
 assert sp["lied"]["titel"] == "Testlied" and sp["lied"]["bpm"] == 128
+# Takt-Sync von Hand: Verschiebung wird übernommen und angezeigt
+assert 1 <= sp["sync"]["schlag"] <= 4 and 1 <= sp["sync"]["takt"] <= 8
+assert post("/api/sync", {"schlaege": 4})["ok"] and post("/api/sync", {"eins": 4})["ok"]
+time.sleep(0.3)
+sync = json.loads(get("/api/status"))["sync"]
+assert any("von Hand" in e for e in sync["ereignisse"]), sync
+# Takt-Test: 1 des Takts auf beiden Köpfen, Schläge 2–4 nur auf Kopf 1
+post("/api/settings", {"takttest": True})
+seen = set()
+for _ in range(80):
+    time.sleep(0.03)
+    seen.add((heads.STATE[1]["hell"], heads.STATE[2]["hell"]))
+post("/api/settings", {"takttest": False})
+assert any(a == 255 and b == 255 for a, b in seen) and any(a == 120 and b < 50 for a, b in seen), seen
 # Thema neu würfeln: anderes Thema, wird für das Lied gemerkt
 before = engine.BEAT["info"]
 assert post("/api/wuerfeln", {})["ok"]

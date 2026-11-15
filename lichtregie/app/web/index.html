@@ -50,6 +50,9 @@
    <button class="sw" data-set="laser">Laser</button>
    <button class="sw" data-set="lampen">Lampen</button>
   </div>
+  <label>Strobe-Menge <span class="val" data-val="strobe_menge" data-unit=" %"></span>
+   <input type="range" data-set="strobe_menge" min="0" max="200" step="10"></label>
+  <p class="hint">100 % = wie geplant, darunter weniger Blitze, darüber mehr kurze Blitze auf der „1“.</p>
   <label>Lampen Decke <span class="val" data-val="lampen_decke" data-unit=" %"></span>
    <input type="range" data-set="lampen_decke" min="0" max="150" step="5"></label>
   <label>Lampen Vitrinen <span class="val" data-val="lampen_vitrine" data-unit=" %"></span>
@@ -62,6 +65,22 @@
 
 <!-- ===================== Feinabstimmung ===================== -->
 <main id="tab-fein" hidden>
+ <section class="card">
+  <h2>Takt-Sync</h2>
+  <div class="phrase" id="phrase"></div>
+  <p class="status" id="syncstat">–</p>
+  <div class="switches">
+   <button id="syncm4">−1 Takt</button><button id="syncp4">+1 Takt</button>
+   <button id="syncm1">−1 Schlag</button><button id="syncp1">+1 Schlag</button>
+  </div>
+  <button id="eins">Jetzt ist die 1 (Takt)</button>
+  <button id="einsphrase" class="ghost">Jetzt ist die 1 (Phrase)</button>
+  <p class="hint">Die 32 Punkte sind eine Phrase aus 8 Takten à 4 Schlägen; der helle Punkt ist der aktuelle
+   Schlag, die erste Gruppe ist der Phrasenanfang. Stimmt der Einsatz nicht (z. B. nach einem Break), im Moment
+   der echten „1“ auf „Jetzt ist die 1“ tippen oder um Takte und Schläge verschieben. Mit dem Takt-Test (unten)
+   blitzt die 1 des Takts auf beiden Köpfen, die 1 der Phrase doppelt so lang.</p>
+ </section>
+
  <section class="card">
   <h2>Audio und Takt</h2>
   <p class="status" id="audiostat">–</p>

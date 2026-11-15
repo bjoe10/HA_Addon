@@ -69,8 +69,9 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
 - **Show** (Startseite): Party-Schalter, laufendes Lied mit seinem Thema (Tempo, Stimmung, Farben, Gobos,
   Laser-Rolle) und Schlaganzeige, **Thema neu würfeln** (das neue Thema bleibt für dieses Lied gespeichert),
   Status auf einen Blick (Audio, Spotify, Geräte, Lampen, Laser), Vorschau der Spots im Raumbild, Schalter
-  für den Abend: Strobe, Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre Helligkeit, Automatik.
-- **Feinabstimmung:** Audio und Takt-Test mit Audio-Versatz, Lampen-Vorlauf, Bewegungstempo, Anschub und
+  für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre Helligkeit, Automatik.
+- **Feinabstimmung:** Takt-Sync (Anzeige von Takt und Phrase, Einsatz von Hand verschieben), Audio und
+  Takt-Test mit Audio-Versatz, Lampen-Vorlauf, Bewegungstempo, Anschub und
   Vorsteuerung, Laser-Bereich (Grenzen und Show-Mitte), Zeit bis zum automatischen Aus.
 - **Einrichten:** Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe und des Lasers
   von Hand, Laser-Steckdose. Nur sinnvoll, solange die Party aus ist.

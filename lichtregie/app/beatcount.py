@@ -33,6 +33,10 @@ class BeatCounter:
         self.seen_change = 0.0
         self.events = []        # (Zeit, Text) für die Anzeige
 
+    def shift(self, s, now, why="von Hand"):
+        """Zählung um s Schläge verschieben (z. B. nach dem Break, wenn der Einsatz nicht stimmt)."""
+        self._shift(int(s), now, why)
+
     def _shift(self, s, now, why):
         if self.count is not None:
             self.count += s
