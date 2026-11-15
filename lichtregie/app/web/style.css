@@ -23,6 +23,10 @@ button.big.an{background:var(--bad)}
 .row{display:flex;gap:10px}
 .switches{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .switches.one{grid-template-columns:1fr}
+.switches.three{grid-template-columns:1fr 1fr 1fr}
+.switches.three button.sw{padding-left:34px;font-size:14px}
+.switches.three button.sw::before{left:12px}
+p.label{margin:14px 0 8px;font-size:14px;color:var(--dim)}
 .switches button{margin:0}
 .switches + label,.switches + .switches{margin-top:14px}
 button.sw{text-align:left;padding-left:40px;position:relative;color:var(--dim)}

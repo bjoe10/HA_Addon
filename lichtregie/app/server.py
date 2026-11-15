@@ -69,7 +69,7 @@ def status():
     return {"spots": engine.SPOTS, "szene": engine.BEAT["szene"], "info": engine.BEAT["info"],
             "audio": engine.AUDIO.status() if engine.AUDIO is not None else None,
             "party": party.status(), "lied": engine.BEAT["lied"], "sync": engine.BEAT["sync"],
-            "fps": engine.BEAT.get("fps"),
+            "fps": engine.BEAT.get("fps"), "lampen": lamps.stats(),
             "spielt": bool(fresh and live.get("playing")),
             "titel": f"{live['title']} – {live['artist']}" if fresh else None,
             "warnungen": warn}

@@ -58,9 +58,10 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   Party hält auch Spotify am Leben.
 - **Von Hand:** großer Schalter auf der Startseite. Ein Stopp von Hand gilt, bis die Musik einmal eine Minute
   aus war; sonst würde die Automatik sofort wieder einschalten.
-- **Ruhe-Animationen:** Läuft die Party ohne Musik, zeigen die Köpfe einen langsam kreisenden Sternhimmel an
-  der Decke. Pausiert Spotify, treffen sich beide Spots über dem TV und atmen in der Farbe des Liedes. Der
-  Laser ist dann aus.
+- **Show nur mit Ton:** Mit Audio läuft die Show nur, solange Ton am Empfänger ankommt. Nach 2 s ohne Ton
+  treffen sich beide Spots über dem TV und atmen in der Farbe des Liedes (Pause); nach 10 s geht die Show aus
+  und die Köpfe zeigen einen langsam kreisenden Sternhimmel an der Decke (Warten). Kommt wieder Ton, startet
+  die Show sofort. Der Laser ist in beiden Ruhe-Animationen aus.
 - **Überspringen und Spulen:** Ein neuer Titel wird nach spätestens 2 s erkannt. Spulen im Lied (Sprung über
   5 s) setzt die Schlagzählung neu auf, sobald HA die neue Position meldet.
 - **Titel unbekannt:** Kennt FreqBlog das Lied nicht oder meldet HA keinen Titel, läuft die Show mit dem Tempo
@@ -74,14 +75,15 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   Status auf einen Blick (Audio, Spotify, Geräte, Lampen, Laser), Vorschau der Spots im Raumbild, Schalter
   für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre Helligkeit, Automatik.
 - **Feinabstimmung:** Takt-Sync (Anzeige von Takt und Phrase, Einsatz von Hand verschieben), Audio und
-  Takt-Test mit Audio-Versatz, Lampen-Vorlauf, Bewegungstempo, Anschub und
+  Takt-Test mit Audio-Versatz, Lampen (Rhythmus der Farbwechsel, harter Wechsel, Dunkel davor, Vorlauf,
+  Lampen-Test mit Messwerten), Bewegungstempo, Anschub und
   Vorsteuerung, Laser-Bereich (Grenzen und Show-Mitte), Zeit bis zum automatischen Aus.
 - **Einrichten:** Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe und des Lasers
   von Hand, Laser-Steckdose. Nur sinnvoll, solange die Party aus ist.
 
 Alle Schalter bleiben über einen Neustart erhalten.
 
-Kommt bei laufender Show und spielendem Spotify 15 s lang kein Ton am AirPlay-Empfänger an, warnt die
+Meldet Spotify 45 s lang „spielt“ und kommt dabei kein Ton am AirPlay-Empfänger an, warnt die
 Oberfläche oben in Rot und HA zeigt eine Benachrichtigung. Meist fehlt der Empfänger nach einem Neustart des
 Add-ons in der Sync-Gruppe von Music Assistant: dort wieder aufnehmen und das Lied neu starten.
 

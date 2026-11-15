@@ -626,16 +626,30 @@ def _wheel_color(idx):
     return WHEEL[(idx % (len(WHEEL) - 1)) + 1]          # ohne Weiß: Lampen sollen Farbe zeigen
 
 
-def lamps(prof, b, live=None):
-    """Farben und Helligkeit der Lampen. Alle lamp_beats (8 oder 16 Takte) wechseln die Ambilights durch die
-    Farben des Liedes (Grund, Akzent, Gegenfarbe), die Schränke laufen einen Schritt versetzt. Schrank 1 (links
+def _lamp_colors(prof, b, teil, per):
+    pal = [_wheel_color(prof["base"] - 1), _wheel_color(prof["accent"] - 1), _wheel_color(prof["base"] + 3)]
+    step = int(b // per)
+    if teil in ("Höhepunkt", "Drop"):
+        return pal[1], pal[1]
+    return pal[step % 3], pal[(step + 1) % 3]
+
+
+def lamps(prof, b, live=None, wechsel=0, dunkel=0):
+    """Farben und Helligkeit der Lampen. Die Ambilights wechseln hart auf dem Schlag durch die Farben des Liedes
+    (Grund, Akzent, Gegenfarbe), alle `wechsel` Schläge (0 = nach dem Lied: 8 oder 16 Takte); die Schränke laufen
+    einen Schritt versetzt. Mit `dunkel` (Prozent eines Schlags) gehen die Ambilights kurz vor einem Farbwechsel
+    aus und kommen auf dem Schlag in der neuen Farbe wieder: Der Wechsel fällt deutlicher auf. Schrank 1 (links
     vom TV) und Schrank 2 (rechts) spielen im Wechsel: pro Takt ist einer hell, der andere gedimmt. Auf Höhepunkt
     und Drop leuchtet alles in der Akzentfarbe. Die Yeelights hängen lokal, häufige Wechsel sind kein Problem."""
     st = look(prof, b, live)
     teil = st["teil"]
-    pal = [_wheel_color(prof["base"] - 1), _wheel_color(prof["accent"] - 1), _wheel_color(prof["base"] + 3)]
-    step = int(b // prof.get("lamp_beats", PHRASE))
-    grund, akzent = pal[step % 3], pal[(step + 1) % 3]
+    per = wechsel if wechsel > 0 else prof.get("lamp_beats", PHRASE)
+    grund, akzent = _lamp_colors(prof, b, teil, per)
+    dark = False
+    if dunkel > 0 and per - b % per <= dunkel / 100.0:
+        # kurz vor dem Wechsel: nur dunkel, wenn die Ambilights danach wirklich eine andere Farbe haben
+        b_next = (int(b // per) + 1) * per
+        dark = _lamp_colors(prof, b_next, look(prof, b_next, live)["teil"], per)[0] != grund
     if teil == "Outro":
         pct = max(5, int(20 * st["scale"] / 5) * 5)
     else:
@@ -643,12 +657,10 @@ def lamps(prof, b, live=None):
     if prof["stage"] == "ruhig":
         pct = max(5, int(pct * 0.8))
     links = rechts = pct
-    if teil in ("Höhepunkt", "Drop"):
-        grund = akzent = pal[1]
-    elif teil not in ("Break", "Atempause", "Outro"):
+    if teil not in ("Höhepunkt", "Drop", "Break", "Atempause", "Outro"):
         dim = max(3, int(pct * 0.2))                   # Wechselspiel: ein Schrank hell, der andere gedimmt
         links, rechts = (pct, dim) if int(b // BAR) % 2 == 0 else (dim, pct)
-    return {"grund": (RGB[grund], pct), "akzent": (RGB[akzent], pct),
+    return {"grund": (RGB[grund], 0 if dark else pct), "akzent": (RGB[akzent], pct),
             "links": (RGB[akzent], links), "rechts": (RGB[akzent], rechts), "teil": teil}
 
 

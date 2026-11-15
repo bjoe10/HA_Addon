@@ -1,6 +1,8 @@
-"""Lampen über HA: die langsame Ebene der Show. Sie folgt dem Song-Thema und wechselt nur selten
-(alle 8 oder 16 Takte und an Höhepunkten), damit das Befehlslimit der Yeelights nicht erreicht wird."""
+"""Lampen über HA. Sie folgen dem Song-Thema: Die Ambilights wechseln hart auf dem Schlag die Farbe (Rhythmus,
+Dunkelzeit und Vorlauf in der Oberfläche), die Schränke spielen pro Takt im Wechsel. Gesendet wird nur, was sich
+ändert; die Yeelights hängen lokal."""
 import time
+from collections import deque
 
 import config
 import ha
@@ -8,7 +10,23 @@ import show
 from settings import SETTINGS
 
 # Die Show-Schleife schreibt hier Thema, Taktposition und Live-Audio hinein; lamp_loop liest mit
-LAMP = {"prof": None, "b": 0.0, "at": 0.0, "live": None, "last": None, "snapshot": False, "again": None}
+LAMP = {"prof": None, "b": 0.0, "at": 0.0, "live": None, "last": {}, "snapshot": False, "again": None}
+TICK = 0.02                # so oft rechnet lamp_loop nach: Wechsel liegen auf ±20 ms am geplanten Zeitpunkt
+TEST_COLORS = (17, 36)     # Lampen-Test: rot und blau im Wechsel, im eingestellten Rhythmus
+CALLS = deque(maxlen=2000)  # (Zeit, Dauer s, ok, Gruppe) je Befehl an HA: wie schnell geht es wirklich?
+
+
+def stats(now=None):
+    """Messwerte der letzten 60 s für die Oberfläche: Befehle pro Minute, Dauer eines Befehls, Fehler."""
+    now = time.time() if now is None else now
+    recent = [c for c in list(CALLS) if now - c[0] < 60.0]
+    if not recent:
+        return None
+    ms = sorted(c[1] * 1000 for c in recent)
+    amb = [c for c in recent if c[3] == "grund"]
+    return {"befehle_min": len(recent), "ambilight_min": len(amb),
+            "dauer_ms": round(ms[len(ms) // 2]), "max_ms": round(ms[-1]),
+            "fehler": sum(1 for c in recent if not c[2])}
 ROOM = {"dark": False}     # vom Party-Modus gesetzt: Raum abgedunkelt, Lampen gehören der Show
 SCENE_ID = "lichtregie_vorher"
 ENTITIES = config.LAMPEN_GRUND + config.LAMPEN_AKZENT + config.LAMPEN_AUS
@@ -62,7 +80,7 @@ def lamp_loop():
     Zwischen zwei Liedern bleiben sie, wie sie sind. Danach kommt der alte Zustand zurück (zweimal, weil
     Yeelights gelegentlich einen Befehl verschlucken)."""
     while True:
-        time.sleep(0.25)
+        time.sleep(TICK)
         if not ENTITIES:
             continue
         if not (ROOM["dark"] and SETTINGS["lampen"]):
@@ -77,28 +95,46 @@ def lamp_loop():
         LAMP["again"] = None
         if not LAMP["snapshot"]:
             if not ha.call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": ENTITIES}):
+                time.sleep(2.0)                # HA nicht erreichbar: nicht im 20-ms-Takt nachfragen
                 continue
             _mark(True)
             if config.LAMPEN_AUS:
                 ha.call("homeassistant", "turn_off", {"entity_id": config.LAMPEN_AUS})
-            LAMP["last"] = None
+            LAMP["last"] = {}
         if LAMP["prof"] is None or time.time() - LAMP["at"] > 3.0:   # gerade keine Show: nichts ändern
             continue
-        # Vorlauf: Yeelights reagieren mit Verzögerung, deshalb die Lage etwas vorausrechnen
-        bps = LAMP["prof"]["bpm"] / 60.0
-        b_lamp = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["lampen_vorlauf"]) * bps
-        want = show.lamps(LAMP["prof"], b_lamp, LAMP["live"])
-        # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
-        for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine"),
-                               ("links", "lampen_vitrine"), ("rechts", "lampen_vitrine")):
-            rgb, pct = want[group]
-            want[group] = (rgb, max(1, min(100, round(pct * SETTINGS[setting] / 100))))
-        key = tuple(want[g] for g in ("grund", "akzent", "links", "rechts"))
-        if key == LAMP["last"]:
+        send(want_now())
+
+
+def want_now():
+    """Soll-Zustand je Gruppe jetzt: {gruppe: (rgb, prozent)}, 0 % = aus. Vorlauf: Die Yeelights reagieren mit
+    Verzögerung, deshalb wird die Lage um den Vorlauf vorausgerechnet; so kommt der Wechsel auf dem Schlag an."""
+    bps = LAMP["prof"]["bpm"] / 60.0
+    b_lamp = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["lampen_vorlauf"]) * bps
+    want = show.lamps(LAMP["prof"], b_lamp, LAMP["live"], SETTINGS["lampen_wechsel"], SETTINGS["lampen_dunkel"])
+    if SETTINGS["lampentest"]:
+        per = SETTINGS["lampen_wechsel"] or 4
+        want["grund"] = (show.RGB[TEST_COLORS[int(b_lamp // per) % 2]], 100)
+    # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
+    for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine"),
+                           ("links", "lampen_vitrine"), ("rechts", "lampen_vitrine")):
+        rgb, pct = want[group]
+        want[group] = (rgb, 0 if pct == 0 else max(1, min(100, round(pct * SETTINGS[setting] / 100))))
+    return want
+
+
+def send(want):
+    """Nur die Gruppen senden, die sich geändert haben, Ambilights zuerst (sie tragen den Wechsel)."""
+    trans = 0 if SETTINGS["lampen_hart"] else 0.4
+    for group, ents in groups():
+        if not ents or LAMP["last"].get(group) == want[group]:
             continue
-        LAMP["last"] = key
-        for group, ents in groups():
-            if ents:
-                rgb, pct = want[group]
-                ha.call("light", "turn_on", {"entity_id": ents, "rgb_color": list(rgb),
-                                             "brightness_pct": pct, "transition": 0.4})
+        LAMP["last"][group] = want[group]
+        rgb, pct = want[group]
+        t0 = time.time()
+        if pct == 0:
+            ok = ha.call("light", "turn_off", {"entity_id": ents, "transition": 0})
+        else:
+            ok = ha.call("light", "turn_on", {"entity_id": ents, "rgb_color": list(rgb),
+                                              "brightness_pct": pct, "transition": trans})
+        CALLS.append((t0, time.time() - t0, bool(ok), group))

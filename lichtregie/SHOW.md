@@ -196,7 +196,7 @@ Titelwechsel ─▶ Blackout 1 Schlag ─▶ Intro ─▶ Hauptteil (Phrasen) �
   Auslaufen ohne Kick zeigt): Spots laufen zu einem gemeinsamen Punkt, werden langsamer. Setzt das nächste
   Lied gleich voll ein, entfällt das ruhige Intro.
 - **Übergang:** Blackout, Rad auf die neue Grundfarbe, neues Intro.
-- **Pause** (Spotify pausiert): Spots treffen sich über dem TV und atmen in der Grundfarbe des Liedes.
+- **Pause** (2 s kein Ton am Empfänger): Spots treffen sich über dem TV und atmen in der Grundfarbe des Liedes.
   **Warten** (Party an, keine Musik): Sternhimmel an der Decke, Kreise, Farbwechsel alle 24 s. Details unter
   „Party-Modus“ im Abschnitt „Stand der Umsetzung“.
 
@@ -297,7 +297,9 @@ Liedposition über 5 s) setzt die Zählung sofort neu auf. Läuft die Audio-Zäh
 dieselbe Richtung innerhalb von 60 s), zählt das Lied ab dann nach HA (seit 0.8.11). Synthetischer Test (`dev/test_beatcount.py`, HA
 5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
 
-**Lampen** (`app/lamps.py`): wechseln je Lied alle 8 oder 16 Takte, 0,8 s vorgezogen. Grund- und Akzentfarbe
+**Lampen** (`app/lamps.py`): Die Ambilights wechseln seit 0.8.12 hart auf dem Schlag, im eingestellten
+Rhythmus (Standard jeder Takt, „nach Lied“ = 8 oder 16 Takte), auf Wunsch kurz dunkel davor; um den Vorlauf
+vorgezogen (Standard 0,8 s), Lampen-Schleife alle 20 ms. Grund- und Akzentfarbe
 laufen über HA; Schrank 1 (links vom TV) und Schrank 2 (rechts) wechseln sich je Takt bei 100 % und 20 % ab,
 die Ambilights durchlaufen Grund-, Akzent- und Komplementärfarbe. Der Ausgangszustand wird gesichert und nach
 der Party wiederhergestellt.
@@ -313,8 +315,9 @@ war. Der Stand bleibt über Neustarts erhalten (`party.json`). „Thema neu wür
 
 **Ruhe-Animationen** (`show.idle_frame`, Schleife in `engine.idle_loop`, ab 0.8.10): *Warten* (Party an, keine
 Musik): Sternhimmel an der Decke, zwei gegenläufige Kreise (40 s pro Runde), Gobo Punkte-Ring, Atmen, Farbwechsel
-alle 24 s im Dunkeln, Laser aus. *Pause* (Spotify pausiert): beide Spots über dem TV, pendeln leicht und atmen in
-der Grundfarbe, Laser aus.
+alle 24 s im Dunkeln, Laser aus. *Pause* (2 s kein Ton): beide Spots über dem TV, pendeln leicht und atmen in
+der Grundfarbe, Laser aus. Seit 0.8.12 läuft die Show mit Audio nur bei Ton: nach 10 s ohne Ton geht sie aus
+(Warten), mit Ton startet sie sofort wieder, auch wenn HA noch „pausiert“ meldet.
 
 **Noch offen:** Bootzeit der Köpfe nach dem Einschalten messen (sie beeinflusst, wann der Sternhimmel sichtbar
 wird); Tanzbarkeit und Lautheit aus FreqBlog noch ungenutzt. Nach jedem Update muss „Party modus“ in Spotify neu

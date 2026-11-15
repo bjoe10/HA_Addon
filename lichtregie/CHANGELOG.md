@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.12
+
+- **Ambilights: harte Farbwechsel auf dem Schlag.** Der Rhythmus ist einstellbar (¼ Schlag bis 4 Takte oder wie
+  bisher nach dem Lied), dazu „Harter Wechsel“ (ohne Übergang) und „Dunkel vor dem Wechsel“: Die Ambilights
+  gehen kurz vorher aus und kommen auf dem Schlag in der neuen Farbe wieder (0–75 % eines Schlags). Dunkel
+  wird nur, wenn sich die Farbe wirklich ändert.
+- Lampen-Schleife rechnet alle 20 ms statt alle 250 ms und sendet nur Gruppen, die sich ändern (Ambilights
+  zuerst). Der Vorlauf lässt sich in 0,05-s-Schritten einstellen.
+- **Lampen-Test** unter Feinabstimmung: Die Ambilights wechseln im eingestellten Rhythmus zwischen rot und
+  blau. Damit den Vorlauf einstellen und ausprobieren, wie schnell die Lampen mitkommen.
+- Messwerte in der Lampen-Karte: Befehle pro Minute, Dauer eines Befehls an HA, Fehler.
+- **Show nur mit Ton:** Ging die Musik aus, lief die Show bisher weiter, weil HA eine Pause erst nach bis zu 30 s
+  meldet; die Ruhe-Animationen kamen kaum zum Zug. Jetzt gilt der Ton am Empfänger: nach 2 s ohne Ton die
+  Pause-Animation, nach 10 s geht die Show aus und die Warte-Animation (Sternhimmel) übernimmt. Kommt wieder
+  Ton, startet die Show sofort, auch wenn HA noch „pausiert“ meldet. Ohne Audio (Schalter aus) wie bisher nach HA.
+- Warnung „kein Audio, obwohl Spotify spielt“ erst nach 45 s statt 15 s, damit eine normale Pause sie nicht auslöst.
+
 ## 0.8.11
 
 - **Show blieb stehen, obwohl Musik lief:** Am Gerät lief die Schlagzählung deutlich langsamer als die Musik

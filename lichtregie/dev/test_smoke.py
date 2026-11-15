@@ -27,6 +27,7 @@ import engine  # noqa: E402
 import ha  # noqa: E402
 import heads  # noqa: E402
 import lamps  # noqa: E402
+import show  # noqa: E402
 import laser  # noqa: E402
 import party  # noqa: E402
 import server  # noqa: E402
@@ -152,6 +153,7 @@ class FakeAudio:           # Musik kommt an / kommt nicht an
     def status(self): return {"takt": False, "bpm": None, "sicher": 0, "an": self.on, "pegel": 0, "bass": 0,
                               "break": False, "drop": False, "wechsel": False}
     def set_bpm_hint(self, bpm): pass
+    def new_song(self): pass
 
 
 engine.AUDIO = FakeAudio()
@@ -181,5 +183,55 @@ party.SETTINGS["party_aus_min"] = 0.05
 time.sleep(5.0)
 assert party.PARTY["on"], "Party bei Störung des Empfängers ausgegangen, obwohl Spotify spielt"
 print("Start nur durch Ton; laufende Party bleibt an, solange Spotify spielt")
+
+# --- Show nur mit Ton: Pause, dann Warten, und zurück, sobald wieder Ton kommt ---------------------------
+party.SETTINGS["party_aus_min"] = 15
+engine.QUIET_PAUSE, engine.QUIET_STOP = 0.5, 2.0
+engine.tempo = lambda title, artist: {"bpm": 128, "energy": 0.8}
+engine.start_watch("", "")
+engine.AUDIO.on = True
+deadline = time.time() + 8
+while engine.BEAT["stop"] is None and time.time() < deadline:
+    time.sleep(0.2)
+assert engine.BEAT["stop"] is not None, "Show startet nicht, obwohl Ton kommt"
+engine.AUDIO.on = False
+time.sleep(1.2)
+assert engine.BEAT["stop"] is not None and "Pause" in engine.BEAT["szene"], engine.BEAT["szene"]
+time.sleep(2.5)
+assert engine.BEAT["stop"] is None, "Show läuft ohne Ton weiter"
+time.sleep(0.5)
+assert engine.BEAT["szene"].startswith("Warten"), engine.BEAT["szene"]
+ha.now_playing = lambda: {"title": "T", "artist": "A", "pos": 5.0, "playing": False, "id": "x", "duration": 100}
+engine.AUDIO.on = True                  # HA meldet noch „pausiert“, der Ton gilt
+deadline = time.time() + 6
+while engine.BEAT["stop"] is None and time.time() < deadline:
+    time.sleep(0.2)
+assert engine.BEAT["stop"] is not None, "Show kommt nach der Pause nicht wieder"
+print("Show nur mit Ton: Pause nach 2 s, Warten nach 10 s, zurück mit dem Ton (Zeiten im Test verkürzt)")
+
+# --- Lampen: harter Wechsel auf dem Schlag, kurz dunkel davor, nur Geänderte senden ----------------------
+prof = show.profile("lampentest", {"bpm": 120, "energy": 0.8}, 200)
+seen = {}
+for i in range(0, 64 * 40):
+    b = i / 40
+    want = show.lamps(prof, b, None, 4, 25)
+    seen.setdefault(int(b // 4), set()).add(want["grund"])
+colors = [{c for c, p in v if p} for _, v in sorted(seen.items())]
+assert all(len(c) == 1 for c in colors), "Farbe wechselt mitten im Takt"
+dark = [b for b in (i / 40 for i in range(64 * 40)) if show.lamps(prof, b, None, 4, 25)["grund"][1] == 0]
+assert dark and all(3.75 <= b % 4 < 4.0 for b in dark), f"dunkel nicht nur im letzten Viertelschlag: {dark[:5]}"
+assert not any(show.lamps(prof, b, None, 4, 0)["grund"][1] == 0 for b in (i / 40 for i in range(64 * 40)))
+CALLS.clear()
+lamps.LAMP["last"] = {}
+lamps.groups = lambda: [("grund", ["light.amb"]), ("links", ["light.s1"]), ("rechts", ["light.s2"])]
+lamps.send({"grund": ((255, 0, 0), 40), "akzent": ((0, 0, 255), 100), "links": ((0, 0, 255), 100),
+            "rechts": ((0, 0, 255), 20)})
+n = len(CALLS)
+lamps.send({"grund": ((255, 0, 0), 0), "akzent": ((0, 0, 255), 100), "links": ((0, 0, 255), 100),
+            "rechts": ((0, 0, 255), 20)})
+assert len(CALLS) == n + 1 and CALLS[-1][0] == "light.turn_off", CALLS[n:]
+st = lamps.stats()
+assert st and st["fehler"] == 0 and st["ambilight_min"] >= 2, st
+print(f"Lampen: Wechsel auf dem Takt, dunkel davor, nur Geändertes gesendet ({st})")
 httpd.shutdown()
 print("Rauchtest ok")

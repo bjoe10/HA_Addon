@@ -29,6 +29,19 @@ SPOTS = {}                           # aktuelle Zielpunkte für die Vorschau im 
 SYNC = {"pending": 0}                # Verschiebung der Schlagzählung von Hand (Schläge), wird im Bild übernommen
 IDLE = {"on": False}                 # vom Party-Modus gesetzt: Party läuft (dann Ruhe-Animation, wenn keine Show)
 BLACKOUT_SEC = 0.6                   # Liedwechsel: so lange dunkel, damit Farb- und Goborad unsichtbar laufen
+# Die Show läuft nur mit Ton am Empfänger (wenn Audio an ist). HA meldet eine Pause erst nach bis zu 30 s.
+QUIET_PAUSE = 2.0                    # so lange kein Ton: Pause-Animation (Spots über dem TV)
+QUIET_STOP = 10.0                    # so lange kein Ton: Show aus, Warte-Animation; neu, sobald wieder Ton kommt
+
+
+def audio_mode():
+    """Steuert der Ton die Show? (Audioanalyse vorhanden und in der Oberfläche an)"""
+    return AUDIO is not None and SETTINGS["audio"]
+
+
+def sound(now=None):
+    """Kommt gerade Ton am Empfänger an?"""
+    return AUDIO is not None and AUDIO.signal(now)
 
 
 def song_position():
@@ -76,10 +89,19 @@ def show_loop(prof, t0, stop):
     last_b = None
     frames, fps_t = 0, time.time()
     seeks = LIVE["seeks"]
+    last_sound = started
     if AUDIO is not None:        # Ereignisse aus dem vorigen Lied nicht als Anker nehmen
         counter.seen_drop, counter.seen_change = AUDIO.drop_at, AUDIO.change_at
     while not stop.is_set():
         now = time.time()
+        if sound(now):
+            last_sound = now
+        quiet = now - last_sound if audio_mode() else 0.0
+        if quiet > QUIET_STOP:                 # Musik aus: Show beenden, die Warte-Animation übernimmt
+            if BEAT["stop"] is stop:
+                print(f"Kein Ton seit {QUIET_STOP:.0f} s: Show aus, Warte-Animation", flush=True)
+                halt_beat()
+            return
         if LIVE["seeks"] != seeks:   # gespult: Zählung neu an die Liedposition hängen
             seeks = LIVE["seeks"]
             drop, change = counter.seen_drop, counter.seen_change
@@ -107,7 +129,8 @@ def show_loop(prof, t0, stop):
             b = counter.update(now, b)
         # Pause (Spotify pausiert): Spots bleiben stehen und leuchten leise, Laser aus
         player = LIVE.get("live")
-        paused = bool(player) and not player.get("playing") and now - LIVE["at"] < 10 and live is None
+        paused = ((bool(player) and not player.get("playing") and now - LIVE["at"] < 10 and live is None)
+                  or quiet > QUIET_PAUSE)
         if paused and last_b is not None:
             b = last_b
         last_b = b
@@ -282,8 +305,10 @@ def audio_tempo(since):
 
 def watch_loop(stop, current):
     """Prüft alle 2 s den Titel in HA. Bei einem neuen Titel wird das Tempo geholt und die Show neu
-    gestartet. Pausiert die Musik, läuft die Show weiter (kein Flackern)."""
+    gestartet. Mit Audio gilt der Ton am Empfänger: Ohne Ton startet keine Show (die Show selbst geht nach
+    QUIET_STOP aus), mit Ton startet sie sofort, auch wenn HA noch „pausiert“ meldet."""
     miss = {"at": 0.0, "since": time.time()}
+    known = {}                                         # Titel → Tempo-Daten, für den Neustart nach einer Pause
     while not stop.wait(2):
         live = ha.now_playing()
         if not live:
@@ -301,8 +326,12 @@ def watch_loop(stop, current):
             # Gleicher Titel, aber seine Show läuft nicht: gestoppt, oder es läuft noch die Show des
             # vorigen Liedes, weil das Tempo gefehlt hat
             stale = BEAT["start"] is not None and tuple(BEAT["start"][:2]) != key
-            if (BEAT["stop"] is None or stale) and live.get("playing"):
-                found = None
+            playing = sound() if audio_mode() else live.get("playing")
+            if (BEAT["stop"] is None or stale) and playing:
+                found = known.get(key)
+                if found:
+                    start_beat(args[0], args[1], found, *args[3:])
+                    continue
                 if time.time() - miss["at"] > 20:      # FreqBlog nicht im 2-s-Takt fragen
                     miss["at"] = time.time()
                     found = tempo(*key)
@@ -314,6 +343,11 @@ def watch_loop(stop, current):
         current = key
         found = tempo(*key)
         if found and found.get("bpm"):
+            known[key] = found
+            if audio_mode() and not sound():
+                # Kein Ton: nicht starten. Läuft noch die Show des vorigen Liedes, geht sie von selbst aus;
+                # kommt Ton, startet die Show oben (gleicher Titel, Tempo bekannt)
+                continue
             start_beat(args[0], args[1], found, *args[3:])
         else:
             # Tempo unbekannt: nicht dunkel stehen bleiben. Die Show läuft mit dem alten Lied weiter, bis das
@@ -336,7 +370,8 @@ def start_watch(title, artist):
 
 # --- Warnung: kein Audio -----------------------------------------------------------------------------
 AUDIO_WARN = {"since": None, "text": "", "notified": False}
-AUDIO_WARN_SEC = 15.0      # so lange kein Ton, während Spotify spielt, bis gewarnt wird
+AUDIO_WARN_SEC = 45.0      # so lange kein Ton, während Spotify spielt, bis gewarnt wird. Mehr als die bis zu
+                           # 30 s, die HA nach einer Pause noch „spielt“ meldet: eine Pause ist kein Fehler
 NOTIFY_ID = "lichtregie_audio"
 
 

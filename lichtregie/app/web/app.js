@@ -112,6 +112,10 @@ function showStatus(d) {
     : a.an ? `${a.takt ? 'Takt eingerastet' : 'sucht den Takt'} · ${a.bpm || '–'} BPM · Sicherheit ${Math.round(a.sicher * 100)} % · Pegel ${Math.round(a.pegel * 100)} %`
              + (a.break ? ' · Break' : '') + (a.drop ? ' · Drop' : '') + (a.wechsel ? ' · Klangwechsel' : '')
     : 'Kein Signal am Empfänger';
+  const ls = d.lampen;
+  $('lampstat').textContent = !ls ? 'Lampen: in der letzten Minute keine Befehle'
+    : `Letzte Minute: ${ls.befehle_min} Befehle (Ambilights ${ls.ambilight_min}) · Dauer ${ls.dauer_ms} ms,`
+      + ` höchstens ${ls.max_ms} ms` + (ls.fehler ? ` · ${ls.fehler} fehlgeschlagen` : ' · keine Fehler');
   spots = d.spots || {};
   showSync(d.sync, d.fps);
   draw();
