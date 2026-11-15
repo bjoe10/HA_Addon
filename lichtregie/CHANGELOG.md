@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.1
+
+- **Messung der Rechenzeit von Beat This am Pi:** Am Pi 5 brauchte das Modell 33 s für 30 s Ton (am Mac 1,5 s)
+  und rechnete damit praktisch ununterbrochen (ca. 53 % CPU des Add-ons). Seltener rechnen hilft nicht (in den
+  Aufnahmen sank die Trefferquote mit einer Rechnung pro Minute von 93 % auf 62 %). Deshalb zuerst messen: Der
+  Rechenprozess schreibt je Lauf die Zeit für Spektrogramm, Vorbau und Transformer sowie die BLAS-Bibliothek von
+  numpy ins Add-on-Log.
+- Aufmerksamkeit mit zusammenhängendem Speicher (nicht zusammenhängende Matrizen können numpy auf langsamere
+  Rechenwege zwingen).
+- Alle „1“-Schläge des Fensters zählen (vorher fielen ältere als 45 s heraus, bei 33 s Rechenzeit fast alle).
+
 ## 0.9.0
 
 - **Die „1“ im Takt mit Beat This!** (neuronales Modell, Foscarin/Schlüter/Widmer, ISMIR 2024, MIT-Lizenz):

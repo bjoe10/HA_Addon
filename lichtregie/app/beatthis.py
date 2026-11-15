@@ -11,6 +11,7 @@ Faltungen und Teil-Transformern über Frequenz und Zeit, 6 Transformer-Schichten
 für Schlag und „1“; lange Stücke in Abschnitten zu 1500 Bildern (30 s). Nachbearbeitung „minimal“ (Spitzen über
 50 % innerhalb ±70 ms, die „1“ auf den nächsten Schlag gelegt).
 """
+import time
 from pathlib import Path
 
 import numpy as np
@@ -108,15 +109,15 @@ class BeatThis:
         h = d // HEAD_DIM
         xn = self._rms(x, self.w[name + ".norm.gamma"])
         qkv = (xn @ self.w[name + ".to_qkv.weight"].T).reshape(N, n, 3, h, HEAD_DIM).transpose(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]                       # (N, h, n, 32)
+        q, k, v = qkv[0], qkv[1], np.ascontiguousarray(qkv[2])  # (N, h, n, 32)
         cos, sin = self._rotary(n)
         q = q * cos + self._rot_half(q) * sin
-        k = k * cos + self._rot_half(k) * sin
+        k = np.ascontiguousarray((k * cos + self._rot_half(k) * sin).transpose(0, 1, 3, 2))   # (N, h, 32, n)
         out = np.empty_like(q)
         step = max(1, int(8e6 // (h * n * n)))                 # Speicher der Aufmerksamkeitsmatrix begrenzen
         scale = np.float32(HEAD_DIM ** -0.5)
         for i in range(0, N, step):
-            s = (q[i:i + step] * scale) @ k[i:i + step].transpose(0, 1, 3, 2)
+            s = (q[i:i + step] * scale) @ k[i:i + step]
             s -= s.max(axis=-1, keepdims=True)
             np.exp(s, out=s)
             s /= s.sum(axis=-1, keepdims=True)
@@ -148,6 +149,7 @@ class BeatThis:
     def logits(self, spect):
         """spect: (T, 128) → (Schlag, „1“) als Logits je Bild, Länge T."""
         T = spect.shape[0]
+        t0 = time.perf_counter()
         x = self._bn(spect.T, "frontend.stem.bn1d", (-1, 1))                  # (128, T)
         x = self._conv(x[None], "frontend.stem.conv2d", 4, 4)                   # (32, 32, T)
         x = gelu(self._bn(x, "frontend.stem.bn2d", (-1, 1, 1)))
@@ -163,12 +165,15 @@ class BeatThis:
             x = gelu(self._bn(self._conv(x, p + ".conv2d", 2, 2), p + ".norm", (-1, 1, 1)))
         C, F, _ = x.shape
         x = self._lin(x.transpose(2, 0, 1).reshape(T, C * F), "frontend.linear")   # (T, 512)
+        t1 = time.perf_counter()
         for i in range(6):
             p = f"transformer_blocks.layers.{i}"
             x = x + self._attn(x[None], p + ".0")[0]
             x = x + self._ff(x, p + ".1")
         x = self._rms(x, self.w["transformer_blocks.norm.gamma"])
         out = self._lin(x, "task_heads.beat_downbeat_lin")
+        self.times["vorbau"] += t1 - t0
+        self.times["transformer"] += time.perf_counter() - t1
         return out[:, 0] + out[:, 1], out[:, 1]
 
     def spect(self, audio_22k):
@@ -215,8 +220,12 @@ class BeatThis:
 
     def __call__(self, audio, sr=44100):
         """Ton (mono, float) → (Schläge, „1“-Schläge) in Sekunden ab Beginn des Ausschnitts."""
+        self.times = {"spektrogramm": 0.0, "vorbau": 0.0, "transformer": 0.0}
+        t0 = time.perf_counter()
         x = resample_44k(audio) if sr == 44100 else np.asarray(audio, dtype=np.float32)
-        beat, down = self.frames(self.spect(x))
+        sp = self.spect(x)
+        self.times["spektrogramm"] = time.perf_counter() - t0
+        beat, down = self.frames(sp)
         beats, downs = self._peaks(beat), self._peaks(down)
         if len(beats):
             downs = np.unique(beats[np.argmin(np.abs(beats[None, :] - downs[:, None]), axis=1)]) if len(downs) \
@@ -230,6 +239,13 @@ def _serve():
     import struct
     import sys
     model = BeatThis()
+    try:                                       # Diagnose: welche Rechenbibliothek nutzt numpy hier?
+        cfg = np.show_config(mode="dicts")
+        blas = cfg.get("Build Dependencies", {}).get("blas", {})
+        print(f"Beat This bereit: numpy {np.__version__}, BLAS {blas.get('name')} {blas.get('version', '')}",
+              file=sys.stderr, flush=True)
+    except Exception:  # noqa: BLE001 – nur Diagnose
+        print(f"Beat This bereit: numpy {np.__version__}", file=sys.stderr, flush=True)
     inp, out = sys.stdin.buffer, sys.stdout
     with np.errstate(all="ignore"):
         while True:
@@ -238,7 +254,11 @@ def _serve():
                 return
             n = struct.unpack("<I", head)[0]
             x = np.frombuffer(inp.read(n), dtype=np.float32)
+            t0 = time.perf_counter()
             beats, downs = model(x, 44100)
+            tm = " · ".join(f"{k} {v:.1f} s" for k, v in model.times.items())
+            print(f"Beat This: {len(x) / 44100:.0f} s Ton in {time.perf_counter() - t0:.1f} s ({tm})", file=sys.stderr,
+                  flush=True)
             out.write(json.dumps({"beats": [round(float(t), 4) for t in beats],
                                   "downs": [round(float(t), 4) for t in downs]}) + "\n")
             out.flush()

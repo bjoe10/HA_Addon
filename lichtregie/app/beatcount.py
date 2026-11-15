@@ -78,7 +78,7 @@ class BeatCounter:
         if self.bar_manual or self.last_b is None or not downs:
             return 0
         beat = 60.0 / bpm
-        downs = [t for t in downs if t >= (self.first_t or 0.0) + 1.0 and abs(now - t) < 45.0]
+        downs = [t for t in downs if t >= (self.first_t or 0.0) + 1.0]
         if beats is not None and len(beats) >= 8:
             beats = np.asarray(sorted(beats))
             t_last = beats[-1]
