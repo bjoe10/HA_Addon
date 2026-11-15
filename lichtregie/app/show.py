@@ -601,23 +601,34 @@ LAMP_PCT = {"Intro": 20, "Motiv": 20, "Szene": 20, "Aufbau": 35, "Höhepunkt": 6
             "Drop": 70, "Break": 10}
 
 
+def _wheel_color(idx):
+    return WHEEL[(idx % (len(WHEEL) - 1)) + 1]          # ohne Weiß: Lampen sollen Farbe zeigen
+
+
 def lamps(prof, b, live=None):
-    """Farben und Helligkeit der Lampen: Grundfarbe (Ambilight) und Akzent (Schränke), alle 8 oder 16 Takte
-    getauscht (prof["lamp_beats"]).
-    Ändert sich nur bei Phrasenwechsel, Aufbau, Höhepunkt, Atempause und im Outro (in 5-%-Stufen)."""
+    """Farben und Helligkeit der Lampen. Alle lamp_beats (8 oder 16 Takte) wechseln die Ambilights durch die
+    Farben des Liedes (Grund, Akzent, Gegenfarbe), die Schränke laufen einen Schritt versetzt. Schrank 1 (links
+    vom TV) und Schrank 2 (rechts) spielen im Wechsel: pro Takt ist einer hell, der andere gedimmt. Auf Höhepunkt
+    und Drop leuchtet alles in der Akzentfarbe. Die Yeelights hängen lokal, häufige Wechsel sind kein Problem."""
     st = look(prof, b, live)
-    base, acc = WHEEL[prof["base"]], WHEEL[prof["accent"]]
-    grund, akzent = (acc, base) if int(b // prof.get("lamp_beats", PHRASE)) % 2 == 1 else (base, acc)
     teil = st["teil"]
+    pal = [_wheel_color(prof["base"] - 1), _wheel_color(prof["accent"] - 1), _wheel_color(prof["base"] + 3)]
+    step = int(b // prof.get("lamp_beats", PHRASE))
+    grund, akzent = pal[step % 3], pal[(step + 1) % 3]
     if teil == "Outro":
         pct = max(5, int(20 * st["scale"] / 5) * 5)
     else:
         pct = LAMP_PCT.get(teil, 20)
     if prof["stage"] == "ruhig":
         pct = max(5, int(pct * 0.8))
+    links = rechts = pct
     if teil in ("Höhepunkt", "Drop"):
-        grund = akzent = acc
-    return {"grund": (RGB[grund], pct), "akzent": (RGB[akzent], pct), "teil": teil}
+        grund = akzent = pal[1]
+    elif teil not in ("Break", "Atempause", "Outro"):
+        dim = max(3, int(pct * 0.2))                   # Wechselspiel: ein Schrank hell, der andere gedimmt
+        links, rechts = (pct, dim) if int(b // BAR) % 2 == 0 else (dim, pct)
+    return {"grund": (RGB[grund], pct), "akzent": (RGB[akzent], pct),
+            "links": (RGB[akzent], links), "rechts": (RGB[akzent], rechts), "teil": teil}
 
 
 # --- Laser (gemessen, siehe SHOW.md) ----------------------------------------------------------------

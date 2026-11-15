@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.1
+
+- Ambilights wechseln alle 8 oder 16 Takte durch drei Farben des Liedes (Grund, Akzent, Gegenfarbe) statt nur
+  zwischen zwei; die Schränke laufen einen Schritt versetzt. Das fällt deutlich mehr auf.
+- Schrank 1 (links vom TV) und Schrank 2 (rechts) spielen unabhängig im Wechsel: pro Takt ist einer hell, der
+  andere auf 20 % gedimmt. Auf Höhepunkt und Drop leuchtet alles in der Akzentfarbe, im Break und in der
+  Atempause beide ruhig. Reihenfolge in „Lampen Akzentfarbe“: erste Lampe = links, zweite = rechts, weitere
+  folgen der Akzentfarbe.
+- Yeelights hängen lokal, deshalb Übergang 0,4 s statt 0,5 s und häufigere Wechsel.
+
 ## 0.8.0
 
 - **Party-Modus** als Hauptschalter: an = Geräte einschalten (neue Option „Geräte der Party“ plus

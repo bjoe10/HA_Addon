@@ -27,8 +27,9 @@ festes Thema, dasselbe Lied sieht also jedes Mal gleich aus.
 4. Optional **Geräte der Party** eintragen: Schalter, die der Party-Modus ein- und am Ende wieder ausschaltet,
    z. B. die Steckdosen der Köpfe (`switch.`, `input_boolean.`, `light.`). Die **Laser-Steckdose** gehört
    automatisch dazu.
-5. Optional die **Lampen** eintragen: Grundfarbe und Akzentfarbe (`light.`) laufen langsam mit der Show mit
-   (Wechsel alle 8 oder 16 Takte). „Während der Party aus“ (auch `switch.`) wird ausgeschaltet. Nach der
+5. Optional die **Lampen** eintragen: Grundfarbe und Akzentfarbe (`light.`) laufen mit der Show mit
+   (Farbwechsel alle 8 oder 16 Takte). Bei „Akzentfarbe“ steht die erste Lampe links vom TV, die zweite rechts;
+   die beiden spielen im Wechsel, jede weitere folgt der Akzentfarbe. „Während der Party aus“ (auch `switch.`) wird ausgeschaltet. Nach der
    Party kommt der alte Zustand zurück.
 6. „Lichtregie“ in der Seitenleiste öffnen und Musik starten. Mit Automatik geht die Party von selbst an.
 

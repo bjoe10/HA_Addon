@@ -29,6 +29,16 @@ def _mark(saved):
         pass
 
 
+def groups():
+    """Lampengruppen. Die erste Akzent-Lampe steht links vom TV, die zweite rechts (Schrank 1 und 2); sie
+    spielen unabhängig voneinander. Weitere Akzent-Lampen folgen der Akzentfarbe. Mit nur einer Akzent-Lampe
+    gibt es kein Wechselspiel."""
+    acc = config.LAMPEN_AKZENT
+    if len(acc) >= 2:
+        return [("grund", config.LAMPEN_GRUND), ("links", acc[:1]), ("rechts", acc[1:2]), ("akzent", acc[2:])]
+    return [("grund", config.LAMPEN_GRUND), ("akzent", acc)]
+
+
 def follow(prof, b, live):
     """Von der Show-Schleife in jedem Bild aufgerufen."""
     LAMP.update(prof=prof, b=b, at=time.time(), live=live)
@@ -79,15 +89,16 @@ def lamp_loop():
         b_lamp = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["lampen_vorlauf"]) * bps
         want = show.lamps(LAMP["prof"], b_lamp, LAMP["live"])
         # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
-        for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine")):
+        for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine"),
+                               ("links", "lampen_vitrine"), ("rechts", "lampen_vitrine")):
             rgb, pct = want[group]
-            want[group] = (rgb, max(1, round(pct * SETTINGS[setting] / 100)))
-        key = (want["grund"], want["akzent"])
+            want[group] = (rgb, max(1, min(100, round(pct * SETTINGS[setting] / 100))))
+        key = tuple(want[g] for g in ("grund", "akzent", "links", "rechts"))
         if key == LAMP["last"]:
             continue
         LAMP["last"] = key
-        for group, ents in (("grund", config.LAMPEN_GRUND), ("akzent", config.LAMPEN_AKZENT)):
+        for group, ents in groups():
             if ents:
                 rgb, pct = want[group]
                 ha.call("light", "turn_on", {"entity_id": ents, "rgb_color": list(rgb),
-                                             "brightness_pct": pct, "transition": 0.5})
+                                             "brightness_pct": pct, "transition": 0.4})
