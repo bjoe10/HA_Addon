@@ -172,6 +172,17 @@ an.new_song()
 assert not an.break_on and an.bass_peak <= an.bass + 1e-6, "neues Lied setzt die Pegel nicht zurück"
 
 
+# Ton-Vorlauf: Die Show fragt den Zustand um ca. 1 s in der Vergangenheit ab (Break und Drop dann, wenn man sie hört)
+an = audio.Analyzer()
+tone = lambda f, a, s: (np.sin(2 * np.pi * f * np.arange(int(s * RATE)) / RATE) * a).astype(np.float32)  # noqa: E731
+an.feed(tone(60, 0.8, 3), 103.0)
+an.feed(tone(600, 0.3, 3), 106.0)
+assert an.break_on and not an.live(102.5, 120)["break"] and an.live(105.9, 120)["break"], "Break nicht zeitversetzt"
+an.feed(tone(60, 0.8, 3), 109.0)
+assert not an.live(an.drop_at - 0.5, 120)["drop"] and an.live(an.drop_at + 0.5, 120)["drop"], "Drop zu früh"
+print("Ton-Vorlauf: Break und Drop zeitversetzt ok")
+
+
 # --- Teil 5: die „1“ im Takt aus dem Klangwechsel ------------------------------------------------------
 # Kick auf jedem Schlag (kein Hinweis auf die „1“), Akkord und Bass-Ton wechseln auf jeder „1“. HA liegt um
 # `wrong` Schläge daneben. Erwartet: Die Zählung findet die „1“ (Rest modulo 4 ≈ 0) und bleibt dort.

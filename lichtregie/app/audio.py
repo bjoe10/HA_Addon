@@ -11,6 +11,7 @@ Vorgehen:
 - Ein Phasenregler rastet das Schlagraster auf die erkannten Onsets ein.
 - Break: der Bass ist über 2 s deutlich leiser als sonst. Drop: nach einem Break kommt der Bass zurück.
 """
+import bisect
 import math
 import threading
 import time
@@ -23,6 +24,7 @@ HOP = 512
 N = 2048
 HOP_SEC = HOP / RATE
 ONSET_LAG = 0.012   # gemessen: Onsets werden durch das FFT-Fenster ca. 12 ms zu spät erkannt
+RING_SEC = 35.0     # so viel Ton bleibt für die „1“-Erkennung mit Beat This (downbeat.py) bereit
 BREAK_MAX = 30.0    # länger als so viele Sekunden „leiser Bass“ ist kein Break, sondern eine falsche Spitze
 
 
@@ -68,6 +70,9 @@ class Analyzer:
         self.quiet_since = None
         self.drop_at = 0.0
         self._last_tempo = 0.0
+        self.hist = deque(maxlen=int(4.0 / HOP_SEC))           # (Zeit, Pegel, Bass, Break) je Hop, 4 s
+        self.ring = deque()                                    # (Ton mono, Zeit am Ende) der letzten RING_SEC s
+        self.ring_n = 0
         self.tap = None                                        # Abgriff für die Aufnahme
         self.rest = b""                                        # angefangener Stereo-Frame aus dem letzten Lesen
         self.inputs = deque(maxlen=4000)                       # (Zeit, Samples) je Lesen: Eingangsrate prüfen
@@ -96,6 +101,11 @@ class Analyzer:
             return
         x = np.frombuffer(data, dtype="<i2").astype(np.float32).reshape(-1, 2).mean(axis=1) / 32768.0
         self.inputs.append((t_end, len(x)))
+        with self.lock:
+            self.ring.append((x, t_end))
+            self.ring_n += len(x)
+            while self.ring and self.ring_n - len(self.ring[0][0]) > RING_SEC * RATE:
+                self.ring_n -= len(self.ring.popleft()[0])
         if self.tap is not None:
             self.tap(x, t_end)               # Aufnahme für die Fehlersuche (record.py)
         self.data_at = t_end                     # Diagnose: kommen überhaupt Daten an (auch stumme)?
@@ -195,6 +205,8 @@ class Analyzer:
                 self.break_on = True
         else:
             self.quiet_since = None
+        self.hist.append((t, min(1.0, self.level / self.level_peak), min(1.0, self.bass / self.bass_peak),
+                          self.break_on))
         # Drop: nach einem Break der erste kräftige Bass-Schlag (ungeglättet, damit er sofort zählt)
         if self.break_on and self.bass / self.bass_peak > 0.6:
             self.break_on = False
@@ -234,6 +246,18 @@ class Analyzer:
         self.prev_phase = phase
         self.beat_acc = bands if self.beat_acc is None else self.beat_acc + bands
         self.beat_n += 1
+
+    def recent_audio(self, seconds):
+        """Die letzten `seconds` Sekunden Ton (mono, float32) und eine Funktion Abtastwert → Uhrzeit."""
+        blocks = list(self.ring)
+        if not blocks:
+            return None, None
+        x = np.concatenate([b[0] for b in blocks])
+        ends = np.cumsum([len(b[0]) for b in blocks]).astype(float)
+        times = np.array([b[1] for b in blocks])
+        cut = max(0, len(x) - int(seconds * RATE))
+        clock = lambda s: np.interp(np.asarray(s) * RATE + cut, ends, times)  # noqa: E731
+        return x[cut:], clock
 
     def changes_since(self, t):
         """Klangwechsel je Schlag seit Zeitpunkt t (für die Schlagzählung)."""
@@ -331,15 +355,22 @@ class Analyzer:
             return ((t - self.t_beat) / self.period) % 1.0
 
     def live(self, now, bpm):
-        """Live-Zustand für die Show."""
+        """Live-Zustand für die Show zum Zeitpunkt `now` der Analyse. Die Show fragt um den Ton-Vorlauf in der
+        Vergangenheit (der Ton kommt hier ca. 1 s vor dem Lautsprecher an); dafür die Werte der letzten 4 s."""
         with self.lock:
             beat = 60.0 / bpm
+            level = min(1.0, self.level / self.level_peak)
+            bass = min(1.0, self.bass / self.bass_peak)
+            brk = self.break_on
+            if self.hist and self.hist[-1][0] > now:
+                times = [h[0] for h in self.hist]
+                i = max(0, bisect.bisect_right(times, now) - 1)
+                _, level, bass, brk = self.hist[i]
+            since = now - self.drop_at
             return {
-                "level": min(1.0, self.level / self.level_peak),
-                "bass": min(1.0, self.bass / self.bass_peak),
-                "break": self.break_on,
-                "drop": now - self.drop_at < 16 * beat,
-                "drop_beats": (now - self.drop_at) / beat,
+                "level": level, "bass": bass, "break": brk,
+                "drop": 0.0 <= since < 16 * beat,
+                "drop_beats": since / beat if since >= 0 else 99.0,
             }
 
     def status(self, now=None):

@@ -18,6 +18,7 @@ import ha
 import heads
 import lamps
 import laser
+import downbeat
 import party
 import record
 import settings
@@ -70,7 +71,7 @@ def status():
     return {"spots": engine.SPOTS, "szene": engine.BEAT["szene"], "info": engine.BEAT["info"],
             "audio": engine.AUDIO.status() if engine.AUDIO is not None else None,
             "party": party.status(), "lied": engine.BEAT["lied"], "sync": engine.BEAT["sync"],
-            "fps": engine.BEAT.get("fps"), "lampen": lamps.stats(), "aufnahme": record.status(),
+            "fps": engine.BEAT.get("fps"), "lampen": lamps.stats(), "aufnahme": record.status(), "beatthis": downbeat.status(),
             "spielt": bool(fresh and live.get("playing")),
             "titel": f"{live['title']} – {live['artist']}" if fresh else None,
             "warnungen": warn}
@@ -188,6 +189,7 @@ def main():
     threading.Thread(target=engine.idle_loop, daemon=True).start()
     if engine.AUDIO is not None:
         engine.AUDIO.tap = record.tap
+        threading.Thread(target=downbeat.loop, args=(engine,), daemon=True).start()
         threading.Thread(target=engine.audio_watch_loop, daemon=True).start()
         if config.AUDIO_CMD:
             threading.Thread(target=engine.audio.reader_cmd, args=(engine.AUDIO, config.AUDIO_CMD), daemon=True).start()

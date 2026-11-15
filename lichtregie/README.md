@@ -9,6 +9,11 @@ direkt angesteuert; Titel, Tempo und Stimmung kommen aus Spotify (über HA) und 
   durch die Analyse spielen), `dev/messen/`
   (Werkzeuge aus der Kalibrierung)
 
+## Beat This!
+
+Die „1“ im Takt erkennt das Modell [Beat This!](https://github.com/CPJKU/beat_this) (Institute of Computational
+Perception, JKU Linz, MIT-Lizenz, siehe `app/modelle/LIZENZ-beat-this.txt`), im Add-on in numpy nachgebaut.
+
 ## Tempo-Daten
 
 Tempo und Stimmung der Titel kommen von der [FreqBlog Music API](https://freqblog.com/music-api.html).

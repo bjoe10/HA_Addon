@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.9.0
+
+- **Die „1“ im Takt mit Beat This!** (neuronales Modell, Foscarin/Schlüter/Widmer, ISMIR 2024, MIT-Lizenz):
+  Alle 15 s rechnet das Modell im Hintergrund über den Ton dieses Liedes (bis 30 s) und liefert Schläge und
+  „1“-Schläge. Liegt die große Mehrheit auf derselben Position im Takt, wird sie zur „1“ („Takt-Anker (Beat
+  This)“); gezählt wird dabei in Schlägen des Modells, damit ein leicht falsches Tempo aus der Datenbank nicht
+  stört. Liegt das Tempo des Modells bis 4 % neben der Datenbank, übernimmt die Show das genaue Tempo.
+  Gemessen mit 6 Aufnahmen vom Gerät (ganze Kette nachgespielt, mit Ton-Vorlauf): 93 % der Markierungen „Hier
+  ist die 1“ liegen auf der gezählten „1“ (vorher am Gerät 14 %).
+- Das Modell läuft in numpy nachgebaut (im Add-on gibt es kein PyTorch): Gewichte als float16 in
+  `app/modelle/beat_this.npz` (38 MB), geprüft gegen das Original (gleiche Schläge und „1“, Logits höchstens 0,04
+  daneben). Es rechnet in einem eigenen Prozess mit niedriger Priorität und 2 Rechenkernen, damit die Show nicht
+  ruckelt. Schalter „„1“ mit Beat This“ unter Feinabstimmung; Rechenzeit in der Audio-Zeile.
+- Ton-Vorlauf (siehe unten, aus der nicht eingespielten 0.8.15).
+
+## 0.8.15 (nicht eingespielt, in 0.9.0 enthalten)
+
+- **Ton-Vorlauf:** Der Empfänger (shairport-sync über stdout) bekommt den Ton etwa 1,0 s bevor der Lautsprecher
+  ihn spielt (Puffer 1 s). Gemessen mit 6 Aufnahmen und dem Modell Beat This!: Mit 1,03 s Verschiebung lagen
+  die Markierungen „Hier ist die 1“ zu 93 % auf der „1“ des Modells (inklusive ca. 30 ms Tipp-Verzögerung).
+  Bisher glich die Show nur 80 ms aus: Schlag und „1“ lagen je nach Tempo daneben (der Takt-Test passte nur bei
+  einem Tempo), Break und Drop kamen eine Sekunde zu früh. Jetzt läuft alles aus dem Ton um den Ton-Vorlauf
+  zurückversetzt (Einstellung unter Feinabstimmung, Standard 1,0 s); Pegel, Break und Drop werden dafür 4 s
+  lang zwischengespeichert.
+- Audio-Versatz neu um 0 ms (gemessen: das Schlagraster liegt im Mittel 6 ms neben den Schlägen des Modells);
+  ein gespeicherter alter Wert wird einmalig auf 0 gesetzt.
+
 ## 0.8.14
 
 - **Aufnahme für die Fehlersuche** (Feinabstimmung): schneidet 90 s Ton am Empfänger mit und dazu, was die

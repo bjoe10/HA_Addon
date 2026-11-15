@@ -16,6 +16,8 @@ wechseln meist auf der „1“). Über mehrere Takte auf die vier Positionen im 
 dem klar größten Wechsel zur „1“. Danach verschieben Drop und Phrasenwechsel nur noch um ganze Takte. Eine
 Korrektur von Hand hat Vorrang: Dann bleibt die „1“ für das Lied, wo sie gesetzt wurde.
 """
+import numpy as np
+
 PHRASE = 32          # Schläge pro Phrase (8 Takte)
 BAR = 4
 BAR_MIN_BEATS = 24   # so viele Schläge sammeln, bevor die „1“ zum ersten Mal festgelegt wird
@@ -39,6 +41,7 @@ class BeatCounter:
         self.far_since = None
         self.last_b = None
         self.last_t = None
+        self.first_t = None           # Zeit des ersten Bildes dieser Zählung (Liedbeginn)
         self.seen_drop = 0.0
         self.seen_change = 0.0
         self.events = []        # (Zeit, Text) für die Anzeige
@@ -51,6 +54,8 @@ class BeatCounter:
         self.bar_manual = False       # „1“ von Hand gesetzt: kein automatischer Takt-Anker mehr
         self.bar_ratio = 0.0
         self.seen_bc = 0.0
+        self.bar_model = False        # „1“ aus Beat This (hat Vorrang vor dem Klangwechsel)
+        self.model_share = 0.0
 
     def shift(self, s, now, why="von Hand"):
         """Zählung um s Schläge verschieben (z. B. nach dem Break, wenn der Einsatz nicht stimmt)."""
@@ -59,8 +64,45 @@ class BeatCounter:
 
     def bar_info(self):
         """Für die Anzeige: woher die „1“ kommt und wie deutlich sie ist."""
-        source = "von Hand" if self.bar_manual else ("Audio" if self.bar_locked else "geschätzt")
-        return {"quelle": source, "deutlich": round(self.bar_ratio, 2), "schlaege": self.bar_beats}
+        source = ("von Hand" if self.bar_manual else "Beat This" if self.bar_model
+                  else "Audio" if self.bar_locked else "geschätzt")
+        return {"quelle": source, "deutlich": round(self.model_share if self.bar_model else self.bar_ratio, 2),
+                "schlaege": self.bar_beats}
+
+    def model_anchor(self, now, downs, bpm, beats=None):
+        """„1“-Schläge aus Beat This (Uhrzeit der Analyse): Liegt die große Mehrheit auf derselben Position im
+        Takt, wird sie zur „1“. Rückgabe: Verschiebung in Schlägen (meist 0).
+        Mit `beats` (Schläge des Modells) wird vom letzten Modell-Schlag aus in Modell-Schlägen zurückgezählt:
+        unabhängig davon, ob das Tempo aus der Datenbank genau stimmt (bei 1 % daneben sind 30 s schon fast ein
+        Schlag). Nur „1“-Schläge aus diesem Lied (ab dem Start dieser Zählung) zählen."""
+        if self.bar_manual or self.last_b is None or not downs:
+            return 0
+        beat = 60.0 / bpm
+        downs = [t for t in downs if t >= (self.first_t or 0.0) + 1.0 and abs(now - t) < 45.0]
+        if beats is not None and len(beats) >= 8:
+            beats = np.asarray(sorted(beats))
+            t_last = beats[-1]
+            k_last = round(self.last_b - (self.last_t - t_last) / beat)
+            res = []
+            for t in downs:
+                n = int(np.sum((beats > t + 0.5 * beat) & (beats <= t_last + 0.01)))
+                res.append((k_last - n) % BAR)
+        else:
+            res = [round(self.last_b - (self.last_t - t) / beat) % BAR for t in downs]
+        if len(res) < 3:
+            return 0
+        best = max(range(BAR), key=res.count)
+        self.model_share = res.count(best) / len(res)
+        if self.model_share < 0.7:
+            return 0
+        self.bar_locked = self.bar_model = True
+        if best == 0:
+            return 0
+        s = (-best) % BAR
+        s = s - BAR if s > BAR // 2 else s
+        self._shift(s, now, "Takt-Anker (Beat This)")
+        self.last_b += s
+        return s
 
     def _shift(self, s, now, why):
         if self.count is not None:
@@ -119,7 +161,7 @@ class BeatCounter:
                         self.events.append((now, f"HA-Abgleich: {s:+d} Schläge"))
             else:
                 self.far_since = None
-            if changes and not self.audio_off:
+            if changes and not self.audio_off and not self.bar_model:
                 b += self._bar_anchor(now, b, beat, changes)
         # Drop als Anker: auf die nächste Phrasengrenze legen (ist die „1“ bekannt, nur um ganze Takte)
         if drop_at and drop_at != self.seen_drop:
@@ -146,6 +188,7 @@ class BeatCounter:
                 self._shift(s, now, "Phrasenwechsel")
                 b += s
         self.last_b, self.last_t = b, now
+        self.first_t = self.first_t or now
         return b
 
     def _bar_anchor(self, now, b, beat, changes):

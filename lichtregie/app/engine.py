@@ -10,6 +10,7 @@ import ha
 import heads
 import lamps
 import laser
+import downbeat
 import record
 import show
 try:            # numpy fehlt lokal ggf.; dann ohne Audioanalyse
@@ -91,6 +92,7 @@ def show_loop(prof, t0, stop):
     frames, fps_t = 0, time.time()
     seeks = LIVE["seeks"]
     last_sound = started
+    seen_model = downbeat.STATE["letzte"]
     if AUDIO is not None:        # Ereignisse aus dem vorigen Lied nicht als Anker nehmen
         counter.seen_drop, counter.seen_change = AUDIO.drop_at, AUDIO.change_at
     while not stop.is_set():
@@ -109,27 +111,40 @@ def show_loop(prof, t0, stop):
             counter.reset()
             counter.seen_drop, counter.seen_change = drop, change
             counter.events.append((now, "gespult: Zählung neu"))
+        # Was jetzt aus dem Lautsprecher kommt, hat die Analyse um den Ton-Vorlauf früher bekommen: Alles aus dem
+        # Ton (Schlag, Pegel, Break, Drop) und die Schlagzählung laufen deshalb auf dieser Zeit
+        t_a = now - SETTINGS["ton_vorlauf"] if audio_mode() else now
         if SYNC["pending"]:                    # von Hand verschoben
             n, SYNC["pending"] = SYNC["pending"], 0
-            counter.shift(n, now, "von Hand")
+            counter.shift(n, t_a, "von Hand")
         blackout = now - started < BLACKOUT_SEC
         pos = song_position()
         b = (pos if pos is not None else now - t0) * bpm / 60.0 + SETTINGS["offset"]
         b_ha = b
         live = None
         locked = False
-        if AUDIO is not None and SETTINGS["audio"] and AUDIO.signal(now):
-            live = AUDIO.live(now, bpm)            # Pegel, Break, Drop
+        if AUDIO is not None and SETTINGS["audio"] and AUDIO.signal(t_a):
+            live = AUDIO.live(t_a, bpm)            # Pegel, Break, Drop
             frac = None
-            if AUDIO.phase_ok(now):                # Schlagphase, sobald das Raster eingerastet ist
-                frac = AUDIO.phase(now + SETTINGS["audio_versatz"] / 1000.0)
+            if AUDIO.phase_ok(t_a):                # Schlagphase, sobald das Raster eingerastet ist
+                frac = AUDIO.phase(t_a + SETTINGS["audio_versatz"] / 1000.0)
                 locked = True
             changes = AUDIO.changes_since(counter.seen_bc) if locked else None
-            b = counter.update(now, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm, changes)
+            b = counter.update(t_a, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm, changes)
+            st = downbeat.STATE
+            if locked and st["letzte"] != seen_model and BEAT["start"] and st["lied"] == tuple(BEAT["start"][:2]):
+                seen_model = st["letzte"]                      # neues Ergebnis von Beat This für dieses Lied
+                if st["bpm"] and 0.003 < abs(st["bpm"] - bpm) / bpm < 0.04:
+                    # Tempo aus der Datenbank etwas daneben: das genaue Tempo des Modells übernehmen
+                    counter.events.append((t_a, f"Tempo {bpm:.1f} → {st['bpm']:.1f} BPM (Beat This)"))
+                    bpm = prof["bpm"] = st["bpm"]
+                    AUDIO.set_bpm_hint(bpm)
+                    BEAT["lied"] = dict(BEAT["lied"] or {}, bpm=round(bpm, 1), tempo_quelle="Beat This")
+                b += counter.model_anchor(t_a, st["eins"], bpm, st["beats"])
             if counter.audio_off:              # Audio-Takt läuft nicht mit der Musik: nicht als eingerastet werten
                 locked = False
         else:
-            b = counter.update(now, b)
+            b = counter.update(t_a, b)
         # Pause (Spotify pausiert): Spots bleiben stehen und leuchten leise, Laser aus
         player = LIVE.get("live")
         paused = ((bool(player) and not player.get("playing") and now - LIVE["at"] < 10 and live is None)
@@ -178,15 +193,15 @@ def show_loop(prof, t0, stop):
         if record.REC["on"]:
             record.trace(now, {"b": round(b, 3), "b_ha": round(b_ha, 3), "pos": pos, "bpm": bpm, "locked": locked,
                                "break": bool(live and live["break"]), "drop": bool(live and live["drop"]),
-                               "info": info, "eins": counter.bar_info(), "bins": [round(x, 3) for x in counter.bar_bins],
+                               "info": info, "vorlauf": SETTINGS["ton_vorlauf"], "eins": counter.bar_info(), "bins": [round(x, 3) for x in counter.bar_bins],
                                "ereignisse": [e[1] for e in counter.events[-3:]]})
-        recent = [f"{e[1]} (vor {int(now - e[0])} s)" for e in counter.events[-3:] if now - e[0] < 60]
+        recent = [f"{e[1]} (vor {int(t_a - e[0])} s)" for e in counter.events[-3:] if t_a - e[0] < 60]
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
                         "audio": locked, "ereignisse": recent,
                         "abweichung": round(counter.diff, 1),      # Diagnose: HA-Position minus Zählung (Schläge)
                         "audio_aus": counter.audio_off, "schlag_nr": round(b, 2), "eins": counter.bar_info()}
         szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
-        if counter.events and now - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
+        if counter.events and t_a - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
             szene += f" · {counter.events[-1][1]}"
         BEAT["szene"] = szene
         lamps.follow(prof, b, live)
@@ -258,6 +273,7 @@ def start_beat(title, artist, info, track_id=None, duration=None):
     new_song = not BEAT["start"] or tuple(BEAT["start"][:2]) != (title, artist)
     BEAT["stop"] = stop
     BEAT["start"] = (title, artist, info, track_id, duration)
+    BEAT["since"] = time.time()
     BEAT["info"] = f"{title} – {artist}: {prof['bpm']:.1f} BPM, {show.describe(prof)}"
     BEAT["lied"] = {
         "titel": title, "interpret": artist, "bpm": round(prof["bpm"], 1), "stufe": prof["stage"],

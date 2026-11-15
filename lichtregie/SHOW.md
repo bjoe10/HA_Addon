@@ -267,7 +267,7 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 
 ---
 
-## Stand der Umsetzung (0.8.11)
+## Stand der Umsetzung (0.9.0)
 
 **Show-Regeln** (`app/show.py`, reine Funktionen der Taktposition):
 - Song-Thema aus der Track-ID: Grund- und Akzentfarbe aus der Tonart, zwei Gobos, Motiv-Punkt, 5 Szenen
@@ -285,8 +285,9 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 
 **Live-Audio** (`app/audio.py`, ab 0.3.0): AirPlay-Empfänger „Lichtregie“ im Add-on, in Music Assistant mit dem
 Phantom gruppiert. Seit 0.8.7 startet die Lichtregie shairport-sync selbst und liest den Ton über stdout
-(S16_LE, 44,1 kHz, stereo); endet shairport-sync, startet sie es nach 3 s neu. Gemessen am Gerät: Audio-Versatz
-**80 ms** (Licht 80 ms vor der analysierten Phase), danach sitzen die Blitze auf dem Kick. Mit eingerastetem Takt:
+(S16_LE, 44,1 kHz, stereo); endet shairport-sync, startet sie es nach 3 s neu. Seit 0.8.15 läuft die Show um den
+Ton-Vorlauf von **1,0 s** zurückversetzt (der Empfänger bekommt den Ton so viel früher als der Lautsprecher;
+gemessen mit Aufnahmen und Beat This!), Audio-Versatz um 0 ms. Mit eingerastetem Takt:
 Puls durch Abdunkeln kurz vor dem Schlag. Bildrate der Show am Pi 39,4/s (Soll 40), Last ca. 0,5 % CPU.
 Kein Ton, während Spotify über 15 s spielt: Warnung in der Oberfläche und HA-Benachrichtigung.
 
@@ -295,7 +296,10 @@ Schläge selbst (Phase aus der Analyse), HA liefert nur die Grobposition. Anker:
 (±12 Schläge), erkannter Klangwechsel → Phrasengrenze, wenn höchstens 3 Schläge daneben. Spulen (Sprung der
 Liedposition über 5 s) setzt die Zählung sofort neu auf. Die „1“ im Takt kommt seit 0.8.13 aus dem Audio:
 Klangwechsel je Schlag, über mehrere Takte auf die vier Positionen summiert; die deutlich stärkste wird zur „1“
-(Takt-Anker). Danach verschieben Drop und Phrasenwechsel nur um ganze Takte; eine Korrektur von Hand hat Vorrang. Läuft die Audio-Zählung dauerhaft gegen die HA-Position (zwei Korrekturen in
+(Takt-Anker). Danach verschieben Drop und Phrasenwechsel nur um ganze Takte; eine Korrektur von Hand hat Vorrang.
+Seit 0.9.0 legt **Beat This!** (`app/beatthis.py`, `app/downbeat.py`) die „1“ fest: alle 15 s über bis 30 s Ton
+des Liedes, Mehrheit der „1“-Schläge, gezählt in Schlägen des Modells; das genaue Tempo des Modells ersetzt
+die Datenbank, wenn es bis 4 % abweicht. Gemessen mit 6 Aufnahmen: 93 % der Markierungen auf der gezählten „1“. Läuft die Audio-Zählung dauerhaft gegen die HA-Position (zwei Korrekturen in
 dieselbe Richtung innerhalb von 60 s), zählt das Lied ab dann nach HA (seit 0.8.11). Synthetischer Test (`dev/test_beatcount.py`, HA
 5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
 

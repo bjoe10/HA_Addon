@@ -1,5 +1,5 @@
 name: Lichtregie
-version: "0.8.14"
+version: "0.9.0"
 slug: lichtregie
 description: Musikgesteuerte Lichtshow für Moving Heads per Art-Net, nach Spotify-Titel, Tempo und Stimmung.
 url: https://github.com/bjoe10/HA_Addon

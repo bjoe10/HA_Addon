@@ -74,7 +74,7 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   Laser-Rolle) und Schlaganzeige, **Thema neu würfeln** (das neue Thema bleibt für dieses Lied gespeichert),
   Status auf einen Blick (Audio, Spotify, Geräte, Lampen, Laser), Vorschau der Spots im Raumbild, Schalter
   für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre Helligkeit, Automatik.
-- **Feinabstimmung:** Takt-Sync (Anzeige von Takt und Phrase und woher die „1“ kommt, Einsatz von Hand
+- **Feinabstimmung:** Takt-Sync (Anzeige von Takt und Phrase und woher die „1“ kommt, „1“ mit Beat This, Einsatz von Hand
   verschieben; das gilt dann für das ganze Lied), Audio und
   Takt-Test mit Audio-Versatz, Lampen (Rhythmus der Farbwechsel ab einem Takt, harter Wechsel, Vorlauf,
   Lampen-Test mit Messwerten), Bewegungstempo, Anschub und

@@ -88,10 +88,15 @@
    <button class="sw" data-set="audio">Audio</button>
    <button class="sw" data-set="takttest">Takt-Test</button>
   </div>
+  <div class="switches one"><button class="sw" data-set="beatthis">„1“ mit Beat This</button></div>
+  <label>Ton-Vorlauf <span class="val" data-val="ton_vorlauf" data-unit=" s"></span>
+   <input type="range" data-set="ton_vorlauf" min="0" max="2" step="0.01"></label>
   <label>Audio-Versatz <span class="val" data-val="audio_versatz" data-unit=" ms"></span>
    <input type="range" data-set="audio_versatz" min="-300" max="300" step="10"></label>
-  <p class="hint">Takt-Test: Beide Köpfe blitzen weiß auf jedem Schlag. Den Versatz so stellen, dass der Blitz
-   auf dem Kick sitzt (gemessen: 80 ms).</p>
+  <p class="hint">Ton-Vorlauf: Der Empfänger bekommt den Ton etwa 1 s bevor der Lautsprecher ihn spielt (gemessen:
+   1,0 s). Die Show läuft um so viel zurückversetzt, dann passen Schlag, „1“, Break und Drop bei jedem Tempo.
+   Takt-Test: Beide Köpfe blitzen weiß auf jedem Schlag, doppelt lang auf der „1“ der Phrase. Mit dem
+   Audio-Versatz fein einstellen, bis der Blitz auf dem Kick sitzt (gemessen: um 0 ms).</p>
  </section>
 
  <section class="card">

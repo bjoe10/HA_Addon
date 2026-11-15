@@ -111,6 +111,8 @@ function showStatus(d) {
   $('audiostat').textContent = !a ? 'Audio: nicht eingerichtet (Add-on-Option AirPlay)'
     : a.an ? `${a.takt ? 'Takt eingerastet' : 'sucht den Takt'} · ${a.bpm || '–'} BPM · Sicherheit ${Math.round(a.sicher * 100)} % · Pegel ${Math.round(a.pegel * 100)} %`
              + (a.break ? ' · Break' : '') + (a.drop ? ' · Drop' : '') + (a.wechsel ? ' · Klangwechsel' : '')
+      + (d.beatthis && d.beatthis.rechenzeit != null ? ` · Beat This: ${d.beatthis.schlaege} Schläge in ${d.beatthis.rechenzeit} s gerechnet (vor ${d.beatthis.vor_s} s)` : '')
+      + (d.beatthis && d.beatthis.fehler ? ` · Beat This Fehler: ${d.beatthis.fehler}` : '')
     : 'Kein Signal am Empfänger';
   const ls = d.lampen;
   $('lampstat').textContent = !ls ? 'Lampen: in der letzten Minute keine Befehle'
@@ -143,7 +145,8 @@ function showSync(s, fps) {
   });
   $('syncstat').textContent = !s ? 'Keine Show läuft.'
     : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Spotify-Position (ungenau)')
-      + (s.eins ? ' · „1“ ' + (s.eins.quelle === 'Audio' ? `aus dem Audio (${s.eins.deutlich}×)`
+      + (s.eins ? ' · „1“ ' + (s.eins.quelle === 'Beat This' ? `von Beat This (${Math.round(s.eins.deutlich * 100)} % einig)`
+                               : s.eins.quelle === 'Audio' ? `aus dem Audio (${s.eins.deutlich}×)`
                                : s.eins.quelle === 'von Hand' ? 'von Hand gesetzt'
                                : `geschätzt, lernt noch (${s.eins.schlaege} Schläge)`) : '')
       + (fps ? ` · ${fps} Bilder/s` + (fps < 25 ? ' (zu wenig, Soll 40)' : '') : '')
