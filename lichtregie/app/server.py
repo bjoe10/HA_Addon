@@ -28,6 +28,7 @@ from settings import SETTINGS
 
 WEB = Path(__file__).resolve().parent / "web"
 SENT = deque(maxlen=1000)    # Zeitpunkte der Art-Net-Sendungen (für die Messung der Ruckler)
+DROPPED = {}                 # Knoten → verworfene Pakete (Knoten aus oder nicht erreichbar)
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/index.html": ("index.html", "text/html; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
@@ -38,6 +39,17 @@ def sender(stop):
     """Sendet die DMX-Puffer per Art-Net an die Nodes: direkt nach jedem fertigen Show-Bild (heads.FRAME), ohne Show
     spätestens alle 1/FPS Sekunden."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # Nie warten: Ist ein Knoten aus (Steckdose der Köpfe nach der Party, Laser-Steckdose aus, Knoten bootet), sucht der
+    # Pi ihn im Netz und hält die Pakete zurück; ist der Puffer voll, blockierte das Senden bis zu 1,7 s, und alle
+    # Köpfe stockten mit. Jetzt wird ein Paket, das nicht sofort raus kann, verworfen; 25 ms später kommt das nächste
+    sock.setblocking(False)
+
+    def send(data, universe, node):
+        try:
+            sock.sendto(artdmx(universe, data, seq), (node, ART_PORT))
+        except OSError:                  # BlockingIOError (Puffer voll), Host nicht erreichbar
+            DROPPED[node] = DROPPED.get(node, 0) + 1
+
     seq = 1
     laser_off = 0             # nach dem Abschalten des Lasers in der Oberfläche noch so viele Bilder „aus“ senden
     while not stop.is_set():
@@ -48,7 +60,7 @@ def sender(stop):
         for k, head in heads.HEADS.items():
             with head.lock:
                 data = bytes(head.buf)
-            sock.sendto(artdmx(config.UNIVERSE[k], data, seq), (config.NODES[k], ART_PORT))
+            send(data, config.UNIVERSE[k], config.NODES[k])
         if SETTINGS["laser"] or laser_off > 0:
             # Nur senden, wenn freigegeben; sonst behält HA den Laser. Beim Abschalten noch 1 s „aus“ senden: Der
             # Art-Net-Knoten hält sonst das letzte Bild, und der Laser zeigt die letzte Figur ohne Animation weiter
@@ -60,7 +72,7 @@ def sender(stop):
                 laser_off -= 1
             with laser.LOCK:
                 data = bytes(laser.BUF)
-            sock.sendto(artdmx(config.LASER[1], data, seq), (config.LASER[0], ART_PORT))
+            send(data, config.LASER[1], config.LASER[0])
         seq = (seq + 1) % 256 or 1
     sock.close()
 
@@ -82,7 +94,7 @@ def _slow(now):
     """Messwerte, die einmal pro Sekunde reichen. Die Oberfläche fragt 5-mal pro Sekunde; jedes Mal das
     Aufnahmeverzeichnis lesen und über Tausende Messwerte rechnen kostete Rechenzeit neben der Show."""
     if now - SLOW["at"] >= 1.0:
-        SLOW.update(at=now, data={"senden": heads.gaps(SENT), "lampen": lamps.stats(now),
+        SLOW.update(at=now, data={"senden": (g := heads.gaps(SENT)) and dict(g, verworfen=dict(DROPPED)), "lampen": lamps.stats(now),
                                   "aufnahme": record.status(now), "beatthis": downbeat.status(),
                                   "bilder": engine.BEAT.get("bilder")})
     return SLOW["data"]

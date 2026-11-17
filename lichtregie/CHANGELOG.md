@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.9
+
+- **Sender wartet nie mehr auf abgeschaltete Knoten:** War ein Art-Net-Knoten aus (Steckdose der Köpfe nach der
+  Party, Laser-Steckdose aus, Knoten fährt gerade hoch), hielt der Pi die Pakete zurück, bis er den Knoten im
+  Netz gefunden hätte; war der Puffer voll, blockierte das Senden bis zu 1,7 s. Gemessen nach der Party: 20 statt
+  40 Bilder/s. Während der Party hätte ein ausgeschalteter Laser so auch die Köpfe ruckeln lassen. Jetzt wird ein
+  Paket, das nicht sofort raus kann, verworfen (das nächste kommt 25 ms später); die Anzahl steht im Status.
+
 ## 0.9.8
 
 - **Szene „vorher“ übernimmt keine Party-Farben mehr:** Beim Party-Start wurde der Zustand immer neu gesichert,
