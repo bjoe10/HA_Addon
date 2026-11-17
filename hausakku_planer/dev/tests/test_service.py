@@ -1,5 +1,5 @@
 import asyncio, json, os, sys, tempfile, unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from aiohttp.test_utils import AioHTTPTestCase
 os.environ['HAUSAKKU_NO_SCHEDULER']='1'
@@ -150,6 +150,12 @@ class HealthTests(unittest.TestCase):
     def test_repeated_planner_failures_are_reported_one_is_not(self):
         one=[self.run_('replan',False,message='Zeitlimit von 15 min überschritten, Lauf abgebrochen.'),self.run_('main',True)]
         self.assertEqual(service.health_issues(one,0,None,None,self.now),[])
+        fresh={'spot':timedelta(hours=20),'price_weather':timedelta(days=1)}
+        self.assertEqual(service.health_issues(one,0,None,None,self.now,fresh),[])
+        stale=service.health_issues(one,0,None,None,self.now,{**fresh,'price_weather':timedelta(days=3,hours=2)})
+        self.assertEqual(len(stale),1);self.assertIn('seit 3 Tagen',stale[0]);self.assertIn('Open-Meteo',stale[0])
+        off={'price_weather':{'active':False,'reason':'ausgeschaltet'}}
+        self.assertEqual(service.health_issues(one,0,off,None,self.now,{'price_weather':timedelta(days=9)}),[])
         two=[one[0],self.run_('weekly',True),one[0],self.run_('main',True)]
         issues=service.health_issues(two,0,None,None,self.now)
         self.assertEqual(len(issues),1);self.assertIn('letzten 2 Planer-Läufe',issues[0]);self.assertIn('Zeitlimit',issues[0])

@@ -40,9 +40,24 @@ class SpotPriceTests(unittest.TestCase):
             return payload(s,96*days)
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(spot_prices,'_get',fake):
             path=Path(tmp)/'s.json'
-            first=refresh(path,date(2026,1,5));second=refresh(path,date(2026,1,8))
+            first=refresh(path,date(2026,1,5),first=date(2026,1,1));second=refresh(path,date(2026,1,8),first=date(2026,1,1))
         self.assertEqual(calls[0]['start'],'2026-01-01');self.assertEqual(calls[1]['start'],'2026-01-04')
         self.assertEqual(calls[0]['bzn'],'DE-LU');self.assertGreater(len(second),len(first))
+    def test_refresh_keeps_a_rolling_window_and_backfills_once(self):
+        calls=[]
+        def fake(params,timeout=60):
+            calls.append(params);s=datetime.fromisoformat(params['start']).replace(tzinfo=TZ)
+            days=(date.fromisoformat(params['end'])-date.fromisoformat(params['start'])).days+1
+            return payload(s,96*days)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(spot_prices,'_get',fake):
+            path=Path(tmp)/'s.json'
+            refresh(path,date(2026,1,5),first=date(2026,1,1))      # an old cache that starts too late
+            prices=refresh(path,date(2026,11,17))                  # default: rolling 430 days, backfilled
+            again=refresh(path,date(2026,11,18))
+        self.assertEqual(calls[1]['start'],(date(2026,11,17)-timedelta(days=spot_prices.HISTORY_DAYS)).isoformat())
+        self.assertEqual(calls[2]['start'],'2026-11-16')
+        lo=datetime.combine(date(2026,11,18)-timedelta(days=spot_prices.HISTORY_DAYS),datetime.min.time(),TZ).timestamp()
+        self.assertGreaterEqual(min(again),lo);self.assertGreater(len(prices),400*96)
 
 class WeekdayPriceTests(unittest.TestCase):
     def test_weekday_offsets_raise_expensive_weekdays(self):

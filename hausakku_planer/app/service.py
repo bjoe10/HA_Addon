@@ -231,7 +231,7 @@ async def publish_report(entry):
                 log.warning('Ersparnis nicht fortgeschrieben (%s)',type(exc).__name__);summary=savings_summary()
             state,extra=savings_state(summary)
             await ha.call('ha_set_state',entity_id=ha_client.savings_sensor(),state=state,attributes=extra)
-            try:await notify_health(ha,health_issues(read_runs(20),replan_failures(),load_plan(),summary,datetime.now(TZ)))
+            try:await notify_health(ha,health_issues(read_runs(20),replan_failures(),load_plan(),summary,datetime.now(TZ),data_ages(datetime.now(TZ))))
             except Exception as exc:log.warning('Hinweis nicht geschrieben (%s)',type(exc).__name__)
     except Exception as exc:
         log.warning('Bericht-Sensor nicht geschrieben (%s)',type(exc).__name__)
@@ -239,6 +239,18 @@ async def publish_report(entry):
 NOTIFICATION_ID='hausakku_planer'
 METER_ROLE={'grid':'grid_import','wr':'inverter_energy','charger':'charger_energy','export':'grid_export','pv':'pv_energy','ev':'ev_energy'}
 PLAN_EXPIRY_WARNING=timedelta(hours=2)
+DATA_STALE=timedelta(days=2)
+# Downloaded inputs of the price estimate; each file is rewritten on every successful fetch.
+DATA_FILES={'spot':('state/training/spot_prices.json','Börsenpreise (energy-charts)'),
+            'price_weather':('state/training/price_weather.json','Wind- und Sonnenprognose für die Preisschätzung (Open-Meteo)')}
+
+def data_ages(now):
+    """{key: age} of the downloaded price inputs that exist; a missing file is a feature not in use."""
+    ages={}
+    for key,(name,_) in DATA_FILES.items():
+        try:ages[key]=now-datetime.fromtimestamp((paths.DATA/name).stat().st_mtime,TZ)
+        except OSError:continue
+    return ages
 
 def replan_failures():
     """Silent replan failures in a row (planner.py keeps them out of the report until the third)."""
@@ -249,7 +261,7 @@ def _first_line(entry):
     text=(entry.get('message') or entry.get('stderr') or '').strip()
     return text.splitlines()[0][:200] if text else 'ohne Meldung'
 
-def health_issues(runs,silent_failures,plan,savings,now):
+def health_issues(runs,silent_failures,plan,savings,now,ages=None):
     """What the user should know about: repeated planner failures, a failed weekly balance, a plan about
     to expire without a successor, meters without values. Pure, newest run first in `runs`."""
     issues=[]
@@ -273,6 +285,10 @@ def health_issues(runs,silent_failures,plan,savings,now):
     missing=(savings or {}).get('missing_quarters') or {}
     names=[('Preise' if k=='price' else settings.label(METER_ROLE[k]).split(' (')[0])+f' ({n} Viertelstunden)' for k,n in missing.items() if n>=2]
     if names:issues.append('Ohne Werte bei eingeschalteter Steuerung: '+', '.join(names)+'. Diese Zeit zählt nicht zur Ersparnis; den Zähler unter Einstellungen mit „Prüfen“ kontrollieren.')
+    for key,age in (ages or {}).items():
+        if key=='price_weather' and (plan or {}).get('price_weather',{}).get('reason')=='ausgeschaltet':continue   # switched off: old file, no fault
+        if age>DATA_STALE:
+            issues.append(f'{DATA_FILES[key][1]}: seit {age.days} Tagen kein erfolgreicher Abruf. Der Planer schätzt die Folgetage mit älteren Daten bzw. ohne diese Korrektur; die bekannten Preise sind nicht betroffen. Internetverbindung des Add-ons prüfen.')
     return issues
 
 async def notify_health(ha,issues):

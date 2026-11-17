@@ -42,6 +42,21 @@ class MultidayTests(unittest.TestCase):
         recent={'hours':sum([hours(i,1.) for i in range(1,15)],[])}
         polluted={'hours':recent['hours']+hours(150,100)+hours(-10,999)}
         self.assertEqual(build_tail(s,d,end,recent,[]),build_tail(s,d,end,polluted,[]))
+    def test_weather_correction_shifts_estimated_level_only(self):
+        s,c,d=self.inputs();end=d['intervals'][-1]['end']
+        plain=build_tail(s,d,end,{'hours':[]},[],price_model='daily_shape',persistence=.3)
+        if plain.get('shaped_price_model') is None:self.skipTest('fixture has no complete known day')
+        seen=[]
+        def corr(anchor,day):
+            seen.append((anchor,day));return -.02 if (day-anchor).days==2 else None
+        tail=build_tail(s,d,end,{'hours':[]},[],price_model='daily_shape',persistence=.3,price_correction=corr)
+        self.assertEqual(tail['uncorrected_prices'],plain['baseline_prices'])
+        for r,a,b in zip(tail['rows'],tail['baseline_prices'],tail['uncorrected_prices']):
+            day=datetime.fromisoformat(r['start']).date()
+            anchor=datetime.fromisoformat(tail['shaped_price_model']['anchor_date']).date()
+            self.assertAlmostEqual(a,b-.02 if (day-anchor).days==2 else b)
+        self.assertEqual(len(seen),len({x for x in seen}))       # one call per day
+        self.assertEqual(list(tail['price_correction'].values()),[-.02])
     def test_price_weekday_pattern_is_not_hardcoded(self):
         s,c,d=self.inputs();issue=datetime.fromisoformat(s['collected_at']);hist=[]
         for age in range(1,57):

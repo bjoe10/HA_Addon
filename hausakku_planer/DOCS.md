@@ -137,6 +137,14 @@ Schaltfenster gibt es nur für bekannte Preise. Was der Akku am Ende dieses Zeit
 
 Höhere Werte machen den Planer zurückhaltender, 0 schaltet die jeweilige Vorsicht ab.
 
+### Wie die Folgetage geschätzt werden
+
+Der Planer nimmt den typischen Tagesverlauf der letzten 28 Tage und ein Preisniveau, das vom letzten bekannten Tag zum Mittel der letzten 56 Tage zurückläuft, mit Wochentagseffekt. **Feiertage** zählen dabei wie Sonntage (Heiligabend, Silvester, Fronleichnam und Allerheiligen wie Samstage).
+
+Dazu kommt eine **Wetterkorrektur**. Wind bestimmt den Börsenpreis am stärksten, im Winter fast allein, viel Sonne drückt ihn ebenfalls. Das Add-on holt dafür im Hauptlauf die Wind- und Strahlungsprognose von Open-Meteo für acht feste Punkte von der Nordsee bis Mitteldeutschland. Aus dem letzten Jahr lernt es, wie stark Wind und Sonne das Tagesniveau verschieben. Die Korrektur gilt nur, wenn sie auf den letzten 60 Tagen, die beim Lernen außen vor bleiben, besser lag als die Schätzung ohne Wetter. Der Bericht nennt die Korrektur je Tag, die Wochenbilanz den Fehler beider Schätzungen. Klappt der Abruf mehr als 2 Tage lang nicht, meldet sich das Add-on in Home Assistant.
+
+Im Rückblick (September 2024 bis November 2026, mit den damals bekannten Prognosen) sank der mittlere Fehler je Stunde von 3,7 auf 3,2 ct, im Winter von 4,0 auf 3,1 ct. Schaltfenster gibt es weiterhin nur für bekannte Preise.
+
 ## Ersparnis
 
 Die Ersparnis vergleicht deine Anlage mit derselben Anlage, deren Wechselrichter dauernd an ist und die nie aus dem Netz lädt. Diese Vergleichsanlage ist ein **Schatten-Akku**, den das Add-on in Viertelstunden mitlaufen lässt: gleicher Verbrauch, gleiche PV, gleiche Tibber-Viertelstundenpreise, gemessen aus den 5-Minuten-Werten von Home Assistant. Fortgeschrieben wird bei jedem Lauf, also stündlich.
@@ -152,7 +160,7 @@ Einzelne Tage oder Wochen mit negativer Ersparnis sind normal, wenn Energie für
 
 ## Fehlersuche
 
-Mit eingeschaltetem Veröffentlichen meldet sich das Add-on mit einer Benachrichtigung in Home Assistant, wenn Planer-Läufe wiederholt scheitern, die Wochenbilanz fehlschlägt, der Plan bald abläuft ohne Nachfolger oder ein Zähler bei eingeschalteter Steuerung keine Werte liefert. Sie verschwindet von selbst, wenn alles wieder läuft. „Prüfen“ in den Einstellungen zeigt zu jedem Zähler, wie viele der letzten 72 Stunden ohne Wert sind.
+Mit eingeschaltetem Veröffentlichen meldet sich das Add-on mit einer Benachrichtigung in Home Assistant, wenn Planer-Läufe wiederholt scheitern, die Wochenbilanz fehlschlägt, der Plan bald abläuft ohne Nachfolger, ein Zähler bei eingeschalteter Steuerung keine Werte liefert oder Börsenpreise bzw. Wind-/Sonnenprognose seit mehr als 2 Tagen nicht abgerufen werden konnten. Sie verschwindet von selbst, wenn alles wieder läuft. „Prüfen“ in den Einstellungen zeigt zu jedem Zähler, wie viele der letzten 72 Stunden ohne Wert sind.
 
 | Meldung oder Beobachtung | Ursache und Abhilfe |
 |---|---|
@@ -171,7 +179,7 @@ Das Add-on hält seine Daten in festen Grenzen. Einmal am Tag entfernt es Roh-Sn
 
 ## Datenschutz
 
-Das Add-on arbeitet lokal. Nach außen gehen nur die Abfragen von Open-Meteo (Strahlungsprognose, mit dem gerundeten Standort) und, falls gewählt, von energy-charts (Börsenpreise). Persönliche Daten verlassen Home Assistant nicht.
+Das Add-on arbeitet lokal. Nach außen gehen nur die Abfragen von Open-Meteo (Strahlungsprognose mit dem gerundeten Standort; Wind und Strahlung für acht feste Punkte in Deutschland, ohne Bezug zu deinem Standort) und von energy-charts (Börsenpreise). Persönliche Daten verlassen Home Assistant nicht.
 
 ## Lokale Installation zum Testen
 

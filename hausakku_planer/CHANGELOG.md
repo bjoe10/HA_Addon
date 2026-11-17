@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.0
+- **Wetter in der Preisschätzung der Folgetage.** Die Schätzung kannte bisher nur die Preisgeschichte. Jetzt verschiebt eine Wetterkorrektur das Tagesniveau nach Wind und Sonne über Deutschland (Open-Meteo, acht feste Punkte, ohne Schlüssel). Gelernt aus dem letzten Jahr, angewendet nur, wenn sie auf den letzten 60 Tagen besser lag. Rückblick mit den damals bekannten Prognosen: Fehler je Stunde 3,7 → 3,2 ct, im Winter 4,0 → 3,1 ct. Temperatur wurde geprüft und brachte nichts zusätzlich.
+- **Feiertage** zählen in der Schätzung wie Sonntage, Heiligabend, Silvester, Fronleichnam und Allerheiligen wie Samstage. Weihnachten bis Neujahr im Rückblick: 3,7 → 3,3 ct, mit Wetter 2,3 ct.
+- Der Börsenpreis-Verlauf reicht jetzt rollend 430 Tage zurück (vorher ab 01.01.2026) und wird beim ersten Lauf einmal nachgeladen.
+- **Hinweis in Home Assistant**, wenn Börsenpreise oder die Wind-/Sonnenprognose seit mehr als 2 Tagen nicht abgerufen werden konnten. Ein einzelner Ausfall bleibt still, der Planer rechnet dann mit dem letzten Stand.
+- Bericht: Zeile „Wetterkorrektur Preisniveau“ je Folgetag. Wochenbilanz: Fehler der Preisschätzung ohne und mit Wetter im Tagesmittel.
+
 ## 0.14.0
 - **Vorsichtigere Strategie bei unsicheren Preisen.** Auslöser: Am 15./16.11. lud der Planer für geschätzte Folgetage aus dem Netz, zuletzt zu 40 ct, was sich erst ab 54 ct gelohnt hätte.
   - **Mindestmarge fürs Netzladen** (Standard 5 ct/kWh): Jede aus dem Netz geladene kWh muss später mindestens so viel mehr einbringen, als sie samt Verlusten gekostet hat. Vorher reichte jeder berechnete Vorteil über 0.

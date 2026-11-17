@@ -15,7 +15,7 @@ from ha_client import connection
 from multiday import read_prices
 from optimizer import Params
 from planner import tail_end_value,load_config
-import savings,spot_prices
+import price_weather,savings,spot_prices
 BASE=paths.DATA
 WEEKDAYS=('Mo','Di','Mi','Do','Fr','Sa','So')
 
@@ -30,6 +30,19 @@ def hourly_prices(path_archive,spot_path,until):
     hours={}
     for t,p in quarter.items():hours.setdefault(math.floor(t/3600)*3600,[]).append(p)
     return {h:sum(v)/len(v) for h,v in hours.items() if len(v)==4},calibration
+
+
+def daily_means(prices):
+    """{local date iso: mean price} for days with all hours priced."""
+    days={}
+    for t,p in prices.items():days.setdefault(datetime.fromtimestamp(t,TZ).date().isoformat(),[]).append(p)
+    return {d:sum(v)/len(v) for d,v in days.items() if len(v)>=23}
+
+
+def price_forecast_errors(prices,start,end):
+    try:log=json.loads((BASE/'state/price_forecast_log.json').read_text())
+    except (OSError,ValueError):return None
+    return price_weather.week_errors(log,daily_means(prices),start.date(),end.date())
 
 
 async def fetch(start,end):
@@ -85,7 +98,7 @@ def battery_at(battery,stamp):
     return float(candidates[0]) if candidates else None
 
 
-def facts(result,week,devices,calibration,audit,counter=None):
+def facts(result,week,devices,calibration,audit,counter=None,price_forecast=None):
     r=result;f=lambda x:f"{x:+.2f} €"
     lines=['=== WOCHENFAKTEN HAUSAKKU (gemessen und nachgerechnet, nicht ändern) ===',
            f"Zeitraum: {WEEKDAYS[week[0].weekday()]} {week[0].strftime('%d.%m.')} bis {WEEKDAYS[(week[1]-timedelta(days=1)).weekday()]} {(week[1]-timedelta(days=1)).strftime('%d.%m.%Y')}; {r['hours']} vollständige Stunden"+(f", {r['skipped_hours']} Stunden ohne vollständige Daten ausgelassen" if r['skipped_hours'] else '')+'.',
@@ -116,6 +129,9 @@ def facts(result,week,devices,calibration,audit,counter=None):
         last=f"letzte Woche {counter['last_week_eur']:+.2f} €, " if counter.get('last_week_eur') is not None else ''
         lines.append(f"Ersparnis-Zähler (durchgehend, nur bei eingeschalteter Steuerung, seit {datetime.fromisoformat(counter['since']).strftime('%d.%m.%Y')}): "
                      f"{last}gesamt {counter['total_eur']:+.2f} €. Er ist maßgeblich; die Wochenrechnung oben bewertet den Akkustand am Wochenende nur vorsichtig.")
+    if price_forecast:
+        lines.append(f"Preisprognose Folgetage ({price_forecast['count']} geschätzte Tage, Fehler im Tagesmittel): ohne Wetter {price_forecast['plain']*100:.1f} ct, "
+                     f"mit Wind/Sonne {price_forecast['weather']*100:.1f} ct.")
     if not calibration.get('valid'):lines.append('Hinweis: Preise teilweise nur aus dem Tibber-Archiv, Börsen-Rekonstruktion nicht verfügbar.')
     lines.append('Methode: gleiche gemessene Last, PV und Preise für beide Seiten; Stundenwerte; im Akku-voll-Fall abgeregelte PV fehlt in der Messung (begünstigt leicht die Rechnung ohne Steuerung).')
     return '\n'.join(lines)
@@ -161,7 +177,7 @@ async def run(args):
     try:counter=json.loads((BASE/'state/shadow.json').read_text()).get('summary')
     except (OSError,ValueError):counter=None
     audit=audit_summary(BASE/'state/forecast_audit.sqlite') if (BASE/'state/forecast_audit.sqlite').exists() else None
-    print(facts(result,(start,end),devices,calibration,audit,counter))
+    print(facts(result,(start,end),devices,calibration,audit,counter,price_forecast_errors(prices,start,end)))
 
 
 def main():

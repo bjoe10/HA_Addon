@@ -24,6 +24,8 @@
   "tail_price_persistence": 0.3,
   "tail_price_long_days": 56,
   "tail_price_weekday": true,
+  "tail_price_holidays": true,
+  "tail_price_weather": true,
   "tail_price_history": "energy_charts",
   "tail_price_floor_eur_kwh": null,
   "tail_pv_weather_weight": 0.5,

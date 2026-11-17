@@ -125,7 +125,7 @@ class SpotCacheTests(unittest.TestCase):
             spot_prices.refresh(path,date(2026,10,28),zone='AT')
         finally:spot_prices._get=original
         self.assertEqual(json.loads(path.read_text())['bzn'],'AT')
-        self.assertEqual(calls[1]['start'],'2026-01-01')    # started from scratch, not incrementally
+        self.assertEqual(calls[1]['start'],(date(2026,10,28)-timedelta(days=spot_prices.HISTORY_DAYS)).isoformat())    # from scratch, not incrementally
 
 class PriceSettingsTests(unittest.TestCase):
     def test_entity_provider_without_sensor_counts_as_missing(self):

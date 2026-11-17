@@ -9,6 +9,7 @@ from statistics import median
 from pathlib import Path
 import json,math,sqlite3,hashlib,time
 from forecast import TZ,estimate
+from calendar_de import day_type
 from optimizer import Interval,_flow,_interpolate,Params,optimize,_replay
 
 UTC=timezone.utc
@@ -143,13 +144,14 @@ def _daily_price_profiles(snapshot,hist,issue,shape_days=28):
     return result
 
 
-def shaped_price_model(snapshot,hist,issue,persistence=.7,long_days=28,weekday=False):
+def shaped_price_model(snapshot,hist,issue,persistence=.7,long_days=28,weekday=False,holidays=False):
     """Daily shape plus level anchored on the last complete KNOWN day.
     level(d) = long + (known - long) * persistence**d + w[day] - w[anchor] * persistence**d,
     d = days after that known day. Shape: median hourly deviation from the daily mean
     over 28 days (additive, so negative prices stay valid). long: median daily mean over
     long_days. w: optional weekday offsets, median deviation of a day's mean from its
     centred 7-day mean over 56 days. Windows count back from the anchor day.
+    With `holidays` a public holiday counts as the Sunday/Saturday it resembles.
     Backtest 2026 (reconstructed Tibber prices, 3-day horizon, hourly MAE ct):
     flat 56-day median 5.65/6.44, persistence .5 + 28 days 4.06/4.22,
     persistence .3 + 56 days + weekday 3.77/4.15 (Jan-Jun selection / Jul-Oct test).
@@ -160,8 +162,13 @@ def shaped_price_model(snapshot,hist,issue,persistence=.7,long_days=28,weekday=F
     known_days={datetime.fromtimestamp(_stamp(r['start_time']),TZ).date() for r in snapshot['prices']}
     anchors=sorted(d for d in profiles if d in known_days)
     if not anchors:return None
-    anchor=anchors[-1]
-    past={d:v for d,v in profiles.items() if d<=anchor}
+    return shaped_from_profiles(profiles,anchors[-1],persistence,long_days,weekday,holidays)
+
+
+def shaped_from_profiles(profiles,anchor,persistence=.7,long_days=28,weekday=False,holidays=False):
+    """The shaped model from {date: (daily mean, {hour: mean})}, anchored on `anchor`.
+    Shared by the planner and the training of the weather correction, so both see the same baseline."""
+    past={d:v for d,v in profiles.items() if d<=anchor and (anchor-d).days<max(long_days,56 if weekday else 0,28)+4}
     shape=[]
     for hour in range(24):
         deviations=[hourly[hour]-mean for d,(mean,hourly) in past.items() if (anchor-d).days<28 and hour in hourly]
@@ -172,21 +179,25 @@ def shaped_price_model(snapshot,hist,issue,persistence=.7,long_days=28,weekday=F
         for d,(mean,_) in past.items():
             if (anchor-d).days>=56:continue
             window=[past[d+timedelta(days=k)][0] for k in range(-3,4) if d+timedelta(days=k) in past]
-            if len(window)==7:deviations.setdefault(d.weekday(),[]).append(mean-sum(window)/7)
+            if len(window)==7:deviations.setdefault(day_type(d,holidays),[]).append(mean-sum(window)/7)
         offsets=[median(deviations[i]) if deviations.get(i) else 0. for i in range(7)]
     return {'anchor_date':anchor.isoformat(),'known_level':profiles[anchor][0],
             'long_level':median(mean for d,(mean,_) in past.items() if (anchor-d).days<long_days),
-            'persistence':persistence,'long_days':long_days,'weekday_offsets':offsets,
+            'persistence':persistence,'long_days':long_days,'weekday_offsets':offsets,'holidays':bool(holidays),
             'shape':shape,'profile_days':len(past)}
 
 
-def shaped_price(model,dt):
+def shaped_level(model,day):
+    """Expected daily level (without the hourly shape) for a local date."""
     anchor=date.fromisoformat(model['anchor_date'])
-    decay=model['persistence']**max(0,(dt.date()-anchor).days)
-    offsets=model.get('weekday_offsets',[0.]*7)
-    level=(model['long_level']+(model['known_level']-model['long_level'])*decay
-           +offsets[dt.weekday()]-offsets[anchor.weekday()]*decay)
-    return level+model['shape'][dt.hour]
+    decay=model['persistence']**max(0,(day-anchor).days)
+    offsets=model.get('weekday_offsets',[0.]*7);use=model.get('holidays',False)
+    return (model['long_level']+(model['known_level']-model['long_level'])*decay
+            +offsets[day_type(day,use)]-offsets[day_type(anchor,use)]*decay)
+
+
+def shaped_price(model,dt):
+    return shaped_level(model,dt.date())+model['shape'][dt.hour]
 
 
 def _declination(day):
@@ -234,7 +245,8 @@ def _quantile(values,q):
 
 def build_tail(snapshot,data,end,dataset,history,days=3,evidence=None,price_model='flat_median',persistence=.7,
                price_floor=None,weather_weight=0.,pv_model='hourly_median28',radiation_pv=None,
-               long_days=28,weekday=False,load_estimator='median',load_half_life=7.):
+               long_days=28,weekday=False,load_estimator='median',load_half_life=7.,holidays=False,price_correction=None):
+    """price_correction: optional callable(anchor_date, day) -> EUR/kWh added to the estimated daily level (weather)."""
     issue=datetime.fromisoformat(snapshot['collected_at']).astimezone(TZ)
     end=end.astimezone(TZ)
     if not 1<=days<=7:raise ValueError('Tail days must be 1..7')
@@ -259,8 +271,9 @@ def build_tail(snapshot,data,end,dataset,history,days=3,evidence=None,price_mode
     fallback=known[(len(known)-1)//4]
     central=median([r['price'] for r in hist]) if hist else fallback
     price_spread=median([abs(r['price']-central) for r in hist]) if hist else (max(known)-min(known))/2
-    shaped=shaped_price_model(snapshot,hist,issue,persistence,long_days,weekday) if price_model=='daily_shape' else None
-    profile=data['profile'];rows=[];candidate=[];baseline_prices=[];weather=_hourly_weather(snapshot);weather_adjustments={}
+    shaped=shaped_price_model(snapshot,hist,issue,persistence,long_days,weekday,holidays) if price_model=='daily_shape' else None
+    corrections={}
+    profile=data['profile'];rows=[];candidate=[];baseline_prices=[];uncorrected=[];weather=_hourly_weather(snapshot);weather_adjustments={}
     # UTC stepping preserves both repeated DST hours and skips nonexistent ones.
     stop=datetime.combine(end.date()+timedelta(days=days),datetime.min.time(),TZ).timestamp()
     t=end.timestamp()
@@ -344,7 +357,10 @@ def build_tail(snapshot,data,end,dataset,history,days=3,evidence=None,price_mode
         # promoted on an in-sample fit or a hand-picked Monday story.
         cp=.5*median(matches)+.5*central if len(matched_days)>=4 else central
         candidate.append(cp)
-        base_price=floor(shaped_price(shaped,dt) if shaped else central)
+        if shaped and price_correction and day not in corrections:
+            corrections[day]=price_correction(date.fromisoformat(shaped['anchor_date']),dt.date())
+        base_price=floor(shaped_price(shaped,dt)+(corrections.get(day) or 0.) if shaped else central)
+        uncorrected.append(floor(shaped_price(shaped,dt) if shaped else central))
         baseline_prices.append(base_price)
         rows.append({'start':dt.isoformat(),'end':datetime.fromtimestamp(next_t,TZ).isoformat(),
                      'price_eur_kwh':cp if (evidence or {}).get('promoted') else base_price,
@@ -364,6 +380,7 @@ def build_tail(snapshot,data,end,dataset,history,days=3,evidence=None,price_mode
             'candidate_model':'weekday56_shrunk_seasonal_candidate','candidate_prices':candidate,
             'promoted':bool((evidence or {}).get('promoted')),'baseline_price':central,
             'baseline_prices':baseline_prices,'shaped_price_model':shaped,
+            'uncorrected_prices':uncorrected,'price_correction':{d:v for d,v in corrections.items() if v is not None},
             'price_floor_eur_kwh':price_floor,'pv_weather_weight':weather_weight,
             'promotion_evidence':evidence or {'promoted':False,'reason':'no independent prospective outcomes'},
                         'price_training_intervals':len(hist),

@@ -17,7 +17,7 @@ from publisher import publish,publish_ev_window,validate_schedule_pair,expire
 import ev_charging
 from ha_client import connection
 import diagnostics,housekeeping,paths,settings
-import spot_prices
+import spot_prices,price_weather
 from openmeteo import apply_radiation,archive_radiation,load_history,refresh_history
 from multiday import archive_weather,build_tail,scenario_rows,continuation_curve,archive_prices,read_prices,archive_issue,score_issues,seed_price_archive,SCORE_BUDGET_S
 BASE=paths.DATA
@@ -61,7 +61,7 @@ def idle_charge_as_hold(plan,rows,params):
     return {**plan,'modes':replay['modes'],'intervals':replay['intervals']}
 
 
-def compute_plan(snapshot,config,learning_artifact=None,dataset=None,price_history=None,price_evidence=None,radiation_history=None):
+def compute_plan(snapshot,config,learning_artifact=None,dataset=None,price_history=None,price_evidence=None,radiation_history=None,price_correction=None):
     if config.get('mode') not in ('shadow','recommendation_only'):raise ValueError('Planner only writes recommendations, never hardware')
     if not config.get('pv_dc_coupled',False):raise ValueError('Only provisional DC-coupled PV model supported')
     data=prepare(snapshot,config)
@@ -104,7 +104,8 @@ def compute_plan(snapshot,config,learning_artifact=None,dataset=None,price_histo
                     pv_model=config.get('tail_pv_model','hourly_median28'),
                     radiation_pv={float(k):v for k,v in pv_source.get('hours',{}).items()},
                     long_days=int(config.get('tail_price_long_days',28)),weekday=bool(config.get('tail_price_weekday',False)),
-                    load_estimator=config.get('load_estimator','median'),load_half_life=float(config.get('load_half_life_days',7)))
+                    load_estimator=config.get('load_estimator','median'),load_half_life=float(config.get('load_half_life_days',7)),
+                    holidays=bool(config.get('tail_price_holidays',False)),price_correction=price_correction)
     curve=continuation_curve(scenario_rows(tail),params,mean_weight=float(config.get('tail_scenario_mean_weight',.5)),end_value_eur_kwh=tail_end_value(config))
     # Energy carried beyond the known prices is worth what ESTIMATED prices say; they are discounted, so that
     # holding or charging for those days needs a clear advantage. Known prices are not touched.
@@ -168,7 +169,15 @@ def report(plan):
                 parts=[f"{d} {sum(v)/len(v)*100:.1f}" for d,v in levels.items()]
                 lines.append(f"Preisniveau Folgetage (Tagesverlauf + Niveau, Persistenz {shaped['persistence']:.2f}): {'; '.join(parts)} ct; "
                              f"letzter bekannter Tag {shaped['known_level']*100:.1f} ct, Median {shaped.get('long_days',28)} Tage {shaped['long_level']*100:.1f} ct"
-                             +(", mit Wochentagseffekt." if any(shaped.get('weekday_offsets',[])) else "."))
+                             +(", mit Wochentagseffekt" if any(shaped.get('weekday_offsets',[])) else "")+(" und Feiertagen." if shaped.get('holidays') else "."))
+                weather=plan.get('price_weather') or {}
+                corrections=tail.get('price_correction') or {}
+                if corrections:
+                    parts=[f"{d[5:]} {v*100:+.1f}" for d,v in sorted(corrections.items())]
+                    lines.append(f"Wetterkorrektur Preisniveau (Wind/Sonne Deutschland): {'; '.join(parts)} ct; "
+                                 f"geprüft auf {weather.get('validation_days',0)} Tagen: Tagesfehler {weather.get('validation_error_plain',0)*100:.2f} → {weather.get('validation_error_weather',0)*100:.2f} ct Börse.")
+                elif weather.get('reason') and weather.get('reason')!='ausgeschaltet':
+                    lines.append('Wetterkorrektur Preisniveau nicht aktiv: '+weather['reason']+(' · '+weather['warning'] if weather.get('warning') else '')+'.')
             source=plan.get('price_history_source',{})
             if source.get('reconstructed_intervals'):
                 cal=source['calibration']
@@ -504,7 +513,7 @@ async def run(args):
         except Exception:
             # Stale cache is still valid calibration data; a fetch error must not stop planning.
             radiation_history=load_history(history_path)
-    archive=read_prices(price_path,snapshot['collected_at']);price_history=archive;price_source={'reconstructed_intervals':0}
+    archive=read_prices(price_path,snapshot['collected_at']);price_history=archive;price_source={'reconstructed_intervals':0};spot=None
     if config.get('tail_price_history')=='energy_charts':
         spot_path=BASE/'state/training/spot_prices.json'
         try:spot=spot_prices.load(spot_path) if args.from_snapshot else await asyncio.to_thread(spot_prices.refresh,spot_path,datetime.now(TZ).date(),zone=settings.current().data['prices'].get('bidding_zone') or 'DE-LU')
@@ -515,11 +524,36 @@ async def run(args):
             extra=spot_prices.reconstructed_history(spot,calibration,archive)
             price_history=archive+extra
             price_source.update(calibration=calibration,reconstructed_intervals=len(extra))
+    weather_price={'active':False,'reason':'ausgeschaltet'};correction=None
+    if config.get('tail_price_weather') and config.get('tail_price_model')=='daily_shape':
+        mark('Wetter für Preise')
+        weather_path=BASE/'state/training/price_weather.json'
+        state=price_weather.load(weather_path)
+        try:
+            # Main runs fetch the wind forecast and refit (a second or two); the hourly replan reuses both.
+            if not replan and not args.from_snapshot:
+                state=await asyncio.to_thread(price_weather.refresh,state,datetime.now(TZ).date())
+                if spot:state['model']=price_weather.fit(spot,state,datetime.now(TZ).date(),persistence=float(config.get('tail_price_persistence',.7)),
+                    long_days=int(config.get('tail_price_long_days',28)),weekday=bool(config.get('tail_price_weekday',False)),
+                    holidays=bool(config.get('tail_price_holidays',False)))
+                price_weather.save(weather_path,state)
+        except Exception as exc:
+            # A failed fetch keeps the stored forecast; without one the estimate stays as it was.
+            weather_price['warning']='Abruf fehlgeschlagen ('+type(exc).__name__+')'
+        model=state.get('model') or {}
+        cal=price_source.get('calibration') or {}
+        weather_price.update({k:v for k,v in model.items() if k!='coefficients'})
+        if model.get('active') and cal.get('valid'):
+            correction=price_weather.correction(state,model,cal['factor'])
+        elif model.get('active'):
+            weather_price.update(active=False,reason='Tibber-Umrechnung nicht exakt')
+        weather_price['forecast_issued_at']=(state.get('forecast') or {}).get('issued_at')
     mark('Optimierung')
     plan=compute_plan(snapshot,config,learning_artifact=artifact,dataset=dataset,
                       price_history=price_history,price_evidence=evidence,
-                      radiation_history=radiation_history)
+                      radiation_history=radiation_history,price_correction=correction)
     plan['price_history_source']=price_source
+    plan['price_weather']=weather_price
     plan['forecast_learning_enabled']=learning_enabled
     if learning_error:plan['forecast_learning_error']=learning_error
     if args.publish:
@@ -571,6 +605,9 @@ async def run(args):
             curve=continuation_curve(scenario_rows(tail),zero_params,mean_weight=float(config.get('tail_scenario_mean_weight',.5)),end_value_eur_kwh=tail_end_value(config))
             shadow_params=replace(zero_params,terminal_value_curve=tuple(map(tuple,curve)))
             shadow[label]=choose_operation(rows,shadow_params,optimize(rows,shadow_params),config)['plan']
+        if plan['multiday_forecast'].get('uncorrected_prices'):
+            try:price_weather.log_forecast(BASE/'state/price_forecast_log.json',plan['multiday_forecast'],datetime.now(TZ).date())
+            except Exception as exc:print('Preisprognose-Protokoll fehlgeschlagen ('+type(exc).__name__+').',file=sys.stderr)
         plan['multiday_issue_id']=archive_issue(price_path,snapshot,plan['multiday_forecast'],plan['plan'],zero_policy,**shadow)
         plan['multiday_validation']=score_issues(price_path,dataset,snapshot['collected_at'],budget_s=0.)   # scored above, only read here
         model=plan['multiday_forecast']
