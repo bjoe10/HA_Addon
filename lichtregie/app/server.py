@@ -29,6 +29,17 @@ from settings import SETTINGS
 WEB = Path(__file__).resolve().parent / "web"
 SENT = deque(maxlen=1000)    # Zeitpunkte der Art-Net-Sendungen (für die Messung der Ruckler)
 DROPPED = {}                 # Knoten → verworfene Pakete (Knoten aus oder nicht erreichbar)
+MANUAL = {"at": 0.0}         # letzte Bedienung von Hand (Köpfe/Laser einrichten): dann wird auch ohne Party gesendet
+MANUAL_SEC = 300.0
+AFTER_STOP = party.PARK_SEC + 2.0   # nach dem Party-Stopp noch senden: Köpfe dunkel in die Parkposition
+
+
+def sending(now=None):
+    """Wird gesendet? Nur während der Party, kurz danach (Parken) und beim Einrichten von Hand. Sonst sind die
+    Steckdosen der Köpfe und des Lasers aus, und es gibt nichts zu steuern."""
+    now = time.time() if now is None else now
+    return (party.PARTY["on"] or now - party.PARTY["since"] < AFTER_STOP
+            or now - MANUAL["at"] < MANUAL_SEC)
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/index.html": ("index.html", "text/html; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
@@ -37,7 +48,7 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
 
 def sender(stop):
     """Sendet die DMX-Puffer per Art-Net an die Nodes: direkt nach jedem fertigen Show-Bild (heads.FRAME), ohne Show
-    spätestens alle 1/FPS Sekunden."""
+    spätestens alle 1/FPS Sekunden; nur solange sending() es erlaubt."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     # Nie warten: Ist ein Knoten aus (Steckdose der Köpfe nach der Party, Laser-Steckdose aus, Knoten bootet), sucht der
     # Pi ihn im Netz und hält die Pakete zurück; ist der Puffer voll, blockierte das Senden bis zu 1,7 s, und alle
@@ -55,6 +66,9 @@ def sender(stop):
     while not stop.is_set():
         heads.FRAME.wait(1.0 / FPS)
         heads.FRAME.clear()
+        if not sending():
+            laser_off = 0
+            continue
         SENT.append(time.time())
         record.sent(SENT[-1])
         for k, head in heads.HEADS.items():
@@ -94,7 +108,7 @@ def _slow(now):
     """Messwerte, die einmal pro Sekunde reichen. Die Oberfläche fragt 5-mal pro Sekunde; jedes Mal das
     Aufnahmeverzeichnis lesen und über Tausende Messwerte rechnen kostete Rechenzeit neben der Show."""
     if now - SLOW["at"] >= 1.0:
-        SLOW.update(at=now, data={"senden": (g := heads.gaps(SENT)) and dict(g, verworfen=dict(DROPPED)), "lampen": lamps.stats(now),
+        SLOW.update(at=now, data={"senden": sending(now) and (g := heads.gaps(SENT)) and dict(g, verworfen=dict(DROPPED)) or None, "lampen": lamps.stats(now),
                                   "aufnahme": record.status(now), "beatthis": downbeat.status(),
                                   "bilder": engine.BEAT.get("bilder")})
     return SLOW["data"]
@@ -164,6 +178,8 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
             return self._send(400, "text/plain", b"ungueltiges JSON")
+        if self.path in ("/api/set", "/api/target", "/api/laser"):
+            MANUAL["at"] = time.time()         # Einrichten von Hand: senden, auch ohne Party
         if self.path == "/api/set":            # einzelne Kopf-Kanäle von Hand
             for k, v in body.get("heads", {}).items():
                 heads.apply(int(k), v.get("pan"), v.get("tilt"), v.get("on"), v.get("farbe"), v.get("gobo"),

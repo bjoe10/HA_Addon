@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.10
+
+- **Ohne Party kein Art-Net:** Bisher gingen 40-mal pro Sekunde Pakete an Köpfe und Laser, auch wenn deren
+  Steckdosen aus waren. Gesendet wird jetzt nur während der Party, gut 5 s danach (Köpfe dunkel in die
+  Parkposition) und 5 Minuten lang nach einer Bedienung von Hand (Köpfe einrichten, Laser von Hand).
+
 ## 0.9.9
 
 - **Sender wartet nie mehr auf abgeschaltete Knoten:** War ein Art-Net-Knoten aus (Steckdose der Köpfe nach der

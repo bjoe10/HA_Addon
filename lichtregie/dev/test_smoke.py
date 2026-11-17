@@ -120,6 +120,19 @@ engine.stop_all()
 time.sleep(0.2)
 assert laser.STATE["mode"] == 0 and not engine.SPOTS
 
+# --- Art-Net nur während der Party, kurz danach und beim Einrichten von Hand -----------------------------
+_p = dict(party.PARTY)
+party.PARTY.update(on=False, since=time.time() - 60)
+server.MANUAL["at"] = 0.0
+assert not server.sending(), "sendet ohne Party"
+party.PARTY["since"] = time.time() - 1
+assert server.sending(), "parkt nach dem Stopp nicht"
+party.PARTY["since"] = time.time() - 60
+post("/api/target", {"x": 2.5, "y": 0.0, "z": 1.6})
+assert server.sending(), "Einrichten von Hand sendet nicht"
+server.MANUAL["at"] = 0.0
+party.PARTY.update(_p)
+print("Art-Net: nur mit Party, beim Parken und beim Einrichten")
 # --- Party-Modus: Schalter, Automatik an bei Musik, aus nach Ruhe --------------------------------------
 ha.now_playing = lambda: None
 engine.LIVE.update(live=None, at=0.0)       # Spotify meldet nichts: nur der Ton zählt als Musik
