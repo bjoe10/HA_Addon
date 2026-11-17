@@ -50,10 +50,8 @@ class Analyzer:
         self.env = deque(maxlen=int(8.0 / HOP_SEC))            # Onset-Kurve für die Tempo-Schätzung
         self.last3 = deque(maxlen=3)
         self.last_onset = 0.0
-        self.onset_times = deque(maxlen=64)
         self.last_audio = 0.0
         self.data_at = 0.0
-        self.data_peak = 0.0
         self.bpm_hint = None
         self.period = None
         self.t_beat = None
@@ -76,17 +74,6 @@ class Analyzer:
         self.tap = None                                        # Abgriff für die Aufnahme
         self.rest = b""                                        # angefangener Stereo-Frame aus dem letzten Lesen
         self.inputs = deque(maxlen=4000)                       # (Zeit, Samples) je Lesen: Eingangsrate prüfen
-        # Klangwechsel je Schlag (für die „1“ im Takt): 12 Bänder 100–4000 Hz (Bass-Töne, Akkorde, Flächen),
-        # je Schlag gemittelt; am Schlagwechsel der Abstand zum vorigen Schlag
-        h_edges = np.searchsorted(freqs, np.geomspace(100, 4000, 13))
-        self.h_lo, self.h_starts = h_edges[0], h_edges[:-1] - h_edges[0]
-        self.h_hi, self.h_width = h_edges[-1], np.maximum(1, np.diff(h_edges)).astype(np.float32)
-        self.beat_acc = None
-        self.beat_n = 0
-        self.beat_prev = None
-        self.prev_phase = None
-        self.beat_changes = deque(maxlen=128)                  # (Zeit des Schlags, Klangwechsel zum vorigen)
-        self.timbre = True                                     # Klangwechsel rechnen (aus, wenn Beat This die „1“ liefert)
         self.rate_cache = (0.0, None)                          # Eingangsrate, höchstens einmal pro Sekunde gerechnet
 
     # --- Eingang -------------------------------------------------------------------------------------
@@ -111,7 +98,6 @@ class Analyzer:
         if self.tap is not None:
             self.tap(x, t_end)               # Aufnahme für die Fehlersuche (record.py)
         self.data_at = t_end                     # Diagnose: kommen überhaupt Daten an (auch stumme)?
-        self.data_peak = max(self.data_peak * 0.98, float(np.abs(x).max()))
         self.feed(x, t_end)
 
     def feed(self, mono, t_end):
@@ -144,7 +130,6 @@ class Analyzer:
             self.bass_short = 1.0
             self.break_on = False
             self.quiet_since = None
-            self.beat_prev, self.beat_acc, self.beat_n = None, None, 0
 
     def input_rate(self, now=None):
         """Wie schnell Ton ankommt, im Verhältnis zur Echtzeit (1,0 = richtig), über die letzten 10 s."""
@@ -177,10 +162,6 @@ class Analyzer:
         self._levels(rms, e_bass, t)
         self._peak_pick(onset, t)
         self.feats.append(np.log1p(np.array([np.mean(mag[m] ** 2) for m in self.timbre_bins], dtype=np.float32)))
-        if self.timbre:
-            self._beat_timbre(mag, t)
-        else:
-            self.prev_phase = None
         if t - self._last_nov > 0.5:
             self._last_nov = t
             self._novelty(t)
@@ -227,30 +208,7 @@ class Analyzer:
         thresh = float(hist.mean() + 1.5 * hist.std())
         if b > a and b >= c and b > thresh and tb - self.last_onset > 0.18:
             self.last_onset = tb
-            self.onset_times.append(tb - ONSET_LAG)
             self._pll(tb - ONSET_LAG)
-
-    def _beat_timbre(self, mag, t):
-        """Klang je Schlag mitteln; wenn das Schlagraster in den nächsten Schlag läuft, den Wechsel gegenüber dem
-        vorigen Schlag ablegen. Auf der „1“ ändern sich meist Akkord, Bass-Ton oder Instrumente: Über mehrere
-        Takte summiert, ist dort der Wechsel am größten (ausgewertet in beatcount.py)."""
-        if self.period is None or self.t_beat is None or self.hit_count < 4:
-            self.prev_phase = None
-            return
-        m2 = mag[self.h_lo:self.h_hi] ** 2
-        bands = np.log1p(np.add.reduceat(m2, self.h_starts) / self.h_width)
-        phase = ((t - self.t_beat) / self.period) % 1.0
-        if self.prev_phase is not None and phase < self.prev_phase - 0.5 and self.beat_n:
-            vec = self.beat_acc / self.beat_n
-            if self.beat_prev is not None:
-                d = float(np.linalg.norm(vec - self.beat_prev) / (np.linalg.norm(self.beat_prev) + 1e-6))
-                # der Wechsel gehört zum gerade beendeten Schlag (er unterscheidet sich vom Schlag davor)
-                self.beat_changes.append((t - phase * self.period - self.period, d))
-            self.beat_prev = vec
-            self.beat_acc, self.beat_n = None, 0
-        self.prev_phase = phase
-        self.beat_acc = bands if self.beat_acc is None else self.beat_acc + bands
-        self.beat_n += 1
 
     def recent_audio(self, seconds):
         """Die letzten `seconds` Sekunden Ton (mono, float32) und eine Funktion Abtastwert → Uhrzeit. Gesperrt wird
@@ -266,11 +224,6 @@ class Analyzer:
         cut = max(0, len(x) - int(seconds * RATE))
         clock = lambda s: np.interp(np.asarray(s) * RATE + cut, ends, times)  # noqa: E731
         return x[cut:], clock
-
-    def changes_since(self, t):
-        """Klangwechsel je Schlag seit Zeitpunkt t (für die Schlagzählung)."""
-        with self.lock:
-            return [c for c in self.beat_changes if c[0] > t]
 
     def _novelty(self, t):
         """Phrasenwechsel: Klang der letzten 2 s gegen die 6 s davor. Eine deutliche Spitze markiert einen
@@ -354,8 +307,6 @@ class Analyzer:
         with self.lock:
             return (now - self.last_audio < 1.5 and self.period is not None and self.t_beat is not None
                     and self.hit_count >= 4 and now - self.last_hit < 30.0)
-
-    active = phase_ok
 
     def phase(self, t):
         """Anteil des aktuellen Schlags (0 = Schlag, 0,5 = genau dazwischen)."""

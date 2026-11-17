@@ -49,7 +49,7 @@ def run(hint):
         t_end = t0 + (i + len(part)) / RATE
         an.feed(part, t_end)
         song_t = (i + len(part)) / RATE
-        if an.active(t_end) and (song_t < break_from or song_t > break_to + 4):
+        if an.phase_ok(t_end) and (song_t < break_from or song_t > break_to + 4):
             ph = an.phase(t0 + OFFSET)            # Phase am echten Schlag sollte ~0 sein
             errs.append(min(ph, 1 - ph) * BEAT * 1000)
         lv = an.live(t_end, BPM)

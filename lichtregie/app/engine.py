@@ -1,13 +1,12 @@
 """Show-Motor: verbindet Titel (HA), Tempo (FreqBlog), Live-Audio und die Show-Regeln (show.py) und
 gibt 40 Bilder pro Sekunde an Köpfe, Laser und Lampen."""
-import json
 from collections import deque
-import math
 import threading
 import time
 
 import config
 import ha
+import jsonfile
 import heads
 import lamps
 import laser
@@ -128,17 +127,13 @@ def show_loop(prof, t0, stop):
         b_ha = b
         live = None
         locked = False
-        if AUDIO is not None and SETTINGS["audio"] and AUDIO.signal(t_a):
+        if audio_mode() and AUDIO.signal(t_a):
             live = AUDIO.live(t_a, bpm)            # Pegel, Break, Drop
             frac = None
             if AUDIO.phase_ok(t_a):                # Schlagphase, sobald das Raster eingerastet ist
-                frac = AUDIO.phase(t_a + SETTINGS["audio_versatz"] / 1000.0)
+                frac = AUDIO.phase(t_a)
                 locked = True
-            # Die „1“ aus dem Klangwechsel traf in den Aufnahmen kaum; mit Beat This verschob sie am Liedanfang die
-            # Zählung falsch, bis das Modell sie zurückschob. Deshalb nur noch ohne Beat This
-            AUDIO.timbre = not SETTINGS["beatthis"]
-            changes = AUDIO.changes_since(counter.seen_bc) if locked and AUDIO.timbre else None
-            b = counter.update(t_a, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm, changes)
+            b = counter.update(t_a, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm)
             st = downbeat.STATE
             # Auch ohne eingerasteten Takt: Liegt das Tempo aus der Datenbank falsch, kann der Takt gar nicht
             # einrasten (die Analyse ist auf das Tempo festgelegt); dann muss gerade das gemessene Tempo greifen
@@ -185,7 +180,7 @@ def show_loop(prof, t0, stop):
             out = show.idle_frame(now, "pause", [show.WHEEL[prof["base"]]])
             info = "Pause"
         if SETTINGS["takttest"]:
-            # Takt-Test zum Einstellen von Audio-Versatz und Takt-Sync: weiß auf TV-Wand-Mitte, Blitz auf jedem
+            # Takt-Test zum Einstellen von Ton-Vorlauf und Takt-Sync: weiß auf TV-Wand-Mitte, Blitz auf jedem
             # Schlag. Die „1“ des Takts blitzt auf beiden Köpfen, die Schläge 2–4 nur auf Kopf 1 und schwächer,
             # die „1“ der Phrase (alle 8 Takte) auf beiden Köpfen und doppelt so lang.
             beat_no = int(b)
@@ -221,7 +216,7 @@ def show_loop(prof, t0, stop):
         if record.REC["on"]:
             record.trace(now, {"b": round(b, 3), "b_ha": round(b_ha, 3), "pos": pos, "bpm": bpm, "locked": locked,
                                "break": bool(live and live["break"]), "drop": bool(live and live["drop"]),
-                               "info": info, "vorlauf": SETTINGS["ton_vorlauf"], "eins": counter.bar_info(), "bins": [round(x, 3) for x in counter.bar_bins],
+                               "info": info, "vorlauf": SETTINGS["ton_vorlauf"], "eins": counter.bar_info(),
                                "ereignisse": [e[1] for e in counter.events[-3:]],
                                "koepfe": {k: [s["pan"], s["tilt"], s["hell"] if s["on"] else 0]
                                           for k, s in heads.snapshot().items()}})
@@ -247,37 +242,20 @@ THEMES_FILE = config.DATA / "themen.json"
 TEMPO_FILE = config.DATA / "tempo_korrektur.json"     # Tempo je Lied aus Beat This, wenn die Datenbank daneben lag
 
 
-def _tempo_fixes():
-    try:
-        return json.loads(TEMPO_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
 def save_tempo_fix(title, artist, bpm):
-    fixes = _tempo_fixes()
+    fixes = jsonfile.load(TEMPO_FILE)
     fixes[f"{artist}|{title}"] = round(float(bpm), 2)
-    try:
-        TEMPO_FILE.write_text(json.dumps(fixes, ensure_ascii=False), encoding="utf-8")
-    except OSError:
-        pass
+    jsonfile.save(TEMPO_FILE, fixes)
 
 
 def song_tempo(title, artist):
     """Tempo-Daten aus der Datenbank; hat Beat This das Lied schon einmal genauer gemessen, gilt dieses Tempo."""
     found = tempo(title, artist)
-    fix = _tempo_fixes().get(f"{artist}|{title}")
+    fix = jsonfile.load(TEMPO_FILE).get(f"{artist}|{title}")
     if fix:
         found = dict(found or {}, bpm=fix, quelle="Beat This")
     return found
 
-
-
-def _themes():
-    try:
-        return json.loads(THEMES_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
 
 
 def _theme_key(title, artist, track_id):
@@ -289,13 +267,10 @@ def reroll():
     if BEAT["stop"] is None or not BEAT["start"]:
         return False
     title, artist, _info, track_id, _dur = BEAT["start"]
-    themes = _themes()
+    themes = jsonfile.load(THEMES_FILE)
     key = _theme_key(title, artist, track_id)
     themes[key] = themes.get(key, 0) + 1
-    try:
-        THEMES_FILE.write_text(json.dumps(themes, ensure_ascii=False), encoding="utf-8")
-    except OSError:
-        pass
+    jsonfile.save(THEMES_FILE, themes)
     restart_beat()
     return True
 
@@ -329,7 +304,7 @@ def start_beat(title, artist, info, track_id=None, duration=None):
     """Startet die Show für einen Titel. info = Tempo-Daten (mindestens bpm)."""
     halt_beat()
     key = _theme_key(title, artist, track_id)
-    variant = _themes().get(key, 0)
+    variant = jsonfile.load(THEMES_FILE).get(key, 0)
     prof = show.profile(f"{key}#{variant}" if variant else key, info, duration, nebel=SETTINGS["nebel"])
     stop = threading.Event()
     new_song = not BEAT["start"] or tuple(BEAT["start"][:2]) != (title, artist)
@@ -381,7 +356,7 @@ def stop_all():
 def audio_tempo(since):
     """Tempo aus der Audioanalyse, wenn ein Lied bei FreqBlog fehlt: frühestens 8 s nach dem Liedwechsel
     (Zeit zum Neu-Einrasten ohne Vorgabe) und nur bei sicherem Takt."""
-    if AUDIO is None or not SETTINGS["audio"] or time.time() - since < 8:
+    if not audio_mode() or time.time() - since < 8:
         return None
     st = AUDIO.status()
     if st["takt"] and st["bpm"] and st["sicher"] >= 0.5:
@@ -442,7 +417,7 @@ def watch_loop(stop, current):
             if AUDIO is not None:
                 AUDIO.set_bpm_hint(None)
             BEAT["info"] = f"{live['title']}: kein Tempo bei FreqBlog, warte auf das Audio …"
-            if AUDIO is None or not SETTINGS["audio"]:
+            if not audio_mode():
                 halt_beat()
 
 
@@ -471,7 +446,7 @@ def audio_watch_loop():
         live = LIVE.get("live") or {}
         # Ton erwartet: Spotify spielt über Music Assistant (dann gehört der Empfänger zur Gruppe), auch wenn
         # die Party noch aus ist: Gerade dann muss der Empfänger funktionieren, damit der Ton sie startet
-        expect = (AUDIO is not None and SETTINGS["audio"] and live.get("playing") and now - LIVE["at"] < 30
+        expect = (audio_mode() and live.get("playing") and now - LIVE["at"] < 30
                   and ("Music Assistant" in live.get("source", "") or BEAT["stop"] is not None))
         if not expect or AUDIO.signal(now):
             if AUDIO_WARN["notified"]:

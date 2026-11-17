@@ -17,7 +17,6 @@ from pathlib import Path
 import numpy as np
 
 FILE = Path(__file__).resolve().parent / "modelle" / "beat_this.npz"
-SR = 22050
 HOP = 441
 NFFT = 1024
 FPS = 50
@@ -71,9 +70,6 @@ class BeatThis:
         self._rot = {}
 
     # --- Bausteine ---------------------------------------------------------------------------------------
-    def _p(self, name):
-        return self.w[name]
-
     def _lin(self, x, name, bias=True):
         y = x @ self.w[name + ".weight"].T
         if bias and name + ".bias" in self.w:

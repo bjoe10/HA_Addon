@@ -31,7 +31,7 @@ def load(path):
 
 def replay(data, pcm, versatz=None):
     """Rückgabe: Liste (t, b, locked) je Bild der Aufnahme, Analyzer, Zähler."""
-    versatz = data["meta"].get("audio_versatz", 80.0) if versatz is None else versatz
+    versatz = data["meta"].get("audio_versatz", 0.0) if versatz is None else versatz   # nur alte Aufnahmen
     trace = [r for r in data["trace"] if r.get("b_ha") is not None]
     an, c = audio.Analyzer(), BeatCounter()
     bpm = None
@@ -53,8 +53,7 @@ def replay(data, pcm, versatz=None):
                 continue
             locked = an.phase_ok(now)
             frac = an.phase(now + versatz / 1000.0) if locked else None
-            ch = an.changes_since(c.seen_bc) if locked else None
-            b = c.update(now, r["b_ha"], frac, an.drop_at, an.change_at, bpm, ch)
+            b = c.update(now, r["b_ha"], frac, an.drop_at, an.change_at, bpm)
             out.append((now, b, locked))
     return out, an, c, bpm
 
@@ -87,7 +86,7 @@ for path in sys.argv[1:]:
     st = an.status(frames[-1][0])
     print(f"   Tempo {bpm} BPM (Analyse {st['bpm']}), Sicherheit {st['sicher']}, eingerastet in "
           f"{100 * sum(f[2] for f in frames) / len(frames):.0f} % der Bilder")
-    print(f"   „1“: {c.bar_info()}, Verteilung {[round(x, 2) for x in c.bar_bins]}")
+    print(f"   „1“: {c.bar_info()}")
     print(f"   Ereignisse: {[e[1] for e in c.events]}")
     geraet = [(r["t"], r["b"], r["locked"]) for r in data["trace"] if r.get("b") is not None]
     for name, fr in (("am Gerät", geraet), ("nachgespielt", frames)):

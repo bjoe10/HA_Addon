@@ -147,9 +147,8 @@ function showSync(s, fps) {
   $('syncstat').textContent = !s ? 'Keine Show läuft.'
     : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Spotify-Position (ungenau)')
       + (s.eins ? ' · „1“ ' + (s.eins.quelle === 'Beat This' ? `von Beat This (${Math.round(s.eins.deutlich * 100)} % einig)`
-                               : s.eins.quelle === 'Audio' ? `aus dem Audio (${s.eins.deutlich}×)`
                                : s.eins.quelle === 'von Hand' ? 'von Hand gesetzt'
-                               : `geschätzt, lernt noch (${s.eins.schlaege} Schläge)`) : '')
+                               : 'geschätzt, Beat This rechnet noch') : '')
       + (fps ? ` · ${fps} Bilder/s` + (fps < 25 ? ' (zu wenig, Soll 40)' : '') : '')
       + (status.senden ? ` · Senden: größte Lücke ${status.senden.max_ms} ms, ${status.senden.ruckler} Ruckler in 10 s` : '')
       + (s.ereignisse.length ? ' · ' + s.ereignisse.join(', ') : '');

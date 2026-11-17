@@ -1,13 +1,13 @@
 """Lampen über HA. Sie folgen dem Song-Thema: Die Ambilights wechseln hart auf dem Schlag die Farbe (Rhythmus,
 Dunkelzeit und Vorlauf in der Oberfläche), die Schränke spielen pro Takt im Wechsel. Gesendet wird nur, was sich
 ändert; die Yeelights hängen lokal."""
-import json
 import threading
 import time
 from collections import deque
 
 import config
 import ha
+import jsonfile
 import show
 from settings import SETTINGS
 
@@ -52,20 +52,6 @@ CHECKS = (5.0, 20.0, 65.0, 120.0)   # nach der Party prüfen, ob alles zurück i
 BUSY = set()               # Gruppen, deren Befehl gerade unterwegs ist
 RETRY = {}                 # Gruppe → frühester neuer Versuch nach einem Fehler
 PARALLEL = True            # jede Gruppe sendet in einem eigenen Thread (ein langsamer Befehl hält keine andere auf)
-
-
-def _load(path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
-def _save(path, data):
-    try:
-        path.write_text(json.dumps(data), encoding="utf-8")
-    except OSError:
-        pass
 
 
 def _close(a, b, tol=20):
@@ -130,7 +116,7 @@ def restore(transition=None):
     if not LAMP["snapshot"]:
         return False
     if SHOWN:
-        _save(SHOW_FILE, {e: rgb for e, rgb in SHOWN.items() if rgb})
+        jsonfile.save(SHOW_FILE, {e: rgb for e, rgb in SHOWN.items() if rgb})
     data = {"entity_id": f"scene.{SCENE_ID}"}
     if transition:
         data["transition"] = transition
@@ -143,20 +129,20 @@ def snapshot():
     """Party-Start: Zustand der Lampen als HA-Szene sichern. Leuchten Lampen noch in den Farben der letzten Show,
     bleibt die alte Szene. True, wenn eine Szene da ist."""
     cur = ha.lights(ENTITIES)
-    left = stuck(cur, _load(SHOW_FILE))
+    left = stuck(cur, jsonfile.load(SHOW_FILE))
     if left and ha.states([f"scene.{SCENE_ID}"]):
         print(f"Lampen noch in den Farben der letzten Show ({', '.join(left)}): Szene „vorher“ bleibt", flush=True)
         return True
     if not ha.call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": ENTITIES}):
         return False
-    _save(BEFORE_FILE, cur)
+    jsonfile.save(BEFORE_FILE, cur)
     SHOW_FILE.unlink(missing_ok=True)
     return True
 
 
 def check_restored(last):
     """Nach der Party: Ist alles zurück? Sonst die Szene noch einmal (außer bei der letzten Prüfung)."""
-    before = _load(BEFORE_FILE)
+    before = jsonfile.load(BEFORE_FILE)
     if not before or restored(ha.lights(ENTITIES), before):
         if before:
             print("Lampen wieder wie vor der Party", flush=True)

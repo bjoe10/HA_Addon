@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.11
+
+Aufgeräumt, ohne Änderung an der Show:
+- **„1“ aus dem Klangwechsel entfernt:** lief seit 0.9.8 nur noch ohne Beat This und traf in den Aufnahmen kaum.
+  Ohne Beat This ist die „1“ jetzt geschätzt (Drop und Phrasenwechsel ziehen die Zählung weiter nach).
+- **Regler „Audio-Versatz“ entfernt:** Den Abgleich macht seit 0.8.15 der Ton-Vorlauf; der Versatz stand auf 0.
+- Unbenutzte Werte in der Audioanalyse (Onset-Liste, Pegelspitze der Rohdaten) und in Beat This entfernt, alte
+  Umstellungen der Einstellungen gestrichen.
+- Gemeinsame Funktion für die JSON-Dateien (`jsonfile.py`) statt eigener Lese- und Schreibroutinen in fünf
+  Modulen; die Abfrage „Audio vorhanden und an“ steht nur noch an einer Stelle.
+
 ## 0.9.10
 
 - **Ohne Party kein Art-Net:** Bisher gingen 40-mal pro Sekunde Pakete an Köpfe und Laser, auch wenn deren

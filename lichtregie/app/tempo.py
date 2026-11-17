@@ -4,6 +4,7 @@ import urllib.parse
 import urllib.request
 
 import config
+import jsonfile
 
 URL = "https://api.freqblog.com/lookup"
 
@@ -13,15 +14,11 @@ def _cache_file():
 
 
 def _cache():
-    try:
-        return json.loads(_cache_file().read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    return jsonfile.load(_cache_file())
 
 
 def _store(cache):
-    _cache_file().parent.mkdir(parents=True, exist_ok=True)
-    _cache_file().write_text(json.dumps(cache, ensure_ascii=False, indent=1), encoding="utf-8")
+    jsonfile.save(_cache_file(), cache, indent=1)
 
 
 def tempo(title, artist):

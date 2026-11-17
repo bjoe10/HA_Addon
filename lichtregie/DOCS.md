@@ -43,8 +43,8 @@ Mit Audio rastet die Show auf den echten Schlag ein und erkennt Breaks und Drops
    Spotify-Connect-Plugin von Music Assistant.
 3. Auf der Startseite zeigt die Kachel „Audio: Takt sitzt“, dass es funktioniert. Zum Abgleich unter
    Feinabstimmung den **Takt-Test** einschalten:
-   Die Köpfe blitzen auf jedem Schlag. Kommt der Blitz vor dem Kick, Audio-Versatz nach links (minus),
-   kommt er danach, nach rechts (plus). Danach Takt-Test wieder aus.
+   Die Köpfe blitzen auf jedem Schlag. Kommt der Blitz vor dem Kick, den Ton-Vorlauf erhöhen, kommt er
+   danach, verringern (gemessen: 1,0 s). Danach Takt-Test wieder aus.
 
 Ohne Audio (z. B. Spotify direkt auf den Lautsprecher) läuft die Show mit Tempo aus der Datenbank weiter.
 
@@ -76,7 +76,7 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre Helligkeit, Automatik.
 - **Feinabstimmung:** Takt-Sync (Anzeige von Takt und Phrase und woher die „1“ kommt, „1“ mit Beat This, Einsatz von Hand
   verschieben; das gilt dann für das ganze Lied), Audio und
-  Takt-Test mit Audio-Versatz, Lampen (Rhythmus der Farbwechsel ab einem Takt, harter Wechsel, Vorlauf,
+  Takt-Test mit Ton-Vorlauf, Lampen (Rhythmus der Farbwechsel ab einem Takt, harter Wechsel, Vorlauf,
   Lampen-Test mit Messwerten), Bewegungstempo, Anschub und
   Vorsteuerung, Laser-Bereich (Grenzen und Show-Mitte), Zeit bis zum automatischen Aus, Aufnahme für die Fehlersuche
   (90 s Ton und Entscheidungen der Erkennung als ZIP zum Herunterladen).

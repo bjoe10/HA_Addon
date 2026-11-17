@@ -7,11 +7,11 @@ Automatik: geht an, sobald Musik ankommt (Ton am AirPlay-Empfänger, ohne Empfä
 aus, wenn so lange keine Musik lief, wie in „party_aus_min“ steht. Ein Stopp von Hand gilt, bis die Musik
 einmal eine Minute aus war; sonst würde die Automatik sofort wieder einschalten.
 """
-import json
 import threading
 import time
 
 import config
+import jsonfile
 import engine
 import ha
 import heads
@@ -30,19 +30,13 @@ PARK_SEC = 3.5           # Skript „Moving Head off“), erst danach gehen die 
 
 
 def _save():
-    try:
-        FILE.write_text(json.dumps({"on": PARTY["on"], "last_music": PARTY["last_music"]}), encoding="utf-8")
-    except OSError:
-        pass
+    jsonfile.save(FILE, {"on": PARTY["on"], "last_music": PARTY["last_music"]})
 
 
 def resume():
     """Nach einem Neustart des Add-ons: Lief die Party, läuft sie weiter (Geräte bleiben an, Raum dunkel).
     Ohne Musik schaltet die Automatik sie nach der üblichen Zeit ab."""
-    try:
-        saved = json.loads(FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return
+    saved = jsonfile.load(FILE)
     if saved.get("on"):
         start("nach Neustart fortgesetzt", last_music=float(saved.get("last_music") or time.time()))
 
@@ -89,7 +83,7 @@ def stop(why="von Hand", manual=True):
 
 
 def _audio(now):
-    return engine.AUDIO is not None and SETTINGS["audio"] and engine.AUDIO.signal(now)
+    return engine.audio_mode() and engine.AUDIO.signal(now)
 
 
 def _spotify(now, tick):
@@ -104,7 +98,7 @@ def _spotify(now, tick):
 def _music(now, tick):
     """Starten darf nur Ton am Empfänger (ohne Empfänger: Spotify spielt). Läuft die Party schon, hält sie
     auch Spotify am Leben, damit sie bei einer Störung des Empfängers nicht ausgeht."""
-    if engine.AUDIO is None or not SETTINGS["audio"]:
+    if not engine.audio_mode():
         return _spotify(now, tick)
     if _audio(now):
         _spotify(now, tick)                    # Titel für die Anzeige trotzdem lesen
