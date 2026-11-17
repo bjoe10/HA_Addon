@@ -86,12 +86,15 @@ def compute_plan(snapshot,config,learning_artifact=None,dataset=None,price_histo
     charge_eff=calibration['charge_efficiency'] if measured else config['roundtrip_efficiency']/config['discharge_efficiency']
     efficiency={'source':'measured' if measured else 'configured','charge_efficiency':charge_eff,'discharge_efficiency':discharge_eff,
                 'roundtrip':charge_eff*discharge_eff,'measurement':calibration}
+    margin=float(config.get('grid_charge_margin_eur_kwh',0.));discount=float(config.get('estimated_value_discount',0.))
+    if not 0<=margin<=1 or not 0<=discount<1:raise ValueError('Invalid margin or discount')
     params=Params(capacity_kwh=data['planning_capacity_kwh'],reserve_kwh=data['reserve_kwh'],
         initial_kwh=data['initial_kwh'],pv_coupling='dc',max_charge_kw=config['max_charge_kw'],
         max_discharge_kw=config['max_discharge_kw'],discharge_efficiency=discharge_eff,
         charge_efficiency=charge_eff,energy_step_kwh=config['energy_step_kwh'],
         grid_charge_limit_kwh=data['grid_charge_limit_kwh'],decision_block_minutes=config.get('decision_block_minutes',30),
-        terminal_value_eur_kwh=0.,switch_cost_eur=float(config.get('switch_cost_eur',0.)))
+        terminal_value_eur_kwh=0.,switch_cost_eur=float(config.get('switch_cost_eur',0.)),
+        charge_margin_eur_kwh=margin)
     tail=build_tail(snapshot,data,rows[-1].end,observations,
                     price_history or [],days=int(config.get('forecast_tail_days',7)),evidence=price_evidence,
                     price_model=config.get('tail_price_model','flat_median'),
@@ -103,6 +106,9 @@ def compute_plan(snapshot,config,learning_artifact=None,dataset=None,price_histo
                     long_days=int(config.get('tail_price_long_days',28)),weekday=bool(config.get('tail_price_weekday',False)),
                     load_estimator=config.get('load_estimator','median'),load_half_life=float(config.get('load_half_life_days',7)))
     curve=continuation_curve(scenario_rows(tail),params,mean_weight=float(config.get('tail_scenario_mean_weight',.5)),end_value_eur_kwh=tail_end_value(config))
+    # Energy carried beyond the known prices is worth what ESTIMATED prices say; they are discounted, so that
+    # holding or charging for those days needs a clear advantage. Known prices are not touched.
+    curve=[(energy,value*(1-discount)) for energy,value in curve]
     params=replace(params,terminal_value_curve=tuple(map(tuple,curve)))
     candidate=optimize(rows,params)
     policy=choose_operation(rows,params,candidate,config)
@@ -130,7 +136,8 @@ def compute_plan(snapshot,config,learning_artifact=None,dataset=None,price_histo
       'plan':result,'charge_schedule':charge,'serve_schedule':serve,
       'target_soc':max(0,min(100,target)),'pv_sensitivity':sensitivity,
       'terminal_value':{'method':'uncertain_recharge_aware_continuation_curve','curve':curve,
-        'legacy_fixed_credit_ignored':True,'no_tail_end_credit':True},
+        'legacy_fixed_credit_ignored':True,'no_tail_end_credit':True,
+        'estimated_value_discount':discount,'grid_charge_margin_eur_kwh':margin},
       'multiday_forecast':tail,
       'operating_policy':{k:v for k,v in policy.items() if k!='plan'},
       'optimization_candidate':candidate,

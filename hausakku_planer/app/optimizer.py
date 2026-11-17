@@ -67,6 +67,9 @@ class Params:
     decision_block_minutes: int = 0
     terminal_value_curve: tuple = ()  # (DC inventory, EUR credit), replaces linear credit
     switch_cost_eur: float = 0.0  # planning-only cost per mode change; never in reported cash
+    # Planning-only: what a grid-charged kWh must earn above its break-even, per kWh later usable in the
+    # house (charger AC x round trip). Never in reported cash.
+    charge_margin_eur_kwh: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -250,11 +253,17 @@ def _choose(stage, energy, previous, p, allowed, grid, future):
         rest = _interpolate(grid, future[mode], f['terminal_kwh'])
         switched = previous is not None and previous != mode
         # Relay/charger wear and fragmented windows: a small planning-only cost.
-        score = (f['cost_eur'] + p.switch_cost_eur * switched + rest[0], f['charger_ac_kwh'] + rest[1],
+        score = (f['cost_eur'] + p.switch_cost_eur * switched + charge_margin(p, f['charger_ac_kwh']) + rest[0],
+                 f['charger_ac_kwh'] + rest[1],
                  switched + rest[2])
         if _better(score, best):
             best, chosen = score, mode
     return chosen, best
+
+
+def charge_margin(p, charger_ac_kwh):
+    """The margin grid charging has to clear, in EUR, for this much charger energy."""
+    return p.charge_margin_eur_kwh * charger_ac_kwh * p.charge_efficiency * p.discharge_efficiency
 
 
 def inventory_value(p, energy):
@@ -307,12 +316,13 @@ def _replay(rows, modes, p):
                 objective_eur=cost - inventory_value(p, energy))
 
 
-def _select(plans, switch_cost=0.0):
+def _select(plans, switch_cost=0.0, p=None):
     selected, best = None, None
     for plan in plans:
         modes = plan['modes']
         switches = sum(a != b for a, b in zip(modes, modes[1:]))
-        score = (plan['objective_eur'] + switch_cost * switches,
+        margin = charge_margin(p, math.fsum(f['charger_ac_kwh'] for f in plan['intervals'])) if p else 0.0
+        score = (plan['objective_eur'] + switch_cost * switches + margin,
                  math.fsum(f['charger_ac_kwh'] for f in plan['intervals']), switches)
         if _better(score, best):
             selected, best = plan, score
@@ -329,8 +339,8 @@ def optimize(intervals: Sequence[Interval], params: Params) -> dict:
     _params(params)
     rows = _intervals(intervals)
     baseline = _replay(rows, ['hold' if _hold_only(row) else 'serve' for row in rows], params)
-    no_charge = _select([_replay(rows, _dp_modes(rows, params, False), params), baseline], params.switch_cost_eur)
-    plan = _select([_replay(rows, _dp_modes(rows, params, True), params), no_charge], params.switch_cost_eur)
+    no_charge = _select([_replay(rows, _dp_modes(rows, params, False), params), baseline], params.switch_cost_eur, params)
+    plan = _select([_replay(rows, _dp_modes(rows, params, True), params), no_charge], params.switch_cost_eur, params)
     return dict(plan, params=asdict(params), comparison=dict(
         serve_baseline=baseline, optimized_no_charge=no_charge,
         hold_benefit_eur=baseline['cost_eur'] - no_charge['cost_eur'],

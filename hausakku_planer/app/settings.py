@@ -45,7 +45,7 @@ DEFAULTS={
  'entities':{r:([] if r in LISTS else None) for r in ROLES},
  'prices':{'provider':'tibber','tibber_home':None,'entity':None,'attribute':None,'bidding_zone':'DE-LU','markup_ct':0.0,'vat_percent':0.0},
  'battery':{'capacity_kwh':None,'max_charge_kw':None,'max_discharge_kw':None,'nominal_voltage':None},
- 'tariff':{'price_floor_eur_kwh':None},
+ 'tariff':{'price_floor_eur_kwh':None,'grid_charge_margin_eur_kwh':None,'estimated_value_discount':None},
  'planner':{},
 }
 
@@ -128,6 +128,8 @@ class Settings:
         floor=self.data['tariff'].get('price_floor_eur_kwh')
         if floor is not None:   # fixed price parts that no market price falls below: bounds forecasts and leftover energy value
             config['tail_price_floor_eur_kwh']=float(floor);config['tail_end_value_from_floor']=True
+        for key in ('grid_charge_margin_eur_kwh','estimated_value_discount'):   # caution of the strategy; empty keeps the default
+            if self.data['tariff'].get(key) is not None:config[key]=float(self.data['tariff'][key])
         return config
 
 def operating_mode():

@@ -312,4 +312,13 @@ def validate_settings(data):
             if not 0<=v<=1:raise ValueError
             clean['tariff']['price_floor_eur_kwh']=v
         except (TypeError,ValueError):errors['tariff.price_floor_eur_kwh']='Preis zwischen 0 und 1 €/kWh erwartet'
+    for key,hi,msg in (('grid_charge_margin_eur_kwh',.5,'Marge zwischen 0 und 50 ct/kWh erwartet'),
+                       ('estimated_value_discount',.5,'Abschlag zwischen 0 und 50 % erwartet')):
+        raw=(data.get('tariff') or {}).get(key);clean['tariff'][key]=None
+        if raw in (None,''):continue
+        try:
+            v=float(str(raw).replace(',','.'))
+            if not 0<=v<=hi:raise ValueError
+            clean['tariff'][key]=v
+        except (TypeError,ValueError):errors['tariff.'+key]=msg
     return clean,errors

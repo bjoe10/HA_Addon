@@ -128,6 +128,15 @@ Montags 08:00 rechnet das Add-on nach, was die Steuerung in der letzten Woche ta
 
 Sie braucht außerdem für jede Stunde einen Wert aller Zähler, auch der Fahrzeug-Zähler. Fehlen am Ende der Woche Stunden, etwa weil ein Zähler ausgefallen ist, bricht sie ab und nennt den Zähler. Nach dem Austausch des Zählers in den Einstellungen holt **„Wochenbilanz rechnen“** auf der Übersicht sie nach.
 
+## Vorsicht bei unsicheren Preisen
+
+Schaltfenster gibt es nur für bekannte Preise. Was der Akku am Ende dieses Zeitraums noch enthält, bewertet der Planer aber mit **geschätzten** Preisen der Folgetage, und daraus kann sich Aufheben oder Netzladen ergeben. Zwei Einstellungen halten das im Zaum:
+
+- **Mindestmarge Netzladen** (Standard 5 ct/kWh): Geladen wird nur, wenn jede geladene kWh später mindestens so viel mehr einbringt, als sie samt Lade- und Entladeverlusten gekostet hat. Beispiel bei 74 % Wirkungsgrad: Laden zu 30 ct lohnt rechnerisch ab 40,5 ct, mit Marge erst ab 45,5 ct.
+- **Abschlag auf geschätzte Preise** (Standard 10 %): Energie für Tage ohne bekannte Preise zählt um diesen Anteil weniger. So nutzt der Planer den Akku eher im bekannten Zeitraum, wenn der Vorteil des Wartens klein ist.
+
+Höhere Werte machen den Planer zurückhaltender, 0 schaltet die jeweilige Vorsicht ab.
+
 ## Ersparnis
 
 Die Ersparnis vergleicht deine Anlage mit derselben Anlage, deren Wechselrichter dauernd an ist und die nie aus dem Netz lädt. Diese Vergleichsanlage ist ein **Schatten-Akku**, den das Add-on in Viertelstunden mitlaufen lässt: gleicher Verbrauch, gleiche PV, gleiche Tibber-Viertelstundenpreise, gemessen aus den 5-Minuten-Werten von Home Assistant. Fortgeschrieben wird bei jedem Lauf, also stündlich.

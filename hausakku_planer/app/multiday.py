@@ -485,7 +485,7 @@ def score_issues(path,dataset,as_of,budget_s=SCORE_BUDGET_S):
                     h=(end-t)/3600
                     observed.append(Interval(datetime.fromtimestamp(t,TZ),datetime.fromtimestamp(end,TZ),price,a['load_kwh']*h,a['pv_kwh']*h))
                 if len(observed)!=len(plan['intervals']):break
-                original=Params(**{**plan['params'],'terminal_value_eur_kwh':0.,'terminal_value_curve':(), 'decision_block_minutes':0})
+                original=Params(**{**plan['params'],'terminal_value_eur_kwh':0.,'terminal_value_curve':(), 'decision_block_minutes':0,'charge_margin_eur_kwh':0.})
                 replay=_replay(observed,plan['modes'],original)
                 params=replace(original,initial_kwh=replay['terminal_kwh'])
                 # Every policy sees identical recharge opportunities; older archive

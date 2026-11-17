@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0
+- **Vorsichtigere Strategie bei unsicheren Preisen.** Auslöser: Am 15./16.11. lud der Planer für geschätzte Folgetage aus dem Netz, zuletzt zu 40 ct, was sich erst ab 54 ct gelohnt hätte.
+  - **Mindestmarge fürs Netzladen** (Standard 5 ct/kWh): Jede aus dem Netz geladene kWh muss später mindestens so viel mehr einbringen, als sie samt Verlusten gekostet hat. Vorher reichte jeder berechnete Vorteil über 0.
+  - **Abschlag auf geschätzte Preise** (Standard 10 %): Energie, die über die bekannten Preise hinaus aufgehoben oder geladen wird, zählt entsprechend weniger. Innerhalb der bekannten Preise ändert sich nichts.
+  - Beide Werte stehen in den Einstellungen unter Standort und Akku; leer gilt der Standard. Die Marge ist reine Planungsgröße und geht nicht in die ausgewiesenen Kosten ein.
+
 ## 0.13.2
 - **Ersparnis: Eigenverbrauch des Wechselrichters.** Einmal am Tag misst das Add-on aus den Stundenwerten der letzten 28 Tage (Stunden mit Wechselrichter an, ohne PV und Laden), was der Wechselrichter unter Last verliert und was er im Betrieb selbst verbraucht (Ausgleichsgerade Akku-Entnahme gegen Wechselrichter-Ausgang). Die Vergleichsanlage mit dauernd eingeschaltetem Wechselrichter zahlt diesen Eigenverbrauch jede Viertelstunde über der Reserve; die echte Fahrweise nur, solange sie versorgt. Braucht den Akku-Entladezähler (DC); ohne ihn bleibt es beim bisherigen Wirkungsgrad. Attribute `inverter` (Messwerte) und `shadow_standby_kwh`.
 

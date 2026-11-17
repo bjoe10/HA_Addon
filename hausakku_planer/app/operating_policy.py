@@ -4,7 +4,7 @@ The minimum expected-gain threshold applies only to incremental grid charging.
 """
 from dataclasses import replace
 import math
-from optimizer import _replay
+from optimizer import _replay,charge_margin
 
 def choose_operation(rows,params,candidate,config):
     pv_factor=float(config.get('normal_pv_factor',.65))
@@ -35,12 +35,14 @@ def choose_operation(rows,params,candidate,config):
     # day (horizon simply ends at the last known Tibber interval).
     terminal_value=float(getattr(params,'terminal_value_eur_kwh',0.) or 0.)
     charge_gain_gate=no_charge['objective_eur']-candidate['objective_eur']
+    # Grid charging also has to clear its margin per kWh (see Params.charge_margin_eur_kwh).
+    required_margin=charge_margin(params,math.fsum(f['charger_ac_kwh'] for f in candidate['intervals']))
     # The tolerance applies only to ADDITIONAL grid charging, not preservation
     # of existing/PV energy for price peaks. Compare against the best no-charge
     # plan; total savings may mostly come from holding and cannot justify charge.
     if sufficient and hold_objective_gain<=1e-9 and charge_gain_gate<=1e-9:
         reason='energy_sufficient'
-    elif uses_grid_charge and charge_gain_gate>1e-9 and charge_gain_gate+1e-10>=threshold:
+    elif uses_grid_charge and charge_gain_gate>1e-9 and charge_gain_gate+1e-10>=threshold+required_margin:
         reason='economic_optimization'
     elif hold_objective_gain>1e-9:
         reason='peak_hold'
@@ -61,15 +63,15 @@ def choose_operation(rows,params,candidate,config):
                   'approximation':candidate['approximation']}
     texts={
         'energy_sufficient':'Normalbetrieb: Akku und vorsichtige PV-Prognose decken die zeitlich lieferbare Last.',
-        'gain_below_threshold':'Normalbetrieb: kein berechneter Aufhebevorteil; zusätzliche Netzladung erreicht die Mindest-Ersparnis nicht.',
-        'peak_hold':'Spitzenbetrieb: vorhandene/PV-Energie für teure Stunden aufheben; keine zusätzliche Netzladung. Die Mindest-Ersparnis gilt nur für Netzladung.',
+        'gain_below_threshold':'Normalbetrieb: kein berechneter Aufhebevorteil; zusätzliche Netzladung erreicht die Mindestmarge nicht.',
+        'peak_hold':'Spitzenbetrieb: vorhandene/PV-Energie für teure Stunden aufheben; keine zusätzliche Netzladung (kein Vorteil über der Mindestmarge).',
         'economic_optimization':'Optimierung: zusätzliche Netzladung hat gegenüber reinem Aufheben ausreichend berechneten Mehrwert.',
     }
     selected['comparison']['objective_savings_eur']=baseline['objective_eur']-selected['objective_eur']
     selected['comparison']['estimated_carryover_benefit_eur']=selected.get('carryover_value_eur',0.)-baseline.get('carryover_value_eur',0.)
     return {'plan':selected,'reason_code':reason,'reason':texts[reason],
             'carryover_curve_active':bool(params.terminal_value_curve),
-            'candidate_savings_eur':saving,'minimum_savings_eur':threshold,
+            'candidate_savings_eur':saving,'minimum_savings_eur':threshold,'grid_charge_margin_required_eur':required_margin,
             'candidate_incremental_grid_charge_benefit_eur':charge_gain,
             'terminal_value_eur_kwh':terminal_value,
             'candidate_incremental_grid_charge_objective_eur':charge_gain_gate,
