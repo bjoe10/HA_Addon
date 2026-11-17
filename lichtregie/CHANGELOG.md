@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.12
+
+Oberfläche aufgeräumt:
+- **Feinabstimmung** enthält nur noch, was man während der Party anfasst: Takt-Sync („Jetzt ist die 1“, ±1 Schlag,
+  „1“ mit Beat This; ±1 Takt und die „1“ der Phrase aufklappbar) und den Rhythmus der Lampen.
+- **Einrichten** sammelt, was man einmal einstellt: Ton und Takt (Audio, Takt-Test, Ton-Vorlauf), Lampen-Test und
+  Vorlauf, Bewegung der Köpfe, Laser-Bereich. Dazu die zugeklappte Karte **Technik und Fehlersuche** mit Bildrate,
+  Sender (Lücken, verworfene Pakete), Beat This, Lampenbefehlen und der Aufnahme.
+- Doppelte Schalter entfernt: „Senden“ beim Laser von Hand (gleich dem Laser-Schalter auf der Show-Seite) und die
+  eigene Karte „Automatik“ (die Zeit bis zum Aus steht jetzt beim Automatik-Schalter).
+
 ## 0.9.11
 
 Aufgeräumt, ohne Änderung an der Show:

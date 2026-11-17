@@ -58,48 +58,38 @@
   <label>Lampen Vitrinen <span class="val" data-val="lampen_vitrine" data-unit=" %"></span>
    <input type="range" data-set="lampen_vitrine" min="0" max="150" step="5"></label>
   <div class="switches one"><button class="sw" data-set="automatik">Automatik</button></div>
-  <p class="hint">Automatik: Die Party geht an, sobald Musik ankommt, und aus, wenn
-   <span id="ausmin">15</span> Minuten keine lief. Nebel an bevorzugt Strahl-Effekte.</p>
+  <label>Aus nach <span class="val" data-val="party_aus_min" data-unit=" min ohne Musik"></span>
+   <input type="range" data-set="party_aus_min" min="1" max="60" step="1"></label>
+  <p class="hint">Automatik: Die Party geht an, sobald Musik ankommt, und aus, wenn so lange keine lief.
+   Nebel an bevorzugt Strahl-Effekte. Laser aus: Die Lichtregie sendet nicht an den Laser.</p>
  </section>
 </main>
 
-<!-- ===================== Feinabstimmung ===================== -->
+<!-- ===================== Feinabstimmung: was man während der Party anfasst ===================== -->
 <main id="tab-fein" hidden>
  <section class="card">
   <h2>Takt-Sync</h2>
   <div class="phrase" id="phrase"></div>
   <p class="status" id="syncstat">–</p>
+  <button id="eins">Jetzt ist die 1</button>
   <div class="switches">
-   <button id="syncm4">−1 Takt</button><button id="syncp4">+1 Takt</button>
    <button id="syncm1">−1 Schlag</button><button id="syncp1">+1 Schlag</button>
   </div>
-  <button id="eins">Jetzt ist die 1 (Takt)</button>
-  <button id="einsphrase" class="ghost">Jetzt ist die 1 (Phrase)</button>
-  <p class="hint">Die 32 Punkte sind eine Phrase aus 8 Takten à 4 Schlägen; der helle Punkt ist der aktuelle
-   Schlag, die erste Gruppe ist der Phrasenanfang. Stimmt der Einsatz nicht (z. B. nach einem Break), im Moment
-   der echten „1“ auf „Jetzt ist die 1“ tippen oder um Takte und Schläge verschieben. Mit dem Takt-Test (unten)
-   blitzt die 1 des Takts auf beiden Köpfen, die 1 der Phrase doppelt so lang.</p>
- </section>
-
- <section class="card">
-  <h2>Audio und Takt</h2>
-  <p class="status" id="audiostat">–</p>
-  <div class="switches">
-   <button class="sw" data-set="audio">Audio</button>
-   <button class="sw" data-set="takttest">Takt-Test</button>
-  </div>
   <div class="switches one"><button class="sw" data-set="beatthis">„1“ mit Beat This</button></div>
-  <label>Ton-Vorlauf <span class="val" data-val="ton_vorlauf" data-unit=" s"></span>
-   <input type="range" data-set="ton_vorlauf" min="0" max="2" step="0.01"></label>
-  <p class="hint">Ton-Vorlauf: Der Empfänger bekommt den Ton etwa 1 s bevor der Lautsprecher ihn spielt (gemessen:
-   1,0 s). Die Show läuft um so viel zurückversetzt, dann passen Schlag, „1“, Break und Drop bei jedem Tempo.
-   Takt-Test: Beide Köpfe blitzen weiß auf jedem Schlag, doppelt lang auf der „1“ der Phrase. Sitzt der Blitz
-   nicht auf dem Kick, den Ton-Vorlauf fein nachstellen.</p>
+  <details>
+   <summary>Mehr: um Takte verschieben, Phrase</summary>
+   <div class="switches">
+    <button id="syncm4">−1 Takt</button><button id="syncp4">+1 Takt</button>
+   </div>
+   <button id="einsphrase" class="ghost">Jetzt ist die 1 der Phrase</button>
+  </details>
+  <p class="hint">Die 32 Punkte sind eine Phrase aus 8 Takten à 4 Schlägen; der helle Punkt ist der aktuelle
+   Schlag. Die „1“ findet Beat This von selbst (nach gut 20 s im Lied). Stimmt sie nicht, im Moment der echten
+   „1“ auf „Jetzt ist die 1“ tippen; das gilt dann für das ganze Lied.</p>
  </section>
 
  <section class="card">
   <h2>Lampen</h2>
-  <p class="status" id="lampstat">–</p>
   <p class="label">Farbwechsel der Ambilights</p>
   <div class="switches">
    <button class="sw" data-choice="lampen_wechsel" data-value="8">2 Takte</button>
@@ -107,16 +97,60 @@
    <button class="sw" data-choice="lampen_wechsel" data-value="32">8 Takte</button>
    <button class="sw" data-choice="lampen_wechsel" data-value="0">nach Lied</button>
   </div>
+  <div class="switches one"><button class="sw" data-set="lampen_hart">Harter Wechsel</button></div>
+  <p class="hint">Die Ambilights wechseln auf der „1“ eines Takts die Farbe. „Nach Lied“: alle 8 oder 16 Takte, je
+   nach Thema. Schneller als 2 Takte geht nicht: Die Yeelights nehmen nur etwa 60 Befehle pro Minute an.</p>
+ </section>
+</main>
+
+<!-- ===================== Einrichten: einmal einstellen ===================== -->
+<main id="tab-einrichten" hidden>
+ <p class="note" id="einrichtenhint">Köpfe und Laser von Hand steuern geht nur, solange die Party aus ist. Sonst
+  überschreibt die Show die Werte.</p>
+ <section class="card">
+  <h2>Raum antippen</h2>
+  <p class="hint">Mit dem Finger auf das Bild. Beide Köpfe zielen auf den Punkt auf Boden, Wand oder Decke.</p>
+  <canvas id="room" class="room"></canvas>
+  <p class="hint" id="coords"></p>
+  <button id="save">Punkt merken</button>
+ </section>
+
+ <div id="heads"></div>
+ <div class="row">
+  <button id="allon">Köpfe an</button>
+  <button id="alloff">Köpfe aus</button>
+ </div>
+
+ <section class="card">
+  <h2>Laser von Hand</h2>
+  <p class="hint">Gesendet wird, wenn auf der Show-Seite „Laser“ an ist; ohne laufende Show mit den Reglern hier.</p>
+  <div class="switches one"><button id="lPower">Steckdose an</button></div>
+  <button id="lPreset" class="ghost">Party-Standard laden</button>
+  <p class="hint" id="lmsg"></p>
+  <div id="lsliders"></div>
+ </section>
+
+ <section class="card">
+  <h2>Ton und Takt</h2>
+  <p class="status" id="audiostat">–</p>
   <div class="switches">
-   <button class="sw" data-set="lampen_hart">Harter Wechsel</button>
-   <button class="sw" data-set="lampentest">Lampen-Test</button>
+   <button class="sw" data-set="audio">Audio</button>
+   <button class="sw" data-set="takttest">Takt-Test</button>
   </div>
+  <label>Ton-Vorlauf <span class="val" data-val="ton_vorlauf" data-unit=" s"></span>
+   <input type="range" data-set="ton_vorlauf" min="0" max="2" step="0.01"></label>
+  <p class="hint">Der Empfänger bekommt den Ton etwa 1 s bevor der Lautsprecher ihn spielt (gemessen: 1,0 s). Die
+   Show läuft um so viel zurückversetzt. Takt-Test (bei laufender Show): Beide Köpfe blitzen weiß auf jedem Schlag,
+   doppelt lang auf der „1“ der Phrase. Sitzt der Blitz nicht auf dem Kick, den Ton-Vorlauf nachstellen.</p>
+ </section>
+
+ <section class="card">
+  <h2>Lampen einstellen</h2>
+  <div class="switches one"><button class="sw" data-set="lampentest">Lampen-Test</button></div>
   <label>Vorlauf <span class="val" data-val="lampen_vorlauf" data-unit=" s"></span>
    <input type="range" data-set="lampen_vorlauf" min="0" max="2" step="0.05"></label>
-  <p class="hint">Die Ambilights wechseln auf der „1“ eines Takts die Farbe, hart ohne Übergang. „Nach Lied“: alle
-   8 oder 16 Takte, je nach Thema. Schneller als 2 Takte geht nicht: Die Yeelights nehmen nur etwa 60 Befehle
-   pro Minute an, und HA schickt je Wechsel zwei. Lampen-Test: Die Ambilights wechseln im eingestellten Rhythmus zwischen rot und blau; den
-   Vorlauf so stellen, dass der Wechsel auf dem Kick sitzt.</p>
+  <p class="hint">Lampen-Test (bei laufender Show): Die Ambilights wechseln im eingestellten Rhythmus zwischen rot
+   und blau; den Vorlauf so stellen, dass der Wechsel auf dem Kick sitzt.</p>
  </section>
 
  <section class="card">
@@ -149,55 +183,22 @@
  </section>
 
  <section class="card">
-  <h2>Aufnahme für die Fehlersuche</h2>
-  <p class="status" id="recstat">–</p>
-  <div class="switches">
-   <button id="recstart">Aufnahme starten (90 s)</button>
-   <button id="recmark" disabled>Hier ist die 1</button>
-  </div>
-  <div class="switches one"><button id="rechang" disabled>Hängt jetzt</button></div>
-  <p class="hint">Schneidet 90 s Ton am Empfänger mit und dazu, was die Erkennung entscheidet. Während der Aufnahme
-   möglichst oft auf der „1“ des Takts „Hier ist die 1“ tippen (ändert die Show nicht, markiert nur). Danach die
-   Datei herunterladen. Am besten bei Liedern aufnehmen, bei denen die Show nicht passt. „Hängt jetzt“ tippen,
-   wenn die Köpfe stocken oder stehen bleiben.</p>
-  <p class="hint" id="recfiles"></p>
- </section>
-
- <section class="card">
-  <h2>Automatik</h2>
-  <label>Aus nach <span class="val" data-val="party_aus_min" data-unit=" min ohne Musik"></span>
-   <input type="range" data-set="party_aus_min" min="1" max="60" step="1"></label>
- </section>
-</main>
-
-<!-- ===================== Einrichten ===================== -->
-<main id="tab-einrichten" hidden>
- <p class="note" id="einrichtenhint">Von Hand steuern geht nur, solange die Party aus ist. Sonst überschreibt die Show die Werte.</p>
- <section class="card">
-  <h2>Raum antippen</h2>
-  <p class="hint">Mit dem Finger auf das Bild. Beide Köpfe zielen auf den Punkt auf Boden, Wand oder Decke.</p>
-  <canvas id="room" class="room"></canvas>
-  <p class="hint" id="coords"></p>
-  <button id="save">Punkt merken</button>
- </section>
-
- <div id="heads"></div>
- <div class="row">
-  <button id="allon">Köpfe an</button>
-  <button id="alloff">Köpfe aus</button>
- </div>
-
- <section class="card">
-  <h2>Laser von Hand</h2>
-  <p class="hint">„Senden aus“: Der Laser bleibt bei Home Assistant. „Senden an“: Die Lichtregie steuert ihn,
-   ohne laufende Show mit den Reglern hier.</p>
-  <div class="switches">
-   <button class="sw" data-set="laser">Senden</button>
-   <button id="lPower">Steckdose an</button>
-  </div>
-  <button id="lPreset" class="ghost">Party-Standard laden</button>
-  <p class="hint" id="lmsg"></p>
-  <div id="lsliders"></div>
+  <details id="technik">
+   <summary>Technik und Fehlersuche</summary>
+   <p class="status" id="technikstat">–</p>
+   <p class="status" id="lampstat">–</p>
+   <p class="label">Aufnahme</p>
+   <p class="status" id="recstat">–</p>
+   <div class="switches">
+    <button id="recstart">Aufnahme starten (90 s)</button>
+    <button id="recmark" disabled>Hier ist die 1</button>
+   </div>
+   <div class="switches one"><button id="rechang" disabled>Hängt jetzt</button></div>
+   <p class="hint">Schneidet 90 s Ton am Empfänger mit und dazu, was die Erkennung entscheidet. „Hier ist die 1“ auf
+    der „1“ des Takts tippen, „Hängt jetzt“, wenn die Köpfe stocken (ändert die Show nicht, markiert nur). Danach
+    die Datei herunterladen.</p>
+   <p class="hint" id="recfiles"></p>
+  </details>
  </section>
 </main>
 

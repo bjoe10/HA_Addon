@@ -71,3 +71,6 @@ input[type=range]{width:100%;height:34px;accent-color:var(--accent)}
 .tile.bad .k::before{background:var(--bad)}
 .tile .v{font-size:15px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .presets button{width:auto;padding:7px 10px;font-size:13px;margin:6px 6px 0 0}
+details summary{cursor:pointer;color:var(--dim);font-size:15px;padding:4px 0;list-style-position:inside}
+details[open] summary{margin-bottom:8px}
+#technik summary{font-size:17px;font-weight:600;color:inherit}

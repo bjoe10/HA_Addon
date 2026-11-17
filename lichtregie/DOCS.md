@@ -42,7 +42,7 @@ Mit Audio rastet die Show auf den echten Schlag ein und erkennt Breaks und Drops
    AirPlay) zu einer **Sync-Gruppe** zusammenfassen und die Musik auf die Gruppe spielen, z. B. über das
    Spotify-Connect-Plugin von Music Assistant.
 3. Auf der Startseite zeigt die Kachel „Audio: Takt sitzt“, dass es funktioniert. Zum Abgleich unter
-   Feinabstimmung den **Takt-Test** einschalten:
+   Einrichten → Ton und Takt den **Takt-Test** einschalten:
    Die Köpfe blitzen auf jedem Schlag. Kommt der Blitz vor dem Kick, den Ton-Vorlauf erhöhen, kommt er
    danach, verringern (gemessen: 1,0 s). Danach Takt-Test wieder aus.
 
@@ -73,15 +73,17 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
 - **Show** (Startseite): Party-Schalter, laufendes Lied mit seinem Thema (Tempo, Stimmung, Farben, Gobos,
   Laser-Rolle) und Schlaganzeige, **Thema neu würfeln** (das neue Thema bleibt für dieses Lied gespeichert),
   Status auf einen Blick (Audio, Spotify, Geräte, Lampen, Laser), Vorschau der Spots im Raumbild, Schalter
-  für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre Helligkeit, Automatik.
-- **Feinabstimmung:** Takt-Sync (Anzeige von Takt und Phrase und woher die „1“ kommt, „1“ mit Beat This, Einsatz von Hand
-  verschieben; das gilt dann für das ganze Lied), Audio und
-  Takt-Test mit Ton-Vorlauf, Lampen (Rhythmus der Farbwechsel ab einem Takt, harter Wechsel, Vorlauf,
-  Lampen-Test mit Messwerten), Bewegungstempo, Anschub und
-  Vorsteuerung, Laser-Bereich (Grenzen und Show-Mitte), Zeit bis zum automatischen Aus, Aufnahme für die Fehlersuche
-  (90 s Ton und Entscheidungen der Erkennung als ZIP zum Herunterladen).
-- **Einrichten:** Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe und des Lasers
-  von Hand, Laser-Steckdose. Nur sinnvoll, solange die Party aus ist.
+  für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre
+  Helligkeit, Automatik mit der Zeit bis zum automatischen Aus.
+- **Feinabstimmung** (während der Party): Takt-Sync (Anzeige von Takt und Phrase und woher die „1“ kommt,
+  „Jetzt ist die 1“, ±1 Schlag, „1“ mit Beat This; aufklappbar ±1 Takt und die „1“ der Phrase; gilt für das ganze
+  Lied), Lampen (Rhythmus der Farbwechsel, harter Wechsel).
+- **Einrichten** (einmal einstellen): Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe
+  und des Lasers von Hand, Laser-Steckdose, Ton und Takt (Audio, Takt-Test, Ton-Vorlauf), Lampen einstellen
+  (Lampen-Test, Vorlauf), Bewegung der Köpfe (Tempo, Anschub, Vorsteuerung), Laser-Bereich (Grenzen und
+  Show-Mitte). Zugeklappt: **Technik und Fehlersuche** (Bildrate, Lücken und verworfene Pakete beim Senden, Beat
+  This, Lampenbefehle, Aufnahme: 90 s Ton und Entscheidungen der Erkennung als ZIP zum Herunterladen). Köpfe und
+  Laser von Hand nur, solange die Party aus ist.
 
 Alle Schalter bleiben über einen Neustart erhalten.
 

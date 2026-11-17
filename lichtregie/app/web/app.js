@@ -1,4 +1,5 @@
-// Lichtregie – Oberfläche. Drei Bereiche: Show (Startseite), Feinabstimmung, Einrichten.
+// Lichtregie – Oberfläche. Drei Bereiche: Show (Startseite), Feinabstimmung (während der Party), Einrichten
+// (einmal einstellen, Technik und Fehlersuche).
 const $ = id => document.getElementById(id);
 const all = sel => Array.from(document.querySelectorAll(sel));
 const timers = {};
@@ -39,7 +40,6 @@ function showSettings() {
     if (document.activeElement !== el) el.value = settings[el.dataset.set];
     showValue(el.dataset.set, settings[el.dataset.set]);
   }
-  $('ausmin').textContent = settings.party_aus_min;
 }
 
 // --- Startseite: Party, Lied, Status -------------------------------------------------------------------
@@ -107,13 +107,12 @@ function showStatus(d) {
     + tile('Spotify', d.titel ? (d.spielt ? 'spielt' : 'pausiert') : 'kein Titel', d.titel ? (d.spielt ? 'ok' : 'warn') : (p.an ? 'bad' : ''))
     + deviceTiles(p)
     + tile('Lampen', settings.lampen ? (p.an ? 'folgen der Show' : 'bereit') : 'abgeschaltet', settings.lampen && p.an ? 'ok' : '')
-    + tile('Laser', settings.laser ? (l ? l.laser : 'bereit') : 'Senden aus', settings.laser && l && l.laser !== 'aus' ? 'ok' : '');
+    + tile('Laser', settings.laser ? (l ? l.laser : 'bereit') : 'aus', settings.laser && l && l.laser !== 'aus' ? 'ok' : '');
   $('audiostat').textContent = !a ? 'Audio: nicht eingerichtet (Add-on-Option AirPlay)'
     : a.an ? `${a.takt ? 'Takt eingerastet' : 'sucht den Takt'} · ${a.bpm || '–'} BPM · Sicherheit ${Math.round(a.sicher * 100)} % · Pegel ${Math.round(a.pegel * 100)} %`
-             + (a.break ? ' · Break' : '') + (a.drop ? ' · Drop' : '') + (a.wechsel ? ' · Klangwechsel' : '')
-      + (d.beatthis && d.beatthis.rechenzeit != null ? ` · Beat This: ${d.beatthis.schlaege} Schläge in ${d.beatthis.rechenzeit} s gerechnet (vor ${d.beatthis.vor_s} s)` : '')
-      + (d.beatthis && d.beatthis.fehler ? ` · Beat This Fehler: ${d.beatthis.fehler}` : '')
+             + (a.break ? ' · Break' : '') + (a.drop ? ' · Drop' : '') + (a.wechsel ? ' · Phrasenwechsel' : '')
     : 'Kein Signal am Empfänger';
+  $('technikstat').textContent = technikText(d);
   const ls = d.lampen;
   $('lampstat').textContent = !ls ? 'Lampen: in der letzten Minute keine Befehle'
     : `Letzte Minute: ${ls.befehle_min} Befehle (Ambilights ${ls.ambilight_min}) · Dauer ${ls.dauer_ms} ms,`
@@ -130,12 +129,29 @@ function showStatus(d) {
     if ($('recfiles').dataset.list !== list) { $('recfiles').dataset.list = list; $('recfiles').innerHTML = list ? 'Herunterladen: ' + list : ''; }
   }
   spots = d.spots || {};
-  showSync(d.sync, d.fps);
+  showSync(d.sync);
   draw();
 }
 // --- Takt-Sync: 8 Takte à 4 Schläge, aktueller Schlag leuchtet ---------------------------------------
 $('phrase').innerHTML = Array.from({length: 8}, (_, i) => `<div class="bar${i === 0 ? ' first' : ''}"><i></i><i></i><i></i><i></i></div>`).join('');
-function showSync(s, fps) {
+// Technik: Bildrate der Show, Lücken beim Senden, Beat This, Eingangsrate des Tons
+function technikText(d) {
+  const parts = [];
+  if (d.fps) parts.push(`Show ${d.fps} Bilder/s` + (d.fps < 25 ? ' (zu wenig, Soll 40)' : ''));
+  if (d.bilder) parts.push(`größte Lücke der Show ${d.bilder.max_ms} ms`);
+  const sd = d.senden;
+  if (sd) {
+    const lost = Object.entries(sd.verworfen || {}).map(([n, c]) => `${n}: ${c}`).join(', ');
+    parts.push(`Senden ${sd.fps}/s, größte Lücke ${sd.max_ms} ms, ${sd.ruckler} Ruckler in 10 s` + (lost ? ` · verworfen ${lost}` : ''));
+  } else parts.push('Art-Net: sendet nicht (Party aus)');
+  const b = d.beatthis;
+  if (b && b.rechenzeit != null) parts.push(`Beat This: ${b.schlaege} Schläge in ${b.rechenzeit} s gerechnet (vor ${b.vor_s} s)`
+    + (b.bpm ? `, ${b.bpm} BPM` : ''));
+  if (b && b.fehler) parts.push(`Beat This Fehler: ${b.fehler}`);
+  if (d.audio && d.audio.eingang != null) parts.push(`Ton kommt mit ${d.audio.eingang}× Echtzeit an`);
+  return parts.join(' · ') || '–';
+}
+function showSync(s) {
   const bars = all('#phrase .bar');
   bars.forEach((bar, bi) => {
     bar.classList.toggle('cur', !!s && s.takt === bi + 1);
@@ -149,8 +165,6 @@ function showSync(s, fps) {
       + (s.eins ? ' · „1“ ' + (s.eins.quelle === 'Beat This' ? `von Beat This (${Math.round(s.eins.deutlich * 100)} % einig)`
                                : s.eins.quelle === 'von Hand' ? 'von Hand gesetzt'
                                : 'geschätzt, Beat This rechnet noch') : '')
-      + (fps ? ` · ${fps} Bilder/s` + (fps < 25 ? ' (zu wenig, Soll 40)' : '') : '')
-      + (status.senden ? ` · Senden: größte Lücke ${status.senden.max_ms} ms, ${status.senden.ruckler} Ruckler in 10 s` : '')
       + (s.ereignisse.length ? ' · ' + s.ereignisse.join(', ') : '');
 }
 for (const [id, body] of [['syncm4', {schlaege: -4}], ['syncp4', {schlaege: 4}], ['syncm1', {schlaege: -1}],
