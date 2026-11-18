@@ -260,7 +260,7 @@ def main():
     print(f"Audioanalyse: {'an, ' + source if engine.AUDIO is not None else 'aus'}", flush=True)
     print(f"Geräte der Party: {config.GERAETE or '-'}", flush=True)
     print(f"Lampen: Grundfarbe {config.LAMPEN_GRUND or '-'}, Akzent {config.LAMPEN_AKZENT or '-'}, "
-          f"aus während der Party {config.LAMPEN_AUS or '-'}", flush=True)
+          f"aus während der Party {config.LAMPEN_AUS or '-'}, LED-Streifen {config.LAMPEN_TV or '-'}", flush=True)
     for k in heads.HEADS:
         print(f"Kopf {k}: Node {config.NODES[k]}, Universe {config.UNIVERSE[k]}, Kanäle {config.LAYOUT[k]} "
               f"({config.HEADS_SOURCE[k]})", flush=True)

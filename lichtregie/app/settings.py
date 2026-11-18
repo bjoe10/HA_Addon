@@ -22,9 +22,11 @@ SETTINGS = {
     # Ambilights: Farbwechsel alle so viele Schläge (0 = nach dem Lied: 8 oder 16 Takte; mindestens ein Takt),
     # hart (ohne Übergang); Lampen-Test zum Einstellen des Vorlaufs
     "lampen_wechsel": 8.0, "lampen_hart": True, "lampentest": False,
-    # LED-Streifen (Govee, Bluetooth, keine Befehlsgrenze, sehr hell): Helligkeit der Farbe, weiße Blitze
-    # (0 nur Farbe, 1 Blinder bei Drop/Höhepunkt, 2 zusätzlich auf jeder „1“ im Höhepunkt), Vorlauf
-    "tv_hell": 5, "tv_blitz": 1, "tv_vorlauf": 0.2,
+    # LED-Streifen (Govee, Bluetooth, sehr hell): Helligkeit der Farbe; Blinder (0 aus, 1 Drop/Höhepunkt,
+    # 2 zusätzlich jeder Phrasenwechsel); Flash auf der „1“ (0 aus, 1 nur Höhepunkt/Drop, 2 immer); Vorlauf
+    # (ein Befehl über HA und Bluetooth dauert ca. 0,36 s)
+    "tv_hell": 5, "tv_blinder": 2, "tv_flash": 0, "tv_vorlauf": 0.35,
+    "tv_blinder_lang": 1.0, "tv_flash_lang": 0.5,           # Länge in Schlägen
     # Laser: Senden an/aus, Schutzgrenzen, Ruhepunkt über dem TV (auf dem TV sieht man ihn schlecht)
     "laser": True, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90,
     "laser_ud_mitte": 76,
@@ -34,7 +36,9 @@ _saved = jsonfile.load(FILE)
 SETTINGS.update(_saved)
 SETTINGS["takttest"] = False   # Takt-Test und Lampen-Test starten nie von selbst
 SETTINGS["lampentest"] = False
-for _old in ("lampen_dunkel", "audio_versatz"):   # entfernte Einstellungen
+if "tv_blitz" in SETTINGS:      # 0.9.17 → 0.9.18: Blinder und Flash getrennt; Vorlauf passend zur gemessenen Dauer
+    SETTINGS["tv_vorlauf"] = max(SETTINGS.get("tv_vorlauf", 0.35), 0.35)
+for _old in ("lampen_dunkel", "audio_versatz", "tv_blitz"):   # entfernte Einstellungen
     SETTINGS.pop(_old, None)
 
 # Erlaubte Werte je Einstellung: bool oder (Typ, min, max)
@@ -42,7 +46,8 @@ RULES = {
     "beatthis": bool, "strobe": bool, "nebel": bool, "anschub": bool, "lampen": bool, "audio": bool, "takttest": bool,
     "laser": bool, "automatik": bool, "party_aus_min": (int, 1, 240),
     "lampen_hart": bool, "lampentest": bool, "lampen_wechsel": (float, 0.0, 64.0),
-    "tv_hell": (int, 0, 100), "tv_blitz": (int, 0, 2), "tv_vorlauf": (float, 0.0, 1.0),
+    "tv_hell": (int, 0, 100), "tv_blinder": (int, 0, 2), "tv_flash": (int, 0, 2), "tv_vorlauf": (float, 0.0, 1.0),
+    "tv_blinder_lang": (float, 0.5, 8.0), "tv_flash_lang": (float, 0.25, 2.0),
     "strobe_menge": (int, 0, 200),
     "offset": (float, -64.0, 64.0), "tempo": (float, 0.25, 4.0), "vorsteuerung": (float, 0.0, 1.0),
     "ton_vorlauf": (float, 0.0, 3.0), "lampen_vorlauf": (float, 0.0, 2.0),

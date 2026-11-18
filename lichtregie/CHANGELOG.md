@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.18
+
+- **LED-Streifen: Blinder und Flash getrennt einstellbar** (Feinabstimmung → Lampen), je mit Dauer in Schlägen:
+  Blinder aus / bei Drop und Höhepunkt / zusätzlich bei jedem Phrasenwechsel (Standard, 1 Schlag); Flash auf der
+  „1“ aus (Standard) / nur in Höhepunkt und Drop / jeder Takt (½ Schlag).
+- **Streifen nicht überfahren:** Zwischen zwei Befehlen liegen mindestens 0,4 s; schneller verschluckte der
+  Streifen Befehle. Gemessen dauert ein Befehl über HA und Bluetooth ca. 0,36 s, der Vorlauf steht deshalb jetzt
+  auf 0,35 s (bisher 0,2 s).
+- Texte nachgezogen: Beschreibung der Option „LED-Streifen“ (gedimmte Farbe, weiße Blitze) und Kurzbeschreibung des
+  Add-ons (Ton, Titel und Position über AirPlay statt Spotify über HA). Das Log nennt beim Start die LED-Streifen.
+
 ## 0.9.17
 
 - **LED-Streifen (neu, Option „LED-Streifen“):** Schnelle Lichter ohne Befehlsgrenze, z. B. der Govee-Streifen

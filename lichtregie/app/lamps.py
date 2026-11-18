@@ -21,7 +21,9 @@ CALLS = deque(maxlen=2000)  # (Zeit, Dauer s, ok, Gruppe) je Befehl an HA: wie s
 # Helligkeit als getrennte Befehle; gezählt wird deshalb je geändertem Wert. Ist das Budget einer Gruppe
 # aufgebraucht, wird der Wechsel ausgelassen statt von der Lampe abgelehnt.
 QUOTA = 50
-QUOTA_GROUP = {"tv": 600}  # LED-Streifen (Govee über Bluetooth) haben keine Befehlsgrenze: bis 10 Befehle/s
+QUOTA_GROUP = {"tv": 600}  # LED-Streifen (Govee über Bluetooth) haben keine Befehlsgrenze
+GAP = {"tv": 0.4}          # … aber zu schnell hintereinander verschluckt der Streifen Befehle: mindestens so viele s
+LAST_SENT = {}             # Gruppe → Zeit des letzten Befehls
 SPENT = {}                 # Gruppe → deque[(Zeit, Befehle)]
 
 
@@ -209,7 +211,8 @@ def want_now():
         want["grund"] = (show.RGB[TEST_COLORS[int(b_lamp // per) % 2]], 100)
     # LED-Streifen: eigener Vorlauf (Bluetooth reagiert schneller als die Yeelights), Wechsel bis auf den Schlag
     b_tv = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["tv_vorlauf"]) * bps
-    rgb, pct, flash = show.tv(LAMP["prof"], b_tv, live, SETTINGS["tv_blitz"])
+    rgb, pct, flash = show.tv(LAMP["prof"], b_tv, live, SETTINGS["tv_blinder"], SETTINGS["tv_flash"],
+                              SETTINGS["tv_flash_lang"], SETTINGS["tv_blinder_lang"])
     if SETTINGS["lampentest"]:
         rgb, pct, flash = show.WHITE, 100, b_tv % 1.0 < show.TV_FLASH   # Blitz auf jedem Schlag, sonst gedimmt weiß
     # Farbe in der eingestellten (geringen) Helligkeit, weiße Blitze immer voll
@@ -232,6 +235,8 @@ def send(want):
     for group, ents in groups():
         if not ents or group in BUSY or now < RETRY.get(group, 0.0) or LAMP["last"].get(group) == want[group]:
             continue
+        if now - LAST_SENT.get(group, 0.0) < GAP.get(group, 0.0):
+            continue                            # noch zu kurz nach dem letzten Befehl: im nächsten Durchlauf
         rgb, pct = want[group]
         prev = LAMP["last"].get(group)
         data = {"entity_id": ents, "transition": trans}
@@ -251,6 +256,7 @@ def send(want):
         if sum(c for _, c in spent) + cost > QUOTA_GROUP.get(group, QUOTA):
             continue                            # Budget der Lampe aufgebraucht: diesen Wechsel auslassen
         spent.append((now, cost))
+        LAST_SENT[group] = now
         BUSY.add(group)
         args = (group, ents, service, data, want[group])
         if PARALLEL:

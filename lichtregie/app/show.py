@@ -671,28 +671,32 @@ def lamps(prof, b, live=None, wechsel=0):
 
 
 WHITE = (255, 255, 255)
-TV_FLASH = 0.35            # Länge eines weißen Blitzes auf der „1“ in Schlägen (bei 130 BPM ca. 160 ms)
+TV_FLASH = 0.5             # Länge eines Flashes auf der „1“ in Schlägen (ein Befehl an den Streifen dauert ca. 0,36 s)
+TV_BLINDER = 1.0           # Länge eines Blinders in Schlägen
 
 
-def tv(prof, b, live=None, blitz=1):
-    """LED-Streifen hinter dem TV (Govee, schnell, sehr hell). Grundzustand: die Farbe des Liedes, gedimmt (die
-    Helligkeit stellt „tv_hell“ ein), bei Höhepunkt und Drop die Akzentfarbe, im Break aus. Dazu weiße Blitze in
-    voller Helligkeit: blitz 1 = Blinder (ein Schlag weiß beim Einsetzen von Drop und Höhepunkt), 2 = zusätzlich ein
-    kurzer Blitz auf jeder „1“ während Höhepunkt und Drop, 0 = nur Farbe.
-    Rückgabe: (rgb, prozent, blitz?) – Prozent bezieht sich auf die eingestellte Helligkeit, Blitze nicht."""
+def tv(prof, b, live=None, blinder=2, flash=0, flash_len=TV_FLASH, blinder_len=TV_BLINDER):
+    """LED-Streifen hinter dem TV (Govee, sehr hell). Grundzustand: die Farbe des Liedes, gedimmt (Helligkeit
+    „tv_hell“), bei Höhepunkt und Drop die Akzentfarbe, im Break aus. Dazu weiß in voller Helligkeit:
+    - Blinder (blinder_len Schläge): 1 = wenn Drop oder Höhepunkt einsetzen, 2 = zusätzlich auf der „1“ jeder Phrase.
+    - Flash (flash_len Schläge ab der „1“ des Takts): 1 = nur in Höhepunkt und Drop, 2 = immer.
+    Rückgabe: (rgb, prozent, weiß?) – Prozent bezieht sich auf die eingestellte Helligkeit, Weiß nicht."""
     st = look(prof, b, live)
     teil = st["teil"]
     if teil in ("Break", "Atempause"):
         return WHITE, 0, False
     peak = teil in ("Höhepunkt", "Drop")
     color = RGB[_wheel_color((prof["accent"] if peak else prof["base"]) - 1)]
-    if blitz >= 1:
-        # Blinder: erster Schlag eines Drops (live erkannt) oder eines Höhepunkts (aus dem Ablauf des Liedes)
-        if live and live.get("drop") and live.get("drop_beats", 99.0) < 1.0:
+    if blinder >= 1:
+        if live and live.get("drop") and live.get("drop_beats", 99.0) < blinder_len:   # Drop live erkannt
             return WHITE, 100, True
-        if teil == "Höhepunkt" and look(prof, math.floor(b) - 0.5)["teil"] != "Höhepunkt":
+        # Höhepunkt hat vor höchstens blinder_len Schlägen begonnen (Teile beginnen auf ganzen Schlägen)
+        if teil == "Höhepunkt" and look(prof, math.floor(b) - math.ceil(blinder_len) + 0.5)["teil"] != "Höhepunkt" \
+                and look(prof, b - blinder_len)["teil"] != "Höhepunkt":
             return WHITE, 100, True
-    if blitz >= 2 and peak and int(b) % BAR == 0 and b % 1.0 < TV_FLASH:
+    if blinder >= 2 and b % PHRASE < blinder_len:                                  # Phrasenwechsel
+        return WHITE, 100, True
+    if (flash >= 2 or (flash == 1 and peak)) and b % BAR < min(flash_len, BAR - 0.25):
         return WHITE, 100, True
     return color, 100, False
 

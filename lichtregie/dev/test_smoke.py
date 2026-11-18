@@ -237,18 +237,23 @@ for i in range(0, 64 * 40, 7):
     assert {w["grund"][0], w["akzent"][0]} <= colors, "Lampenfarbe, die die Köpfe nicht zeigen"
     if w["teil"] not in ("Höhepunkt", "Drop"):
         assert w["grund"][0] != w["akzent"][0], "Ambilights und Schränke in derselben Farbe"
-# LED-Streifen: gedimmte Farbe, weiß als Blinder beim Einsetzen des Höhepunkts, kurze Blitze auf der „1“
+# LED-Streifen: gedimmte Farbe; Blinder beim Einsetzen des Höhepunkts und bei Phrasenwechseln; Flash auf der „1“
 parts = [(i / 8, show.look(prof, i / 8)["teil"]) for i in range(0, 600 * 8)]
 start = next(b for b, t in parts if t == "Höhepunkt")
-assert show.tv(prof, start + 0.1, None, 1)[2], "kein Blinder beim Einsetzen des Höhepunkts"
-assert not show.tv(prof, start + 4.5, None, 1)[2], "Blinder dauert zu lang"
-assert show.tv(prof, start + 4.1, None, 2)[2] and not show.tv(prof, start + 4.6, None, 2)[2], "Blitz auf der 1"
-calm = next(b for b, t in parts if t in ("Motiv", "Szene", "Intro"))
-assert show.tv(prof, calm, None, 2)[:3:2] == (show.tv(prof, calm, None, 2)[0], False), "Blitz außerhalb von Höhepunkt/Drop"
+assert show.tv(prof, start + 0.1, None, 1, 0)[2], "kein Blinder beim Einsetzen des Höhepunkts"
+assert not show.tv(prof, start + 4.6, None, 1, 0)[2], "Blinder dauert zu lang"
+assert show.tv(prof, start + 4.1, None, 1, 1)[2] and not show.tv(prof, start + 4.7, None, 1, 1)[2], "Flash auf der 1"
+calm = next(b for b, t in parts if t in ("Motiv", "Szene") and b % 32 > 2 and b % 4 < 0.3)
+assert not show.tv(prof, calm, None, 2, 1)[2], "Flash außerhalb von Höhepunkt/Drop"
+assert show.tv(prof, calm, None, 2, 2)[2], "Flash auf jeder 1 fehlt"
+phr = next(b for b, t in parts if t in ("Motiv", "Szene") and b % 32 == 0.25)
+assert show.tv(prof, phr, None, 2, 0)[2] and not show.tv(prof, phr, None, 1, 0)[2], "Blinder beim Phrasenwechsel"
 brk = next((b for b, t in parts if t in ("Break", "Atempause")), None)
-assert brk is None or show.tv(prof, brk, None, 1)[1] == 0, "Streifen im Break nicht aus"
-assert show.tv(prof, start + 0.1, {"drop": True, "drop_beats": 0.5, "level": 1, "bass": 1, "break": False}, 1)[2]
-print("LED-Streifen: gedimmte Farbe, Blinder bei Höhepunkt und Drop, Blitze auf der 1")
+assert brk is None or show.tv(prof, brk, None, 2, 2)[1] == 0, "Streifen im Break nicht aus"
+assert show.tv(prof, start + 0.1, {"drop": True, "drop_beats": 0.5, "level": 1, "bass": 1, "break": False}, 1, 0)[2]
+assert show.tv(prof, start + 3.5, None, 1, 0, blinder_len=4)[2] and not show.tv(prof, start + 4.5, None, 1, 0, blinder_len=4)[2], "Blinder-Dauer"
+assert show.tv(prof, calm + 0.9, None, 0, 2, flash_len=1.0)[2] and not show.tv(prof, calm + 0.9, None, 0, 2, flash_len=0.5)[2], "Flash-Dauer"
+print("LED-Streifen: gedimmte Farbe, Blinder bei Höhepunkt, Drop und Phrasenwechsel, Flash einstellbar")
 SENT = []
 ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
 lamps.LAMP["last"], lamps.SPENT, lamps.PARALLEL = {}, {}, False

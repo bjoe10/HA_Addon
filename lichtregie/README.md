@@ -1,7 +1,8 @@
 # Lichtregie
 
-Musikgesteuerte Lichtshow für zwei Moving Heads als Home-Assistant-Add-on. Die Köpfe werden per Art-Net
-direkt angesteuert; Titel, Tempo und Stimmung kommen aus Spotify (über HA) und der FreqBlog Music API.
+Musikgesteuerte Lichtshow für zwei Moving Heads, einen Laser und Lampen als Home-Assistant-Add-on. Die Köpfe werden
+per Art-Net direkt angesteuert. Ton, Titel und Position im Lied kommen über einen eigenen AirPlay-Empfänger (Music
+Assistant), Tempo und Stimmung aus der FreqBlog Music API, Schlag und „1“ aus der Live-Analyse und Beat This!.
 
 - Anleitung: [DOCS.md](DOCS.md)
 - Show-Design: [SHOW.md](SHOW.md), Konzept und Messwerte: [KONZEPT.md](KONZEPT.md)

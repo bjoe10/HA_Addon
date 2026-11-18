@@ -100,15 +100,24 @@
    <button class="sw" data-choice="lampen_wechsel" data-value="0">nach Lied</button>
   </div>
   <div class="switches one"><button class="sw" data-set="lampen_hart">Harter Wechsel</button></div>
-  <p class="label">LED-Streifen: weiße Blitze</p>
+  <p class="label">LED-Streifen: Blinder (ein Schlag weiß)</p>
   <div class="switches">
-   <button class="sw" data-choice="tv_blitz" data-value="0">nur Farbe</button>
-   <button class="sw" data-choice="tv_blitz" data-value="1">Blinder</button>
-   <button class="sw" data-choice="tv_blitz" data-value="2">Blinder + Takt</button>
+   <button class="sw" data-choice="tv_blinder" data-value="0">aus</button>
+   <button class="sw" data-choice="tv_blinder" data-value="1">Drop, Höhepunkt</button>
+   <button class="sw" data-choice="tv_blinder" data-value="2">+ Phrasenwechsel</button>
   </div>
-  <p class="hint">Der Streifen leuchtet gedimmt in der Farbe des Liedes (Helligkeit auf der Show-Seite). Blinder: ein
-   Schlag weiß in voller Helligkeit, wenn Drop oder Höhepunkt einsetzen; „+ Takt“: dazu ein kurzer Blitz auf jeder
-   „1“ während Höhepunkt und Drop.</p>
+  <label>Blinder-Dauer <span class="val" data-val="tv_blinder_lang" data-unit=" Schläge"></span>
+   <input type="range" data-set="tv_blinder_lang" min="0.5" max="8" step="0.5"></label>
+  <p class="label">LED-Streifen: Flash (kurz weiß auf der „1“)</p>
+  <div class="switches">
+   <button class="sw" data-choice="tv_flash" data-value="0">aus</button>
+   <button class="sw" data-choice="tv_flash" data-value="1">Höhepunkt, Drop</button>
+   <button class="sw" data-choice="tv_flash" data-value="2">jeder Takt</button>
+  </div>
+  <label>Flash-Dauer <span class="val" data-val="tv_flash_lang" data-unit=" Schläge"></span>
+   <input type="range" data-set="tv_flash_lang" min="0.25" max="2" step="0.25"></label>
+  <p class="hint">Der Streifen leuchtet gedimmt in der Farbe des Liedes (Helligkeit auf der Show-Seite). Zwischen zwei
+   Befehlen liegen mindestens 0,4 s, schneller verschluckt der Streifen Befehle.</p>
   <p class="hint">Die Ambilights wechseln auf der „1“ eines Takts die Farbe. „Nach Lied“: alle 8 oder 16 Takte, je
    nach Thema. Schneller als 2 Takte geht nicht: Die Yeelights nehmen nur etwa 60 Befehle pro Minute an.</p>
  </section>

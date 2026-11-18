@@ -13,7 +13,7 @@ configuration:
     description: Lights in the accent colour, e.g. cabinets. Base and accent swap every phrase.
   lampen_tv:
     name: LED strips
-    description: Fast lights without a command limit (e.g. a Govee strip behind the TV via Bluetooth). They follow the heads' colours on the beat, on every beat during peaks and drops.
+    description: Fast lights without a command limit (e.g. a Govee strip behind the TV via Bluetooth). They glow dimly in the track's colour and flash white when a drop or peak starts (adjustable).
   lampen_aus:
     name: Off during the party
     description: Lights and switches (light., switch., input_boolean.) turned off by party mode, e.g. the main light. Their previous state is restored afterwards.
