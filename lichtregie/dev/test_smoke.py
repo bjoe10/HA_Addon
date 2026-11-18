@@ -237,6 +237,18 @@ for i in range(0, 64 * 40, 7):
     assert {w["grund"][0], w["akzent"][0]} <= colors, "Lampenfarbe, die die Köpfe nicht zeigen"
     if w["teil"] not in ("Höhepunkt", "Drop"):
         assert w["grund"][0] != w["akzent"][0], "Ambilights und Schränke in derselben Farbe"
+# LED-Streifen: gedimmte Farbe, weiß als Blinder beim Einsetzen des Höhepunkts, kurze Blitze auf der „1“
+parts = [(i / 8, show.look(prof, i / 8)["teil"]) for i in range(0, 600 * 8)]
+start = next(b for b, t in parts if t == "Höhepunkt")
+assert show.tv(prof, start + 0.1, None, 1)[2], "kein Blinder beim Einsetzen des Höhepunkts"
+assert not show.tv(prof, start + 4.5, None, 1)[2], "Blinder dauert zu lang"
+assert show.tv(prof, start + 4.1, None, 2)[2] and not show.tv(prof, start + 4.6, None, 2)[2], "Blitz auf der 1"
+calm = next(b for b, t in parts if t in ("Motiv", "Szene", "Intro"))
+assert show.tv(prof, calm, None, 2)[:3:2] == (show.tv(prof, calm, None, 2)[0], False), "Blitz außerhalb von Höhepunkt/Drop"
+brk = next((b for b, t in parts if t in ("Break", "Atempause")), None)
+assert brk is None or show.tv(prof, brk, None, 1)[1] == 0, "Streifen im Break nicht aus"
+assert show.tv(prof, start + 0.1, {"drop": True, "drop_beats": 0.5, "level": 1, "bass": 1, "break": False}, 1)[2]
+print("LED-Streifen: gedimmte Farbe, Blinder bei Höhepunkt und Drop, Blitze auf der 1")
 SENT = []
 ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
 lamps.LAMP["last"], lamps.SPENT, lamps.PARALLEL = {}, {}, False

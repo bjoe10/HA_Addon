@@ -21,6 +21,7 @@ CALLS = deque(maxlen=2000)  # (Zeit, Dauer s, ok, Gruppe) je Befehl an HA: wie s
 # Helligkeit als getrennte Befehle; gezählt wird deshalb je geändertem Wert. Ist das Budget einer Gruppe
 # aufgebraucht, wird der Wechsel ausgelassen statt von der Lampe abgelehnt.
 QUOTA = 50
+QUOTA_GROUP = {"tv": 600}  # LED-Streifen (Govee über Bluetooth) haben keine Befehlsgrenze: bis 10 Befehle/s
 SPENT = {}                 # Gruppe → deque[(Zeit, Befehle)]
 
 
@@ -32,12 +33,14 @@ def stats(now=None):
         return None
     ms = sorted(c[1] * 1000 for c in recent)
     amb = [c for c in recent if c[3] == "grund"]
+    tv = sorted(c[1] * 1000 for c in recent if c[3] == "tv")
     return {"befehle_min": len(recent), "ambilight_min": len(amb),
             "dauer_ms": round(ms[len(ms) // 2]), "max_ms": round(ms[-1]),
-            "fehler": sum(1 for c in recent if not c[2])}
+            "fehler": sum(1 for c in recent if not c[2]),
+            "tv_min": len(tv), "tv_ms": round(tv[len(tv) // 2]) if tv else None}
 ROOM = {"dark": False}     # vom Party-Modus gesetzt: Raum abgedunkelt, Lampen gehören der Show
 SCENE_ID = "lichtregie_vorher"
-ENTITIES = config.LAMPEN_GRUND + config.LAMPEN_AKZENT + config.LAMPEN_AUS
+ENTITIES = config.LAMPEN_GRUND + config.LAMPEN_AKZENT + config.LAMPEN_TV + config.LAMPEN_AUS
 # Merker auf der Platte: Es gibt eine gesicherte Szene. Nach einem Neustart des Add-ons mitten in der Party
 # darf der schon abgedunkelte Raum nicht als „vorher“ gesichert werden.
 MARKER = config.DATA / "lampen_gesichert"
@@ -93,11 +96,12 @@ def _mark(saved):
 def groups():
     """Lampengruppen. Die erste Akzent-Lampe steht links vom TV, die zweite rechts (Schrank 1 und 2); sie
     spielen unabhängig voneinander. Weitere Akzent-Lampen folgen der Akzentfarbe. Mit nur einer Akzent-Lampe
-    gibt es kein Wechselspiel."""
+    gibt es kein Wechselspiel. Die LED-Streifen („tv“) senden zuerst: Sie tragen den Schlag."""
     acc = config.LAMPEN_AKZENT
     if len(acc) >= 2:
-        return [("grund", config.LAMPEN_GRUND), ("links", acc[:1]), ("rechts", acc[1:2]), ("akzent", acc[2:])]
-    return [("grund", config.LAMPEN_GRUND), ("akzent", acc)]
+        return [("tv", config.LAMPEN_TV), ("grund", config.LAMPEN_GRUND), ("links", acc[:1]), ("rechts", acc[1:2]),
+                ("akzent", acc[2:])]
+    return [("tv", config.LAMPEN_TV), ("grund", config.LAMPEN_GRUND), ("akzent", acc)]
 
 
 def follow(prof, b, live):
@@ -203,6 +207,14 @@ def want_now():
     if SETTINGS["lampentest"]:
         per = show.lamp_period(LAMP["prof"], SETTINGS["lampen_wechsel"] or show.LAMP_MIN_BEATS)
         want["grund"] = (show.RGB[TEST_COLORS[int(b_lamp // per) % 2]], 100)
+    # LED-Streifen: eigener Vorlauf (Bluetooth reagiert schneller als die Yeelights), Wechsel bis auf den Schlag
+    b_tv = LAMP["b"] + (time.time() - LAMP["at"] + SETTINGS["tv_vorlauf"]) * bps
+    rgb, pct, flash = show.tv(LAMP["prof"], b_tv, live, SETTINGS["tv_blitz"])
+    if SETTINGS["lampentest"]:
+        rgb, pct, flash = show.WHITE, 100, b_tv % 1.0 < show.TV_FLASH   # Blitz auf jedem Schlag, sonst gedimmt weiß
+    # Farbe in der eingestellten (geringen) Helligkeit, weiße Blitze immer voll
+    want["tv"] = (rgb, pct if flash else (0 if pct == 0 or SETTINGS["tv_hell"] == 0 else
+                                          max(1, round(pct * SETTINGS["tv_hell"] / 100))))
     # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
     for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine"),
                            ("links", "lampen_vitrine"), ("rechts", "lampen_vitrine")):
@@ -236,7 +248,7 @@ def send(want):
         spent = SPENT.setdefault(group, deque())
         while spent and now - spent[0][0] > 60.0:
             spent.popleft()
-        if sum(c for _, c in spent) + cost > QUOTA:
+        if sum(c for _, c in spent) + cost > QUOTA_GROUP.get(group, QUOTA):
             continue                            # Budget der Lampe aufgebraucht: diesen Wechsel auslassen
         spent.append((now, cost))
         BUSY.add(group)

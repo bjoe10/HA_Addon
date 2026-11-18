@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.17
+
+- **LED-Streifen (neu, Option „LED-Streifen“):** Schnelle Lichter ohne Befehlsgrenze, z. B. der Govee-Streifen
+  hinter dem TV (Bluetooth). Grundzustand: die Farbe des Liedes, stark gedimmt (5 %, auf der Show-Seite
+  einstellbar), bei Höhepunkt und Drop die Akzentfarbe, im Break aus. Dazu weiße Blitze in voller Helligkeit:
+  „Blinder“ (ein Schlag weiß, wenn Drop oder Höhepunkt einsetzen), „Blinder + Takt“ (zusätzlich ein kurzer Blitz
+  auf jeder „1“ während Höhepunkt und Drop) oder „nur Farbe“ (Feinabstimmung). Eigener Vorlauf unter Einrichten,
+  der Lampen-Test lässt ihn auf jedem Schlag weiß blitzen. Nach der Party kommt sein alter Zustand zurück.
+- **Schlaganzeige im Takt:** Die vier Punkte auf der Startseite lasen den Schlag aus dem Szenentext und sprangen
+  nur bei jeder Abfrage (alle 200 ms plus Laufzeit über HA). Bei 130 BPM (460 ms je Schlag) kamen sie zu spät oder
+  wurden übersprungen. Jetzt meldet das Gerät Schlagnummer und Tempo, die Oberfläche rechnet die halbe Laufzeit
+  heraus und zählt selbst flüssig weiter (gemessen in einer Nachbildung mit 50–400 ms Laufzeit: höchstens 9 ms
+  daneben). Die Phrasenanzeige unter Feinabstimmung nutzt dieselbe Uhr.
+
 ## 0.9.16
 
 - **Eine Quelle für Lied und Position: AirPlay.** Titel, Interpret, Liedwechsel, Position im Lied, Spulen und

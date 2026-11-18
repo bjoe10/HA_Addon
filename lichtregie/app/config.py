@@ -126,6 +126,7 @@ def _entity_list(name, domains=("light.",)):
 
 LAMPEN_GRUND = _entity_list("LICHTREGIE_LAMPEN_GRUND")   # Grundfarbe, z. B. Ambilight-Ringe
 LAMPEN_AKZENT = _entity_list("LICHTREGIE_LAMPEN_AKZENT") # Akzentfarbe, z. B. Vitrinen
+LAMPEN_TV = _entity_list("LICHTREGIE_LAMPEN_TV")         # schnelle Streifen ohne Befehlsgrenze (Govee hinter dem TV)
 SCHALTBAR = ("light.", "switch.", "input_boolean.")
 LAMPEN_AUS = _entity_list("LICHTREGIE_LAMPEN_AUS", SCHALTBAR)   # während der Party aus, z. B. Hauptlicht
 

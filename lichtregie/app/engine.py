@@ -237,7 +237,8 @@ def show_loop(prof, t0, stop):
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
                         "audio": locked, "ereignisse": recent,
                         "abweichung": round(counter.diff, 1),      # Diagnose: HA-Position minus Zählung (Schläge)
-                        "audio_aus": counter.audio_off, "schlag_nr": round(b, 2), "eins": counter.bar_info()}
+                        "audio_aus": counter.audio_off, "schlag_nr": round(b, 3), "eins": counter.bar_info(),
+                        "bpm": round(bpm, 2), "pause": bool(paused)}   # bpm/pause: die Oberfläche zählt selbst weiter
         szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
         if counter.events and t_a - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
             szene += f" · {counter.events[-1][1]}"

@@ -670,6 +670,33 @@ def lamps(prof, b, live=None, wechsel=0):
             "links": (RGB[akzent], links), "rechts": (RGB[akzent], rechts), "teil": teil}
 
 
+WHITE = (255, 255, 255)
+TV_FLASH = 0.35            # Länge eines weißen Blitzes auf der „1“ in Schlägen (bei 130 BPM ca. 160 ms)
+
+
+def tv(prof, b, live=None, blitz=1):
+    """LED-Streifen hinter dem TV (Govee, schnell, sehr hell). Grundzustand: die Farbe des Liedes, gedimmt (die
+    Helligkeit stellt „tv_hell“ ein), bei Höhepunkt und Drop die Akzentfarbe, im Break aus. Dazu weiße Blitze in
+    voller Helligkeit: blitz 1 = Blinder (ein Schlag weiß beim Einsetzen von Drop und Höhepunkt), 2 = zusätzlich ein
+    kurzer Blitz auf jeder „1“ während Höhepunkt und Drop, 0 = nur Farbe.
+    Rückgabe: (rgb, prozent, blitz?) – Prozent bezieht sich auf die eingestellte Helligkeit, Blitze nicht."""
+    st = look(prof, b, live)
+    teil = st["teil"]
+    if teil in ("Break", "Atempause"):
+        return WHITE, 0, False
+    peak = teil in ("Höhepunkt", "Drop")
+    color = RGB[_wheel_color((prof["accent"] if peak else prof["base"]) - 1)]
+    if blitz >= 1:
+        # Blinder: erster Schlag eines Drops (live erkannt) oder eines Höhepunkts (aus dem Ablauf des Liedes)
+        if live and live.get("drop") and live.get("drop_beats", 99.0) < 1.0:
+            return WHITE, 100, True
+        if teil == "Höhepunkt" and look(prof, math.floor(b) - 0.5)["teil"] != "Höhepunkt":
+            return WHITE, 100, True
+    if blitz >= 2 and peak and int(b) % BAR == 0 and b % 1.0 < TV_FLASH:
+        return WHITE, 100, True
+    return color, 100, False
+
+
 # --- Laser (gemessen, siehe SHOW.md) ----------------------------------------------------------------
 L_MODE = 65            # Handbetrieb (0 = aus)
 L_UP = 93              # Rotation, bei der die Symbole aufrecht stehen

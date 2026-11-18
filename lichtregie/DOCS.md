@@ -34,6 +34,8 @@ festes Thema (nach Interpret und Titel), dasselbe Lied sieht also jedes Mal glei
    (Farbwechsel alle 8 oder 16 Takte). Bei „Akzentfarbe“ steht die erste Lampe links vom TV, die zweite rechts;
    die beiden spielen im Wechsel, jede weitere folgt der Akzentfarbe. „Während der Party aus“ (auch `switch.`) wird ausgeschaltet. Nach der
    Party kommt der alte Zustand zurück.
+   **LED-Streifen** (z. B. Govee hinter dem TV): schnelle Lichter ohne Befehlsgrenze. Sie leuchten gedimmt in der
+   Farbe des Liedes und blitzen weiß als Blinder, wenn Drop oder Höhepunkt einsetzen (einstellbar).
 6. „Lichtregie“ in der Seitenleiste öffnen und Musik starten. Mit Automatik geht die Party von selbst an.
 
 ## Musik über Music Assistant (AirPlay)

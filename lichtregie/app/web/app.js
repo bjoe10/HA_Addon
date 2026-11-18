@@ -95,12 +95,6 @@ function showStatus(d) {
     `<b style="background:${RADFARBE[l.farben[0]]}"></b><b style="background:${RADFARBE[l.farben[1]]}"></b>${esc(l.farbnamen.join(' / '))}`,
     'Gobos ' + esc(l.gobos.join(' / ')), 'Laser ' + esc(l.laser), `Lampen alle ${l.lampen_takte} Takte`,
     l.variante ? 'Thema ' + (l.variante + 1) : ''].filter(Boolean).map(c => `<span class="chip">${c}</span>`).join('');
-  // Schlag im Takt aus „Takt 17.3 · …“
-  const m = /^Takt \d+\.(\d)/.exec(d.szene || '');
-  all('#beat i').forEach((el, i) => {
-    el.classList.toggle('on', !!m && +m[1] === i + 1);
-    el.classList.toggle('eins', i === 0);
-  });
   // Kacheln
   const a = d.audio;
   $('tiles').innerHTML = audioTile(a)
@@ -116,7 +110,8 @@ function showStatus(d) {
   const ls = d.lampen;
   $('lampstat').textContent = !ls ? 'Lampen: in der letzten Minute keine Befehle'
     : `Letzte Minute: ${ls.befehle_min} Befehle (Ambilights ${ls.ambilight_min}) · Dauer ${ls.dauer_ms} ms,`
-      + ` höchstens ${ls.max_ms} ms` + (ls.fehler ? ` · ${ls.fehler} fehlgeschlagen` : ' · keine Fehler');
+      + ` höchstens ${ls.max_ms} ms` + (ls.fehler ? ` · ${ls.fehler} fehlgeschlagen` : ' · keine Fehler')
+      + (ls.tv_min ? ` · LED-Streifen ${ls.tv_min} Befehle, je ${ls.tv_ms} ms` : '');
   const r = d.aufnahme;
   if (r) {
     $('recstat').textContent = r.laeuft ? `Aufnahme läuft, noch ${r.rest} s · ${r.marken} × „1“, ${r.haenger} × hängt` + (r.ton ? '' : ' · kein Ton!')
@@ -132,6 +127,35 @@ function showStatus(d) {
   showSync(d.sync);
   draw();
 }
+// --- Schlaganzeige: zählt im Browser im Takt weiter ---------------------------------------------------
+// Bis 0.9.16 sprang sie nur bei jeder Abfrage (alle 200 ms plus Laufzeit über HA) und las den Schlag aus dem
+// Szenentext: Bei 130 BPM (460 ms je Schlag) kamen die Punkte zu spät oder wurden übersprungen.
+let beatClock = null;            // {b, bpm, at: performance.now() zu b, pause}
+function syncClock(s, t0, t1) {
+  if (!s || s.schlag_nr == null || !s.bpm) { beatClock = null; return; }
+  const at = (t0 + t1) / 2;                       // das Gerät hat den Schlag etwa zur Mitte der Abfrage gemeldet
+  const fresh = {b: s.schlag_nr, bpm: s.bpm, at, pause: !!s.pause};
+  if (beatClock && !fresh.pause && !beatClock.pause && beatClock.bpm === fresh.bpm) {
+    // kleine Abweichungen (Laufzeit schwankt) sanft einziehen, große (Korrektur, Spulen) sofort übernehmen
+    const pred = beatAt(beatClock, at);
+    const err = fresh.b - pred;
+    if (Math.abs(err) < 0.3) { fresh.b = pred + 0.3 * err; }
+  }
+  beatClock = fresh;
+}
+function beatAt(c, now) { return c.pause ? c.b : c.b + (now - c.at) / 1000 * c.bpm / 60; }
+function beatLoop(now) {
+  const b = beatClock ? beatAt(beatClock, now) : null;
+  const beat = b == null ? -1 : ((Math.floor(b) % 4) + 4) % 4;
+  const bar = b == null ? -1 : ((Math.floor(b / 4) % 8) + 8) % 8;
+  all('#beat i').forEach((el, i) => { el.classList.toggle('on', i === beat); el.classList.toggle('eins', i === 0); });
+  all('#phrase .bar').forEach((el, bi) => {
+    el.classList.toggle('cur', bi === bar);
+    all('i', el).forEach((dot, di) => { dot.classList.toggle('on', bi === bar && di === beat); dot.classList.toggle('eins', di === 0); });
+  });
+  requestAnimationFrame(beatLoop);
+}
+
 // --- Takt-Sync: 8 Takte à 4 Schläge, aktueller Schlag leuchtet ---------------------------------------
 $('phrase').innerHTML = Array.from({length: 8}, (_, i) => `<div class="bar${i === 0 ? ' first' : ''}"><i></i><i></i><i></i><i></i></div>`).join('');
 // Technik: Bildrate der Show, Lücken beim Senden, Beat This, Eingangsrate des Tons
@@ -155,14 +179,6 @@ function technikText(d) {
   return parts.join(' · ') || '–';
 }
 function showSync(s) {
-  const bars = all('#phrase .bar');
-  bars.forEach((bar, bi) => {
-    bar.classList.toggle('cur', !!s && s.takt === bi + 1);
-    all('i', bar).forEach((dot, di) => {
-      dot.classList.toggle('on', !!s && s.takt === bi + 1 && s.schlag === di + 1);
-      dot.classList.toggle('eins', di === 0);
-    });
-  });
   $('syncstat').textContent = !s ? 'Keine Show läuft.'
     : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Liedposition')
       + (s.eins ? ' · „1“ ' + (s.eins.quelle === 'Beat This' ? `von Beat This (${Math.round(s.eins.deutlich * 100)} % einig)`
@@ -433,4 +449,10 @@ try { startTab = localStorage.getItem('tab') || 'show'; } catch (e) { /* Startse
 showTab($('tab-' + startTab) ? startTab : 'show');
 loadState();
 setInterval(loadState, 2000);                                                   // Einstellungen, Köpfe, Laser
-setInterval(() => api('api/status').then(showStatus).catch(() => {}), 200);     // Startseite und Vorschau
+// Status 5-mal pro Sekunde. Die Laufzeit der Abfrage (über HA-Ingress) wird gemessen: Der Schlag vom Gerät gilt
+// für die Mitte der Abfrage, ab da zählt die Oberfläche selbst weiter (beatLoop)
+setInterval(() => {
+  const t0 = performance.now();
+  api('api/status').then(d => { syncClock(d.sync, t0, performance.now()); showStatus(d); }).catch(() => {});
+}, 200);
+requestAnimationFrame(beatLoop);

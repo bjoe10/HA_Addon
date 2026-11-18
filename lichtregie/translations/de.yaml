@@ -11,6 +11,9 @@ configuration:
   lampen_akzent:
     name: Lampen Akzentfarbe
     description: Lichter in der Akzentfarbe, z. B. Vitrinen. Grund und Akzent tauschen pro Phrase.
+  lampen_tv:
+    name: LED-Streifen
+    description: Schnelle Lichter ohne Befehlsgrenze (z. B. ein Govee-Streifen hinter dem TV über Bluetooth). Sie folgen den Farben der Köpfe im Takt, bei Höhepunkt und Drop auf jedem Schlag.
   lampen_aus:
     name: Während der Party aus
     description: Lichter und Schalter (light., switch., input_boolean.), die der Party-Modus ausschaltet, z. B. das Hauptlicht. Danach kommt der alte Zustand zurück.

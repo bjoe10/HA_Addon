@@ -22,6 +22,9 @@ SETTINGS = {
     # Ambilights: Farbwechsel alle so viele Schläge (0 = nach dem Lied: 8 oder 16 Takte; mindestens ein Takt),
     # hart (ohne Übergang); Lampen-Test zum Einstellen des Vorlaufs
     "lampen_wechsel": 8.0, "lampen_hart": True, "lampentest": False,
+    # LED-Streifen (Govee, Bluetooth, keine Befehlsgrenze, sehr hell): Helligkeit der Farbe, weiße Blitze
+    # (0 nur Farbe, 1 Blinder bei Drop/Höhepunkt, 2 zusätzlich auf jeder „1“ im Höhepunkt), Vorlauf
+    "tv_hell": 5, "tv_blitz": 1, "tv_vorlauf": 0.2,
     # Laser: Senden an/aus, Schutzgrenzen, Ruhepunkt über dem TV (auf dem TV sieht man ihn schlecht)
     "laser": True, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90,
     "laser_ud_mitte": 76,
@@ -39,6 +42,7 @@ RULES = {
     "beatthis": bool, "strobe": bool, "nebel": bool, "anschub": bool, "lampen": bool, "audio": bool, "takttest": bool,
     "laser": bool, "automatik": bool, "party_aus_min": (int, 1, 240),
     "lampen_hart": bool, "lampentest": bool, "lampen_wechsel": (float, 0.0, 64.0),
+    "tv_hell": (int, 0, 100), "tv_blitz": (int, 0, 2), "tv_vorlauf": (float, 0.0, 1.0),
     "strobe_menge": (int, 0, 200),
     "offset": (float, -64.0, 64.0), "tempo": (float, 0.25, 4.0), "vorsteuerung": (float, 0.0, 1.0),
     "ton_vorlauf": (float, 0.0, 3.0), "lampen_vorlauf": (float, 0.0, 2.0),
