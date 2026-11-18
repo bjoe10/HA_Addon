@@ -22,6 +22,8 @@ BAR = 4
 DRIFT_LIMIT = 6.0    # so viele Schläge Abweichung von HA, bevor korrigiert wird …
 DRIFT_TIME = 8.0     # … und so lange (s) muss sie bestehen
 DROP_MAX_SHIFT = 12  # weiter verschiebt ein Drop die Zählung nicht
+DROP_GAP = 64        # höchstens ein Drop-Anker in so vielen Schlägen: Bei pumpendem Bass meldete die Analyse alle paar
+                     # Sekunden einen Drop, jeder zog die Zählung an den Phrasenanfang zurück, die Show stand still
 CHANGE_WINDOW = 3.0  # Phrasenwechsel zählt nur so nahe an einer erwarteten Grenze
 
 
@@ -39,6 +41,7 @@ class BeatCounter:
         self.last_t = None
         self.first_t = None           # Zeit des ersten Bildes dieser Zählung (Liedbeginn)
         self.seen_drop = 0.0
+        self.drop_b = None            # Zählstand beim letzten Drop-Anker
         self.seen_change = 0.0
         self.events = []        # (Zeit, Text) für die Anzeige
         self.last_fix = None    # (Zeit, Richtung) des letzten HA-Abgleichs
@@ -165,12 +168,15 @@ class BeatCounter:
         if drop_at and drop_at != self.seen_drop:
             self.seen_drop = drop_at
             b_drop = round(b - (now - drop_at) / beat)
-            s = round(b_drop / PHRASE) * PHRASE - b_drop
-            if self.bar_locked or self.bar_manual:
-                s = BAR * round(s / BAR)
-            if s and abs(s) <= DROP_MAX_SHIFT:
-                self._shift(s, now, "Drop-Anker")
-                b += s
+            if self.drop_b is None or abs(b_drop - self.drop_b) >= DROP_GAP:   # sonst: zu kurz nach dem letzten
+                s = round(b_drop / PHRASE) * PHRASE - b_drop
+                if self.bar_locked or self.bar_manual:
+                    s = BAR * round(s / BAR)
+                if s and abs(s) <= DROP_MAX_SHIFT:
+                    self._shift(s, now, "Drop-Anker")
+                    b += s
+                    b_drop += s
+                self.drop_b = b_drop
         # Phrasenwechsel aus der Klanganalyse: kleine Korrektur zur nächsten Phrasengrenze
         if change_at and change_at != self.seen_change:
             self.seen_change = change_at

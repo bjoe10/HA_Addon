@@ -54,10 +54,19 @@ stdout = {
   output_rate = 44100;
   output_channels = 2;
 };
+metadata = {
+  enabled = "yes";
+  include_cover_art = "no";
+  pipe_name = "/tmp/shairport-sync-metadata";
+  progress_interval = 1.0;
+};
 diagnostics = {
   log_verbosity = 1;
 };
 CONF
+  # Metadaten (Titel, Position im Lied) über eine Pipe, die die Lichtregie mitliest (airplay.py)
+  rm -f /tmp/shairport-sync-metadata && mkfifo /tmp/shairport-sync-metadata
+  export LICHTREGIE_AIRPLAY_META=/tmp/shairport-sync-metadata
   export LICHTREGIE_AUDIO_CMD="shairport-sync -c /etc/shairport-sync.conf"
   bashio::log.info "AirPlay-Empfänger \"${NAME}\" gestartet"
 fi

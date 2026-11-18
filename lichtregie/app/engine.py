@@ -4,6 +4,7 @@ from collections import deque
 import threading
 import time
 
+import airplay
 import config
 import ha
 import jsonfile
@@ -47,7 +48,19 @@ def sound(now=None):
 
 
 def song_position():
-    """Geschätzte Position im Lied in Sekunden, oder None, wenn nichts spielt."""
+    """Position im Lied in Sekunden (was gerade aus dem Lautsprecher kommt), oder None, wenn nichts spielt.
+    Bevorzugt von AirPlay (genau, im Takt des Tons), sonst aus HA (Spotify-Position, oft Sekunden daneben)."""
+    live = LIVE.get("live")
+    if audio_mode():
+        # Die Analyse bekommt den Ton um den Ton-Vorlauf früher als der Lautsprecher
+        pos = airplay.position(time.time() - SETTINGS["ton_vorlauf"])
+        if pos is not None and (not live or airplay.same_title(live.get("title"))):
+            return pos
+    return ha_position()
+
+
+def ha_position():
+    """Position im Lied aus HA (Spotify-Position, hochgerechnet), oder None."""
     live = LIVE.get("live")
     if not live or live.get("pos") is None or not live.get("playing"):
         return None
@@ -74,7 +87,7 @@ def mark_one(grid):
 def update_live(live):
     """Neuen Stand des Players übernehmen. Springt die Position im selben Lied deutlich (Spulen), wird das
     gezählt; die Show setzt ihre Schlagzählung dann sofort neu auf."""
-    old, expected = LIVE.get("live"), song_position()
+    old, expected = LIVE.get("live"), ha_position()      # HA gegen HA: AirPlay liegt anders
     if (old and expected is not None and live.get("pos") is not None and live.get("playing")
             and (old["title"], old["artist"]) == (live["title"], live["artist"])
             and abs(live["pos"] - expected) > SEEK_SEC):

@@ -148,6 +148,9 @@ function technikText(d) {
   if (b && b.rechenzeit != null) parts.push(`Beat This: ${b.schlaege} Schläge in ${b.rechenzeit} s gerechnet (vor ${b.vor_s} s)`
     + (b.bpm ? `, ${b.bpm} BPM` : ''));
   if (b && b.fehler) parts.push(`Beat This Fehler: ${b.fehler}`);
+  const ap = d.airplay;
+  if (ap) parts.push(ap.eintraege ? `AirPlay: ${ap.titel || 'kein Titel'}` + (ap.position != null ? ` bei ${ap.position} s` + (ap.dauer ? ` von ${ap.dauer} s` : '') : ', keine Position')
+      + (ap.zeitmarke ? ', Zeitmarken' : '') + ` (${ap.eintraege} Einträge)` : 'AirPlay: noch keine Metadaten');
   if (d.audio && d.audio.eingang != null) parts.push(`Ton kommt mit ${d.audio.eingang}× Echtzeit an`);
   return parts.join(' · ') || '–';
 }

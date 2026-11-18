@@ -160,4 +160,5 @@ LASER, LASER_SOURCE = laser_from_text(_read_ha_config())
 LASER_SWITCH = os.environ.get("LICHTREGIE_LASER_SWITCH", "").strip()   # Steckdose des Lasers, z. B. switch.…
 # Geräte, die der Party-Modus ein- und ausschaltet: Steckdosen der Köpfe, Laser, weitere (z. B. Astronaut)
 GERAETE = list(dict.fromkeys(_entity_list("LICHTREGIE_GERAETE", SCHALTBAR) + ([LASER_SWITCH] if LASER_SWITCH else [])))
+AIRPLAY_META = os.environ.get("LICHTREGIE_AIRPLAY_META", "").strip()   # Metadaten-Pipe von shairport-sync
 AIRPLAY_NAME = os.environ.get("LICHTREGIE_AIRPLAY_NAME", "").strip() or "Lichtregie"   # Name des Empfängers in MA

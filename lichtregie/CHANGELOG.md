@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.14
+
+- **Position im Lied von AirPlay:** shairport-sync gibt jetzt die Metadaten von Music Assistant weiter (Titel,
+  Interpret, Fortschritt, jede Sekunde eine Zeitmarke Abtastwert → Uhrzeit); die Lichtregie liest sie mit
+  (`airplay.py`). Passt der AirPlay-Titel zur Show, kommt die Position im Lied von dort, genau und im Takt des
+  Tons, sonst wie bisher von HA. Die Spotify-Position aus HA lag bis 11 s daneben (sie zeigt, wie weit Spotify
+  ist, nicht was gerade erklingt). Was ankommt, steht im Log und unter Einrichten → Technik.
+- **Show stand bei pumpendem Bass still:** Bei „ich jogge“ (Haller) meldete die Analyse alle paar Sekunden einen
+  Drop. Jeder zog die Schlagzählung an den Phrasenanfang zurück (bis 12 Schläge), die Zählung blieb bei Schlag
+  94–96 stehen und die Köpfe mit ihr. Ein Drop verschiebt die Zählung jetzt höchstens einmal in 64 Schlägen.
+
 ## 0.9.13
 
 - **HA-Position lag daneben, nicht der Ton:** Bei „My Life Got Better“ lag die Spotify-Position aus HA (über Music

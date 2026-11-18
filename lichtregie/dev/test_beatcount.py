@@ -202,6 +202,20 @@ c.model_anchor(8010.0, [8002.0, 8004.0, 8006.0, 8008.0], 120.0)
 assert not c.audio_off and c.bar_model, c.events
 print("HA daneben: neu ausgerichtet, Audio-Zählung bleibt bzw. geht mit Beat This wieder an")
 
+# Pumpender Bass: alle 6 s ein „Drop“. Nur der erste darf die Zählung verschieben, sonst steht sie am Phrasenanfang
+c = BeatCounter()
+c.bar_model = c.bar_locked = True
+drop = 0.0
+for i in range(40 * 60):
+    now = 9000.0 + i / 40
+    b_true = (now - 9000.0) / 0.5 + 90
+    if i % 240 == 100:
+        drop = now
+    b = c.update(now, b_true, b_true % 1.0, drop, 0.0, 120.0)
+anchors = [e for e in c.events if "Drop-Anker" in e[1]]
+assert b > 90 + 100 and len(anchors) <= 1, (b, c.events)
+print(f"Pumpender Bass: {len(anchors)} Drop-Anker in 60 s, Zählung läuft weiter (Schlag {b:.0f})")
+
 # Von Hand gesetzt: der Takt-Anker greift nicht mehr ein
 c = BeatCounter()
 c.shift(1, 0.0)

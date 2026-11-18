@@ -13,6 +13,7 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import airplay
 import config
 import engine
 import ha
@@ -109,7 +110,7 @@ def _slow(now):
     Aufnahmeverzeichnis lesen und über Tausende Messwerte rechnen kostete Rechenzeit neben der Show."""
     if now - SLOW["at"] >= 1.0:
         SLOW.update(at=now, data={"senden": sending(now) and (g := heads.gaps(SENT)) and dict(g, verworfen=dict(DROPPED)) or None, "lampen": lamps.stats(now),
-                                  "aufnahme": record.status(now), "beatthis": downbeat.status(),
+                                  "aufnahme": record.status(now), "beatthis": downbeat.status(), "airplay": airplay.status(now),
                                   "bilder": engine.BEAT.get("bilder")})
     return SLOW["data"]
 
@@ -249,6 +250,8 @@ def main():
         engine.AUDIO.tap = record.tap
         threading.Thread(target=downbeat.loop, args=(engine,), daemon=True).start()
         threading.Thread(target=engine.audio_watch_loop, daemon=True).start()
+        if config.AIRPLAY_META:
+            threading.Thread(target=airplay.reader, args=(config.AIRPLAY_META,), daemon=True).start()
         if config.AUDIO_CMD:
             threading.Thread(target=engine.audio.reader_cmd, args=(engine.AUDIO, config.AUDIO_CMD), daemon=True).start()
         else:
