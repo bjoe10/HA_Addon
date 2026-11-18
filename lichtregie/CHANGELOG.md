@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.13
+
+- **HA-Position lag daneben, nicht der Ton:** Bei „My Life Got Better“ lag die Spotify-Position aus HA (über Music
+  Assistant) um 23 Schläge (ca. 11 s) daneben. Die Lichtregie zog ihre Zählung zweimal zu HA und schaltete die
+  Zählung aus dem Ton dann für das Lied ab; danach rückte Beat This die „1“ alle 20 s um einen halben Takt zurecht.
+  Jetzt gilt: Hat Beat This Schläge und „1“ bestätigt, wird bei großer Abweichung HA neu ausgerichtet und die
+  Zählung bleibt. Ist die Zählung aus dem Ton schon abgeschaltet, schaltet eine Bestätigung von Beat This sie
+  wieder an.
+
 ## 0.9.12
 
 Oberfläche aufgeräumt:

@@ -85,6 +85,11 @@ class BeatCounter:
         if self.model_share < 0.7:
             return 0
         self.bar_locked = self.bar_model = True
+        if self.audio_off:
+            # Beat This bestätigt den Takt im Ton: die Audio-Zählung war richtig, HA lag daneben → wieder an
+            self.audio_off = False
+            self.diff, self.far_since, self.last_fix = 0.0, None, None
+            self.events.append((now, "Audio-Zählung wieder an (Beat This bestätigt)"))
         if best == 0:
             return 0
         s = (-best) % BAR
@@ -124,7 +129,16 @@ class BeatCounter:
             self.diff += 0.02 * ((b_ref - b) - self.diff)
             if abs(self.diff) > DRIFT_LIMIT:
                 self.far_since = self.far_since or now
-                if now - self.far_since > DRIFT_TIME:
+                if now - self.far_since > DRIFT_TIME and self.bar_model:
+                    # Beat This hat Schläge und „1“ aus dem Ton bestätigt: Dann liegt HA daneben, nicht der Ton
+                    # (gesehen mit Music Assistant: Spotify-Position bis 11 s falsch). HA neu ausrichten, die
+                    # Zählung bleibt. Bis 0.9.12 zog die Zählung zu HA und wurde danach ganz abgeschaltet
+                    self.offset -= self.diff
+                    self.events.append((now, f"HA neu ausgerichtet ({-self.diff:+.0f} Schläge)"))
+                    del self.events[:-5]
+                    self.diff = 0.0
+                    self.far_since = None
+                elif now - self.far_since > DRIFT_TIME:
                     s = round(self.diff)
                     if self.last_fix and now - self.last_fix[0] < 60 and (s > 0) == self.last_fix[1]:
                         # zweimal kurz hintereinander in dieselbe Richtung: Die Audio-Zählung läuft nicht mit der
