@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.15
+
+- **Diagnose:** Die Schlagzählung stand auf dem Gerät bei eingerastetem Takt still (Schlagnummer exakt ganzzahlig,
+  die Phase aus der Analyse kam offenbar als 0 an); mit dem aufgenommenen Ton läuft dieselbe Kette auf dem Mac
+  richtig. Status und Aufnahme zeigen jetzt Phase, Raster-Zeitpunkt und Periode, wie sie im Show-Motor ankommen.
+
 ## 0.9.14
 
 - **Position im Lied von AirPlay:** shairport-sync gibt jetzt die Metadaten von Music Assistant weiter (Titel,

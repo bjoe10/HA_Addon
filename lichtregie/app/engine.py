@@ -140,12 +140,18 @@ def show_loop(prof, t0, stop):
         b_ha = b
         live = None
         locked = False
+        diag = None
         if audio_mode() and AUDIO.signal(t_a):
             live = AUDIO.live(t_a, bpm)            # Pegel, Break, Drop
             frac = None
             if AUDIO.phase_ok(t_a):                # Schlagphase, sobald das Raster eingerastet ist
                 frac = AUDIO.phase(t_a)
                 locked = True
+                # Diagnose (0.9.15): Auf dem Gerät stand die Zählung bei eingerastetem Takt still (Phase immer 0?)
+                with AUDIO.lock:
+                    diag = {"frac": repr(frac), "typ": type(frac).__name__, "t_a": repr(t_a),
+                            "t_beat": repr(AUDIO.t_beat), "period": repr(AUDIO.period),
+                            "typ_t_beat": type(AUDIO.t_beat).__name__}
             b = counter.update(t_a, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm)
             st = downbeat.STATE
             # Auch ohne eingerasteten Takt: Liegt das Tempo aus der Datenbank falsch, kann der Takt gar nicht
@@ -230,14 +236,15 @@ def show_loop(prof, t0, stop):
             record.trace(now, {"b": round(b, 3), "b_ha": round(b_ha, 3), "pos": pos, "bpm": bpm, "locked": locked,
                                "break": bool(live and live["break"]), "drop": bool(live and live["drop"]),
                                "info": info, "vorlauf": SETTINGS["ton_vorlauf"], "eins": counter.bar_info(),
-                               "ereignisse": [e[1] for e in counter.events[-3:]],
+                               "ereignisse": [e[1] for e in counter.events[-3:]], "diag": diag,
                                "koepfe": {k: [s["pan"], s["tilt"], s["hell"] if s["on"] else 0]
                                           for k, s in heads.snapshot().items()}})
         recent = [f"{e[1]} (vor {int(t_a - e[0])} s)" for e in counter.events[-3:] if t_a - e[0] < 60]
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
                         "audio": locked, "ereignisse": recent,
                         "abweichung": round(counter.diff, 1),      # Diagnose: HA-Position minus Zählung (Schläge)
-                        "audio_aus": counter.audio_off, "schlag_nr": round(b, 2), "eins": counter.bar_info()}
+                        "audio_aus": counter.audio_off, "schlag_nr": round(b, 2), "eins": counter.bar_info(),
+                        "diag": diag}
         szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
         if counter.events and t_a - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
             szene += f" · {counter.events[-1][1]}"
