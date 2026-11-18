@@ -1,9 +1,9 @@
 # Lichtregie
 
-Musikgesteuerte Lichtshow für zwei Moving Heads. Das Add-on liest den laufenden Spotify-Titel aus Home
-Assistant, holt Tempo, Tonart und Stimmung aus der FreqBlog Music API und steuert die Köpfe direkt per Art-Net:
+Musikgesteuerte Lichtshow für zwei Moving Heads. Das Add-on hört die Musik über einen eigenen AirPlay-Empfänger
+(Ton, Titel und Position im Lied aus einer Quelle), holt Tempo, Tonart und Stimmung aus der FreqBlog Music API und steuert die Köpfe direkt per Art-Net:
 Bahnen auf Boden, Wänden und Decke, Farben, Gobos, Dimmer-Pulse und Strobe im Takt. Jedes Lied bekommt ein
-festes Thema, dasselbe Lied sieht also jedes Mal gleich aus.
+festes Thema (nach Interpret und Titel), dasselbe Lied sieht also jedes Mal gleich aus.
 
 > **Hinweis:** Die Show nutzt Strobe-Blitze. Sie lassen sich in der Oberfläche abschalten. Blitzlicht kann
 > für Menschen mit photosensitiver Epilepsie gefährlich sein.
@@ -13,13 +13,16 @@ festes Thema, dasselbe Lied sieht also jedes Mal gleich aus.
 - **Art-Net-Nodes** für die Köpfe, eingerichtet über die HA-Plattform `artnet_led` in der `configuration.yaml`.
   Das Add-on liest daraus Host, Universe und die Kanäle `pan`, `tilt`, `color`, `Grobo`, `strobe`, `dimmer`,
   `motor speed`, `auto mode`, `config mode` (Kopf 2 jeweils mit `2` am Ende). Pan und Tilt sind 16 Bit.
-- Die **Spotify-Integration** in HA (ein `media_player` mit Titel und Position).
+- **Music Assistant**, das die Musik per AirPlay an den Lautsprecher und an den Empfänger der Lichtregie spielt
+  (siehe „Live-Audio“). Titel und Position im Lied kommen als AirPlay-Metadaten mit.
+- Optional die **Spotify-Integration** in HA: nur für die Warnung „Spotify spielt, aber kein Ton kommt an“.
 - Einen **FreqBlog-API-Schlüssel** (freqblog.com, kostenloser Tarif).
 
 ## Einrichtung
 
-1. Add-on installieren, in der Konfiguration **Spotify-Player** (z. B. `media_player.spotify_name`) und den
-   **FreqBlog-API-Schlüssel** eintragen, starten, „In Seitenleiste anzeigen“ aktivieren.
+1. Add-on installieren, in der Konfiguration den **FreqBlog-API-Schlüssel** und optional den **Spotify-Player**
+   (z. B. `media_player.spotify_name`, nur für die Warnung) eintragen, starten, „In Seitenleiste anzeigen“
+   aktivieren.
 2. Im Add-on-Log prüfen, dass beide Köpfe aus der `configuration.yaml` erkannt wurden
    (`Kopf 1: Node …, Kanäle … (configuration.yaml)`).
 3. **Alte Party-Automationen ausschalten**, die dieselben Kanäle steuern. Solange die Lichtregie sendet,
@@ -33,9 +36,10 @@ festes Thema, dasselbe Lied sieht also jedes Mal gleich aus.
    Party kommt der alte Zustand zurück.
 6. „Lichtregie“ in der Seitenleiste öffnen und Musik starten. Mit Automatik geht die Party von selbst an.
 
-## Live-Audio über Music Assistant (empfohlen)
+## Musik über Music Assistant (AirPlay)
 
-Mit Audio rastet die Show auf den echten Schlag ein und erkennt Breaks und Drops live.
+Die Lichtregie hört die Musik über ihren AirPlay-Empfänger: Die Show rastet auf den echten Schlag ein, erkennt
+Breaks und Drops live und bekommt Titel und genaue Position im Lied (AirPlay-Metadaten).
 
 1. In der Add-on-Konfiguration **AirPlay-Empfänger** eingeschaltet lassen (Name standardmäßig „Lichtregie“).
 2. In **Music Assistant** erscheint ein AirPlay-Player „Lichtregie“. Ihn mit dem Lautsprecher (ebenfalls über
@@ -46,16 +50,17 @@ Mit Audio rastet die Show auf den echten Schlag ein und erkennt Breaks und Drops
    Die Köpfe blitzen auf jedem Schlag. Kommt der Blitz vor dem Kick, den Ton-Vorlauf erhöhen, kommt er
    danach, verringern (gemessen: 1,0 s). Danach Takt-Test wieder aus.
 
-Ohne Audio (z. B. Spotify direkt auf den Lautsprecher) läuft die Show mit Tempo aus der Datenbank weiter.
+Spielt die Musik nicht über die Gruppe mit dem Empfänger (z. B. Spotify direkt auf den Lautsprecher), kennt die
+Lichtregie weder Ton noch Titel; dann gibt es keine Show. Seit 0.9.16 kommt der Titel nicht mehr aus HA.
 
 ## Party-Modus
 
 Der Party-Modus ist der Hauptschalter. **An:** Geräte einschalten, Raum abdunkeln, laufenden Titel lesen,
 Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück auf den Zustand von vorher.
 
-- **Automatik** (abschaltbar): Die Party geht an, sobald 3 s lang Ton am AirPlay-Empfänger ankommt (ohne
-  Empfänger: Spotify spielt), und aus, wenn 15 Minuten keine Musik lief (Zeit einstellbar). Eine laufende
-  Party hält auch Spotify am Leben.
+- **Automatik** (abschaltbar): Die Party geht an, sobald 3 s lang Ton am AirPlay-Empfänger ankommt, und aus,
+  wenn 15 Minuten keine Musik lief (Zeit einstellbar). Eine laufende Party hält auch ein Lied am Leben, das laut
+  AirPlay noch läuft.
 - **Von Hand:** großer Schalter auf der Startseite. Ein Stopp von Hand gilt, bis die Musik einmal eine Minute
   aus war; sonst würde die Automatik sofort wieder einschalten.
 - **Show nur mit Ton:** Mit Audio läuft die Show nur, solange Ton am Empfänger ankommt. Nach 2 s ohne Ton
@@ -72,7 +77,7 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
 
 - **Show** (Startseite): Party-Schalter, laufendes Lied mit seinem Thema (Tempo, Stimmung, Farben, Gobos,
   Laser-Rolle) und Schlaganzeige, **Thema neu würfeln** (das neue Thema bleibt für dieses Lied gespeichert),
-  Status auf einen Blick (Audio, Spotify, Geräte, Lampen, Laser), Vorschau der Spots im Raumbild, Schalter
+  Status auf einen Blick (Audio, Lied, Geräte, Lampen, Laser), Vorschau der Spots im Raumbild, Schalter
   für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre
   Helligkeit, Automatik mit der Zeit bis zum automatischen Aus.
 - **Feinabstimmung** (während der Party): Takt-Sync (Anzeige von Takt und Phrase und woher die „1“ kommt,
@@ -87,7 +92,7 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
 
 Alle Schalter bleiben über einen Neustart erhalten.
 
-Meldet Spotify 45 s lang „spielt“ und kommt dabei kein Ton am AirPlay-Empfänger an, warnt die
+Meldet Spotify (falls als Spotify-Player eingetragen) 45 s lang „spielt“ und kommt dabei kein Ton am AirPlay-Empfänger an, warnt die
 Oberfläche oben in Rot und HA zeigt eine Benachrichtigung. Meist fehlt der Empfänger nach einem Neustart des
 Add-ons in der Sync-Gruppe von Music Assistant: dort wieder aufnehmen und das Lied neu starten.
 

@@ -10,7 +10,9 @@ from pathlib import Path
 DATA = Path(os.environ.get("LICHTREGIE_DATA", "/data"))
 PORT = int(os.environ.get("LICHTREGIE_PORT", "8099"))
 HA_API = os.environ.get("LICHTREGIE_HA_API", "http://supervisor/core/api").rstrip("/")
+# Spotify-Player in HA, nur noch für die Warnung „kein Audio“ (Titel und Position kommen von AirPlay); optional
 PLAYER = os.environ.get("LICHTREGIE_PLAYER", "").strip()
+PLAYER = "" if PLAYER == "null" else PLAYER
 HA_CONFIG_DIRS = [Path(p) for p in os.environ.get("LICHTREGIE_HA_CONFIG", "/homeassistant:/config").split(":")]
 
 

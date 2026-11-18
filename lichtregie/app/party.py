@@ -3,7 +3,8 @@
 An: Geräte einschalten (Steckdosen der Köpfe, Laser, weitere), Raum abdunkeln, Titel überwachen, Show.
 Aus: Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück auf den Zustand von vorher.
 
-Automatik: geht an, sobald Musik ankommt (Ton am AirPlay-Empfänger, ohne Empfänger: Spotify spielt), und
+Automatik: geht an, sobald Musik ankommt (Ton am AirPlay-Empfänger; ist die Audioanalyse aus: AirPlay meldet
+ein laufendes Lied), und
 aus, wenn so lange keine Musik lief, wie in „party_aus_min“ steht. Ein Stopp von Hand gilt, bis die Musik
 einmal eine Minute aus war; sonst würde die Automatik sofort wieder einschalten.
 """
@@ -13,6 +14,7 @@ import time
 import config
 import jsonfile
 import engine
+import airplay
 import ha
 import heads
 import lamps
@@ -86,24 +88,23 @@ def _audio(now):
     return engine.audio_mode() and engine.AUDIO.signal(now)
 
 
-def _spotify(now, tick):
-    if not PARTY["on"] and tick % 3 == 0:      # läuft die Party, fragt die Titel-Überwachung HA schon
-        live = ha.now_playing()
-        if live:
-            engine.update_live(live)
-    live = engine.LIVE.get("live")
-    return bool(live and live.get("playing") and now - engine.LIVE["at"] < 15)
+def _playing(now):
+    """AirPlay meldet ein laufendes Lied (Metadaten von Music Assistant)."""
+    live = airplay.now_playing(now)
+    if live and not PARTY["on"]:               # läuft die Party, liest die Titel-Überwachung schon mit
+        engine.update_live(live)
+    return bool(live and live.get("playing"))
 
 
 def _music(now, tick):
-    """Starten darf nur Ton am Empfänger (ohne Empfänger: Spotify spielt). Läuft die Party schon, hält sie
-    auch Spotify am Leben, damit sie bei einer Störung des Empfängers nicht ausgeht."""
+    """Starten darf nur Ton am Empfänger (ist die Audioanalyse aus: AirPlay meldet ein Lied). Läuft die Party schon,
+    hält sie auch ein laufendes Lied laut AirPlay am Leben (z. B. ein leiser Teil)."""
     if not engine.audio_mode():
-        return _spotify(now, tick)
+        return _playing(now)
     if _audio(now):
-        _spotify(now, tick)                    # Titel für die Anzeige trotzdem lesen
+        _playing(now)                          # Titel für die Anzeige trotzdem lesen
         return True
-    return _spotify(now, tick) and PARTY["on"]
+    return _playing(now) and PARTY["on"]
 
 
 def loop():

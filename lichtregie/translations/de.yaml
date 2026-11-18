@@ -1,7 +1,7 @@
 configuration:
   spotify_player:
     name: Spotify-Player
-    description: Entität des Spotify-Players in HA, z. B. media_player.spotify_name. Daraus kommen Titel und Position.
+    description: Optional. Entität des Spotify-Players in HA, z. B. media_player.spotify_name. Nur für die Warnung „Spotify spielt, aber kein Ton kommt an“; Titel und Position kommen von AirPlay.
   freqblog_key:
     name: FreqBlog-API-Schlüssel
     description: Schlüssel der FreqBlog Music API für Tempo und Stimmung der Titel.

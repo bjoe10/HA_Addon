@@ -120,6 +120,8 @@ class Analyzer:
             self.bpm_hint = float(bpm) if bpm else None
             if self.bpm_hint:
                 self.period = 60.0 / self.bpm_hint
+            if self.t_beat is not None:
+                self.t_beat = float(self.t_beat)
 
     def new_song(self):
         """Neues Lied: Pegelspitzen auf den jetzigen Stand setzen. Sonst misst das neue Lied gegen die lauteste
@@ -260,13 +262,17 @@ class Analyzer:
         y0, y1, y2 = ac[best - 1], ac[best], ac[best + 1]
         denom = y0 - 2 * y1 + y2
         shift = 0.5 * (y0 - y2) / denom if denom < 0 else 0.0
-        new = (best + max(-0.5, min(0.5, shift))) * HOP_SEC
+        # float(): die Autokorrelation ist float32. Eine float32-Periode machte über das Raster auch den Zeitpunkt
+        # des Schlags (Uhrzeit, 1,8 Mrd. s) zu float32, auf 128 s genau: Die Phase war danach immer 0, die Zählung
+        # stand bei jedem Lied still, bis zum Neustart (gesehen nach einem Lied ohne Tempo bei FreqBlog, 0.9.15)
+        new = float((best + max(-0.5, min(0.5, shift))) * HOP_SEC)
         self.period = new if self.period is None else 0.8 * self.period + 0.2 * new
 
     def _pll(self, t_on):
         """Schlagraster auf das Onset ziehen."""
         if not self.period:
             return
+        t_on = float(t_on)
         if self.t_beat is None:
             self.t_beat = t_on
             return
@@ -286,9 +292,9 @@ class Analyzer:
         if hit:
             self.last_hit = t_on
             self.hit_count += 1
-            self.t_beat = expected + 0.25 * err
+            self.t_beat = float(expected + 0.25 * err)
             if not self.bpm_hint:   # ohne Vorgabe auch das Tempo leicht nachführen
-                self.period *= 1.0 + max(-0.002, min(0.002, 0.01 * err / self.period))
+                self.period = float(self.period * (1.0 + max(-0.002, min(0.002, 0.01 * err / self.period))))
 
     # --- Ausgang -------------------------------------------------------------------------------------------
     def confidence(self, now):

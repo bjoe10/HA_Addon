@@ -17,6 +17,7 @@ os.environ["LICHTREGIE_LASER_SWITCH"] = "switch.rgb_laser"
 for name in ("LICHTREGIE_PLAYER", "LICHTREGIE_ALLOWED_CLIENTS", "LICHTREGIE_AUDIO_PIPE"):
     os.environ.pop(name, None)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+import airplay  # noqa: E402
 import engine  # noqa: E402
 import ha  # noqa: E402
 import party  # noqa: E402
@@ -26,7 +27,7 @@ ha.call = lambda *a, **k: True                                   # keine Aufrufe
 ha.states = lambda entities: {e: ("on" if party.PARTY["on"] else "off") for e in entities}
 SONG = {"title": "Testlied", "artist": "Vorschau", "id": "vorschau-1", "duration": 240, "playing": True}
 T0 = time.time()
-ha.now_playing = lambda: dict(SONG, pos=(time.time() - T0) % 240)
+airplay.now_playing = lambda now=None: dict(SONG, pos=(time.time() - T0) % 240)
 engine.tempo = lambda title, artist: {"bpm": 126, "energy": 0.85, "key": "A", "valence": 0.6}
 
 if __name__ == "__main__":

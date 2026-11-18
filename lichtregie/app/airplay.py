@@ -38,6 +38,8 @@ def handle(kind, code, data, now=None):
                 title = _text(data)
                 if title and title != AP["titel"]:
                     print(f"AirPlay: Titel „{title}“", flush=True)
+                    # Neues Lied: Die Position des vorigen gilt nicht mehr, bis sein Fortschritt kommt
+                    AP.update(start=None, ende=None, prgr=None, interpret=None)
                 AP["titel"] = title or AP["titel"]
             elif code == "asar":
                 AP["interpret"] = _text(data)
@@ -96,6 +98,19 @@ def position(t):
         if length and pos > length + 2.0:
             return None
         return pos
+
+
+def now_playing(now=None):
+    """Das laufende Lied wie bisher aus HA: {title, artist, duration, pos (s, Ton der Analyse jetzt), playing} oder
+    None. Ohne Interpret ist es kein Lied (beim Verbinden meldet Music Assistant „Spotify Connect (…)“ als Titel)."""
+    now = time.time() if now is None else now
+    pos = position(now)
+    with LOCK:
+        if not AP["titel"] or not AP["interpret"] or now - AP["at"] > 600.0:
+            return None
+        length = None if AP["start"] is None or AP["ende"] is None else ((AP["ende"] - AP["start"]) % (1 << 32)) / RATE
+        return {"title": AP["titel"], "artist": AP["interpret"], "id": None, "duration": length, "pos": pos,
+                "playing": AP["spielt"] and now - AP["at"] < 5.0, "source": "AirPlay"}
 
 
 def same_title(title):

@@ -24,7 +24,7 @@ from settings import SETTINGS
 from tempo import tempo
 
 AUDIO = audio.Analyzer() if (audio is not None and (config.AUDIO_PIPE or config.AUDIO_CMD)) else None
-LIVE = {"live": None, "at": 0.0, "seeks": 0}   # letzter Stand des Spotify-Players aus HA; seeks zählt Spulen
+LIVE = {"live": None, "at": 0.0, "seeks": 0}   # laufendes Lied von AirPlay (airplay.now_playing); seeks zählt Spulen
 SEEK_SEC = 5.0                       # Sprung der Liedposition ab dieser Größe gilt als Spulen
 BEAT = {"stop": None, "info": "aus", "szene": "", "start": None, "lied": None, "b": None, "sync": None}   # laufende Show
 WATCH = {"stop": None}               # Titel-Überwachung
@@ -48,19 +48,19 @@ def sound(now=None):
 
 
 def song_position():
-    """Position im Lied in Sekunden (was gerade aus dem Lautsprecher kommt), oder None, wenn nichts spielt.
-    Bevorzugt von AirPlay (genau, im Takt des Tons), sonst aus HA (Spotify-Position, oft Sekunden daneben)."""
-    live = LIVE.get("live")
-    if audio_mode():
-        # Die Analyse bekommt den Ton um den Ton-Vorlauf früher als der Lautsprecher
-        pos = airplay.position(time.time() - SETTINGS["ton_vorlauf"])
-        if pos is not None and (not live or airplay.same_title(live.get("title"))):
-            return pos
-    return ha_position()
+    """Position im Lied in Sekunden (was gerade aus dem Lautsprecher kommt), oder None, wenn nichts spielt. Von
+    AirPlay: genau und im Takt des Tons. Die Analyse bekommt den Ton um den Ton-Vorlauf früher als der Lautsprecher.
+    (Bis 0.9.16 aus HA, der Spotify-Position: die lag bis 11 s daneben.)"""
+    lead = SETTINGS["ton_vorlauf"]
+    pos = airplay.position(time.time() - lead)
+    if pos is not None:
+        return pos
+    pos = live_position()
+    return None if pos is None else max(0.0, pos - lead)
 
 
-def ha_position():
-    """Position im Lied aus HA (Spotify-Position, hochgerechnet), oder None."""
+def live_position():
+    """Position im Lied aus dem letzten Stand (hochgerechnet, Zeit der Analyse), oder None."""
     live = LIVE.get("live")
     if not live or live.get("pos") is None or not live.get("playing"):
         return None
@@ -87,7 +87,7 @@ def mark_one(grid):
 def update_live(live):
     """Neuen Stand des Players übernehmen. Springt die Position im selben Lied deutlich (Spulen), wird das
     gezählt; die Show setzt ihre Schlagzählung dann sofort neu auf."""
-    old, expected = LIVE.get("live"), ha_position()      # HA gegen HA: AirPlay liegt anders
+    old, expected = LIVE.get("live"), live_position()
     if (old and expected is not None and live.get("pos") is not None and live.get("playing")
             and (old["title"], old["artist"]) == (live["title"], live["artist"])
             and abs(live["pos"] - expected) > SEEK_SEC):
@@ -140,18 +140,12 @@ def show_loop(prof, t0, stop):
         b_ha = b
         live = None
         locked = False
-        diag = None
         if audio_mode() and AUDIO.signal(t_a):
             live = AUDIO.live(t_a, bpm)            # Pegel, Break, Drop
             frac = None
             if AUDIO.phase_ok(t_a):                # Schlagphase, sobald das Raster eingerastet ist
                 frac = AUDIO.phase(t_a)
                 locked = True
-                # Diagnose (0.9.15): Auf dem Gerät stand die Zählung bei eingerastetem Takt still (Phase immer 0?)
-                with AUDIO.lock:
-                    diag = {"frac": repr(frac), "typ": type(frac).__name__, "t_a": repr(t_a),
-                            "t_beat": repr(AUDIO.t_beat), "period": repr(AUDIO.period),
-                            "typ_t_beat": type(AUDIO.t_beat).__name__}
             b = counter.update(t_a, b, frac, AUDIO.drop_at, AUDIO.change_at, bpm)
             st = downbeat.STATE
             # Auch ohne eingerasteten Takt: Liegt das Tempo aus der Datenbank falsch, kann der Takt gar nicht
@@ -236,15 +230,14 @@ def show_loop(prof, t0, stop):
             record.trace(now, {"b": round(b, 3), "b_ha": round(b_ha, 3), "pos": pos, "bpm": bpm, "locked": locked,
                                "break": bool(live and live["break"]), "drop": bool(live and live["drop"]),
                                "info": info, "vorlauf": SETTINGS["ton_vorlauf"], "eins": counter.bar_info(),
-                               "ereignisse": [e[1] for e in counter.events[-3:]], "diag": diag,
+                               "ereignisse": [e[1] for e in counter.events[-3:]],
                                "koepfe": {k: [s["pan"], s["tilt"], s["hell"] if s["on"] else 0]
                                           for k, s in heads.snapshot().items()}})
         recent = [f"{e[1]} (vor {int(t_a - e[0])} s)" for e in counter.events[-3:] if t_a - e[0] < 60]
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
                         "audio": locked, "ereignisse": recent,
                         "abweichung": round(counter.diff, 1),      # Diagnose: HA-Position minus Zählung (Schläge)
-                        "audio_aus": counter.audio_off, "schlag_nr": round(b, 2), "eins": counter.bar_info(),
-                        "diag": diag}
+                        "audio_aus": counter.audio_off, "schlag_nr": round(b, 2), "eins": counter.bar_info()}
         szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
         if counter.events and t_a - counter.events[-1][0] < 6.0:   # letzte Korrektur kurz anzeigen
             szene += f" · {counter.events[-1][1]}"
@@ -278,8 +271,9 @@ def song_tempo(title, artist):
 
 
 
-def _theme_key(title, artist, track_id):
-    return track_id or f"{artist}|{title}"
+def _theme_key(title, artist, track_id=None):
+    """Das Thema hängt an Interpret und Titel (seit 0.9.17; bis dahin an der Spotify-ID aus HA)."""
+    return f"{artist}|{title}"
 
 
 def reroll():
@@ -385,15 +379,15 @@ def audio_tempo(since):
 
 
 def watch_loop(stop, current):
-    """Prüft alle 2 s den Titel in HA. Bei einem neuen Titel wird das Tempo geholt und die Show neu
+    """Prüft jede Sekunde den Titel von AirPlay. Bei einem neuen Titel wird das Tempo geholt und die Show neu
     gestartet. Mit Audio gilt der Ton am Empfänger: Ohne Ton startet keine Show (die Show selbst geht nach
     QUIET_STOP aus), mit Ton startet sie sofort, auch wenn HA noch „pausiert“ meldet."""
     miss = {"at": 0.0, "since": time.time()}
     known = {}                                         # Titel → Tempo-Daten, für den Neustart nach einer Pause
-    while not stop.wait(2):
-        live = ha.now_playing()
+    while not stop.wait(1):
+        live = airplay.now_playing()
         if not live:
-            # HA kennt keinen Titel (Spotify-Integration weg, andere Quelle): läuft keine Show, aber es kommt
+            # Kein Titel (Music Assistant schickt keine Metadaten, andere Quelle): läuft keine Show, aber es kommt
             # Musik an, startet eine Show nur nach dem Tempo aus dem Audio
             if BEAT["stop"] is None:
                 found = audio_tempo(miss["since"])
@@ -413,7 +407,7 @@ def watch_loop(stop, current):
                 if found:
                     start_beat(args[0], args[1], found, *args[3:])
                     continue
-                if time.time() - miss["at"] > 20:      # FreqBlog nicht im 2-s-Takt fragen
+                if time.time() - miss["at"] > 20:      # FreqBlog nicht jede Sekunde fragen
                     miss["at"] = time.time()
                     found = song_tempo(*key)
                 if not (found and found.get("bpm")):
@@ -457,18 +451,21 @@ NOTIFY_ID = "lichtregie_audio"
 
 
 def audio_watch_loop():
-    """Warnt, wenn Spotify spielt und die Show läuft, aber am AirPlay-Empfänger kein Ton ankommt
-    (z. B. der Empfänger nach einem Neustart nicht mehr in der Sync-Gruppe von Music Assistant).
-    Warnung in der Oberfläche und als HA-Benachrichtigung; verschwindet, sobald wieder Ton kommt."""
+    """Warnt, wenn Spotify spielt, aber am AirPlay-Empfänger kein Ton ankommt (z. B. der Empfänger nach einem
+    Neustart nicht mehr in der Sync-Gruppe von Music Assistant). Dann kommen auch keine AirPlay-Metadaten an; nur
+    HA weiß noch, dass Spotify spielt. Deshalb fragt nur diese Warnung den Spotify-Player in HA (Add-on-Option,
+    optional), und nur solange kein Ton ankommt. Warnung in der Oberfläche und als HA-Benachrichtigung."""
     while True:
         time.sleep(2.0)
         now = time.time()
-        live = LIVE.get("live") or {}
-        # Ton erwartet: Spotify spielt über Music Assistant (dann gehört der Empfänger zur Gruppe), auch wenn
-        # die Party noch aus ist: Gerade dann muss der Empfänger funktionieren, damit der Ton sie startet
-        expect = (audio_mode() and live.get("playing") and now - LIVE["at"] < 30
-                  and ("Music Assistant" in live.get("source", "") or BEAT["stop"] is not None))
-        if not expect or AUDIO.signal(now):
+        if not audio_mode() or AUDIO.signal(now) or not config.PLAYER:
+            expect = False
+        else:
+            # Spotify spielt über Music Assistant (dann gehört der Empfänger zur Gruppe), auch wenn die Party noch
+            # aus ist: Gerade dann muss der Empfänger funktionieren, damit der Ton sie startet
+            sp = ha.now_playing() or {}
+            expect = bool(sp.get("playing")) and ("Music Assistant" in sp.get("source", "") or BEAT["stop"] is not None)
+        if not expect:
             if AUDIO_WARN["notified"]:
                 ha.call("persistent_notification", "dismiss", {"notification_id": NOTIFY_ID})
                 print("Audio kommt wieder an", flush=True)
@@ -489,6 +486,5 @@ def audio_watch_loop():
         if not AUDIO_WARN["notified"]:
             AUDIO_WARN["notified"] = ha.call("persistent_notification", "create", {
                 "notification_id": NOTIFY_ID, "title": "Lichtregie: kein Audio",
-                "message": f"Kein Audio, obwohl Spotify spielt. {hint} Bis dahin läuft die Show nur nach "
-                           f"der Spotify-Position."})
+                "message": f"Kein Audio, obwohl Spotify spielt. {hint}"})
             print("Warnung: kein Audio am AirPlay-Empfänger", flush=True)

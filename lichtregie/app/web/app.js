@@ -104,7 +104,7 @@ function showStatus(d) {
   // Kacheln
   const a = d.audio;
   $('tiles').innerHTML = audioTile(a)
-    + tile('Spotify', d.titel ? (d.spielt ? 'spielt' : 'pausiert') : 'kein Titel', d.titel ? (d.spielt ? 'ok' : 'warn') : (p.an ? 'bad' : ''))
+    + tile('Lied', d.titel ? (d.spielt ? 'spielt' : 'pausiert') : 'kein Titel', d.titel ? (d.spielt ? 'ok' : 'warn') : (p.an ? 'bad' : ''))
     + deviceTiles(p)
     + tile('Lampen', settings.lampen ? (p.an ? 'folgen der Show' : 'bereit') : 'abgeschaltet', settings.lampen && p.an ? 'ok' : '')
     + tile('Laser', settings.laser ? (l ? l.laser : 'bereit') : 'aus', settings.laser && l && l.laser !== 'aus' ? 'ok' : '');
@@ -164,7 +164,7 @@ function showSync(s) {
     });
   });
   $('syncstat').textContent = !s ? 'Keine Show läuft.'
-    : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Spotify-Position (ungenau)')
+    : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Liedposition')
       + (s.eins ? ' · „1“ ' + (s.eins.quelle === 'Beat This' ? `von Beat This (${Math.round(s.eins.deutlich * 100)} % einig)`
                                : s.eins.quelle === 'von Hand' ? 'von Hand gesetzt'
                                : 'geschätzt, Beat This rechnet noch') : '')

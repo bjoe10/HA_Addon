@@ -27,4 +27,18 @@ assert abs(pos - 31.0) < 0.05 and airplay.same_title("Ich Jogge") and st["dauer"
 assert airplay.position(time.time() + 2.0) - pos > 1.9
 airplay.handle("ssnc", "pend", b"")
 assert airplay.position(time.time()) is None
+# Liedwechsel: neuer Titel → die Position des vorigen Liedes gilt nicht mehr, bis sein Fortschritt kommt
+airplay.handle("ssnc", "pbeg", b"")
+assert airplay.now_playing()["title"] == "ich jogge"
+airplay.handle("core", "minm", "morgen".encode())
+assert airplay.position(time.time()) is None, "Position des vorigen Liedes gilt weiter"
+assert airplay.now_playing() is None, "ohne Interpret kein Lied"
+airplay.handle("core", "asar", b"Mayberg")
+airplay.handle("ssnc", "prgr", f"{1000}/{1000 + 44100 * 2}/{1000 + 44100 * 200}".encode())
+lp = airplay.now_playing()
+assert lp["title"] == "morgen" and lp["artist"] == "Mayberg" and round(lp["duration"]) == 200, lp
+# Beim Verbinden meldet Music Assistant „Spotify Connect (…)“ als Titel, ohne Interpret: kein Lied
+airplay.handle("core", "minm", "Spotify Connect (Party modus)".encode())
+assert airplay.now_playing() is None
+print("Liedwechsel und Titel ohne Interpret ok")
 print("AirPlay-Metadaten ok")

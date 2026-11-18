@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.16
+
+- **Eine Quelle für Lied und Position: AirPlay.** Titel, Interpret, Liedwechsel, Position im Lied, Spulen und
+  Pause kommen jetzt von den AirPlay-Metadaten, also aus demselben Strom wie der Ton. Die Spotify-Integration in
+  HA lag bis 11 s daneben und wird für die Show nicht mehr gebraucht. Der Titel wird jede Sekunde geprüft (bisher
+  alle 2 s). Ist die Audioanalyse aus, startet die Party-Automatik, wenn AirPlay ein laufendes Lied meldet.
+- **Lichtthema am Liedtitel:** Das Thema (und ein neu gewürfeltes) hängt an Interpret und Titel statt an der
+  Spotify-ID. Bisher gewürfelte Themen gelten deshalb nicht mehr.
+- **Spotify-Player nur noch optional:** Die Add-on-Option wird nur noch für die Warnung „Spotify spielt, aber kein
+  Ton kommt an“ gebraucht. Fällt der Empfänger aus der Gruppe in Music Assistant, kommen auch keine AirPlay-Daten
+  mehr an; dann weiß nur HA, dass Spotify spielt. Die Kachel „Spotify“ heißt jetzt „Lied“.
+- **Ursache der stehenden Köpfe gefunden:** Lief ein Lied ohne Tempo bei FreqBlog, schätzte die Analyse das Tempo
+  selbst, in float32 (numpy). Darüber wurde auch der Zeitpunkt des Schlags (Uhrzeit, 1,8 Mrd. s) zu float32 und
+  war nur noch auf 128 s genau: Die Phase war danach immer 0, die Schlagzählung stand bei jedem eingerasteten Takt
+  still, bei allen folgenden Liedern bis zum Neustart des Add-ons. Daraus folgten die „HA neu ausgerichtet“ alle
+  10 s, das Abschalten der Audio-Zählung und das scheinbar schwer erkannte Lied. Periode und Schlag-Zeitpunkt
+  bleiben jetzt immer normale Zahlen (float64). Die Diagnose aus 0.9.15 ist wieder entfernt.
+
 ## 0.9.15
 
 - **Diagnose:** Die Schlagzählung stand auf dem Gerät bei eingerastetem Takt still (Schlagnummer exakt ganzzahlig,

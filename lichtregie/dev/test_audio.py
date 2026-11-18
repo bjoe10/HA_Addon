@@ -73,4 +73,21 @@ for hint in (BPM, None):
           if drops else "   kein Drop erkannt")
     assert np.median(errs) < (10 if hint else 50), "Phase zu ungenau"
     assert breaks and drops, "Break/Drop nicht erkannt"
+# Lied ohne Tempo-Vorgabe, danach eines mit: Die Autokorrelation rechnet in float32. Eine float32-Periode machte
+# auch den Schlag-Zeitpunkt (Uhrzeit ~1,8 Mrd. s) zu float32, auf 128 s genau: Phase immer 0, Zählung stand still
+_y = np.zeros(int(20 * RATE), dtype=np.float32)
+for _j in range(int(20 / (60 / 124))):
+    _i = int(_j * 60 / 124 * RATE); _n = int(0.15 * RATE); _ts = np.arange(_n) / RATE
+    _y[_i:_i + _n] += (0.9 * np.sin(2 * np.pi * (55 + 60 * np.exp(-_ts * 30)) * _ts) * np.exp(-_ts * 18))[:len(_y) - _i]
+an = audio.Analyzer()
+_T0 = 1.795e9
+for _k in range(0, len(_y) - 4096, 4096):
+    an.feed(_y[_k:_k + 4096], _T0 + (_k + 4096) / RATE)
+an.set_bpm_hint(124.0)
+for _k in range(0, len(_y) - 4096, 4096):
+    an.feed(_y[_k:_k + 4096], _T0 + 20 + (_k + 4096) / RATE)
+_p = [an.phase(_T0 + 39.0 + d) for d in (0.0, 0.1, 0.2)]
+assert type(an.t_beat) is float and type(an.period) is float, (type(an.t_beat), type(an.period))
+assert len({round(x, 3) for x in _p}) == 3, _p
+print(f"Ohne Vorgabe, dann mit: Raster bleibt float64, Phase läuft ({[round(x, 2) for x in _p]})")
 print("Audioanalyse ok")

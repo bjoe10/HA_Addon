@@ -23,6 +23,7 @@ for name in ("LICHTREGIE_PLAYER", "LICHTREGIE_ALLOWED_CLIENTS", "LICHTREGIE_AUDI
     os.environ.pop(name, None)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 import config  # noqa: E402
+import airplay  # noqa: E402
 import engine  # noqa: E402
 import ha  # noqa: E402
 import heads  # noqa: E402
@@ -134,8 +135,8 @@ server.MANUAL["at"] = 0.0
 party.PARTY.update(_p)
 print("Art-Net: nur mit Party, beim Parken und beim Einrichten")
 # --- Party-Modus: Schalter, Automatik an bei Musik, aus nach Ruhe --------------------------------------
-ha.now_playing = lambda: None
-engine.LIVE.update(live=None, at=0.0)       # Spotify meldet nichts: nur der Ton zählt als Musik
+airplay.now_playing = lambda now=None: None
+engine.LIVE.update(live=None, at=0.0)       # AirPlay meldet kein Lied: nur der Ton zählt als Musik
 CALLS.clear()
 threading.Thread(target=engine.idle_loop, daemon=True).start()
 st = post("/api/party", {"an": True})
@@ -185,17 +186,17 @@ party.SETTINGS["party_aus_min"] = 0.05     # 3 s
 time.sleep(6.0)
 assert not party.PARTY["on"] and not party.PARTY["manual_stop"], party.PARTY
 print(f"Party-Automatik: an bei Musik, aus nach Ruhe ({party.PARTY['why']})")
-# Spotify spielt, am Empfänger kommt nichts an: Party startet trotzdem
+# AirPlay meldet ein Lied, aber kein Ton kommt an: Party startet nicht
 party.SETTINGS["party_aus_min"] = 15
-ha.now_playing = lambda: {"title": "T", "artist": "A", "pos": 5.0, "playing": True, "id": "x", "duration": 100}
+airplay.now_playing = lambda now=None: {"title": "T", "artist": "A", "pos": 5.0, "playing": True, "id": "x", "duration": 100}
 time.sleep(5.0)
 assert not party.PARTY["on"], "Party darf ohne Ton am Empfänger nicht starten"
-# läuft sie aber schon, hält Spotify sie am Leben, auch wenn der Ton ausfällt
+# läuft sie aber schon, hält das laufende Lied sie am Leben, auch wenn der Ton ausfällt
 party.start("Test")
 party.SETTINGS["party_aus_min"] = 0.05
 time.sleep(5.0)
-assert party.PARTY["on"], "Party bei Störung des Empfängers ausgegangen, obwohl Spotify spielt"
-print("Start nur durch Ton; laufende Party bleibt an, solange Spotify spielt")
+assert party.PARTY["on"], "Party ausgegangen, obwohl laut AirPlay ein Lied läuft"
+print("Start nur durch Ton; laufende Party bleibt an, solange laut AirPlay ein Lied läuft")
 
 # --- Show nur mit Ton: Pause, dann Warten, und zurück, sobald wieder Ton kommt ---------------------------
 party.SETTINGS["party_aus_min"] = 15
@@ -214,8 +215,8 @@ time.sleep(2.5)
 assert engine.BEAT["stop"] is None, "Show läuft ohne Ton weiter"
 time.sleep(0.5)
 assert engine.BEAT["szene"].startswith("Warten"), engine.BEAT["szene"]
-ha.now_playing = lambda: {"title": "T", "artist": "A", "pos": 5.0, "playing": False, "id": "x", "duration": 100}
-engine.AUDIO.on = True                  # HA meldet noch „pausiert“, der Ton gilt
+airplay.now_playing = lambda now=None: {"title": "T", "artist": "A", "pos": 5.0, "playing": False, "id": "x", "duration": 100}
+engine.AUDIO.on = True                  # AirPlay meldet noch „pausiert“, der Ton gilt
 deadline = time.time() + 6
 while engine.BEAT["stop"] is None and time.time() < deadline:
     time.sleep(0.2)

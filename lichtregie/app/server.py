@@ -121,7 +121,7 @@ def status():
     fresh = live is not None and time.time() - engine.LIVE["at"] < 20
     warn = [engine.AUDIO_WARN["text"]] if engine.AUDIO_WARN["text"] else []
     if party.PARTY["on"] and not fresh and time.time() - party.PARTY["since"] > 20:
-        warn.append("Home Assistant meldet keinen Titel (Spotify-Integration nicht erreichbar?). "
+        warn.append("AirPlay meldet keinen Titel (schickt Music Assistant keine Metadaten?). "
                     "Die Show läuft nur nach dem Audio.")
     return {"spots": engine.SPOTS, "szene": engine.BEAT["szene"], "info": engine.BEAT["info"],
             "audio": engine.AUDIO.status() if engine.AUDIO is not None else None,
@@ -264,7 +264,7 @@ def main():
     for k in heads.HEADS:
         print(f"Kopf {k}: Node {config.NODES[k]}, Universe {config.UNIVERSE[k]}, Kanäle {config.LAYOUT[k]} "
               f"({config.HEADS_SOURCE[k]})", flush=True)
-    print(f"Spotify-Player: {config.PLAYER or 'nicht eingestellt'}, "
+    print(f"Spotify-Player (nur für die Warnung „kein Audio“): {config.PLAYER or 'nicht eingestellt'}, "
           f"Tempo-Schlüssel: {'gesetzt' if config.freqblog_key() else 'fehlt'}", flush=True)
     print(f"Lichtregie läuft auf Port {config.PORT}", flush=True)
     server = ThreadingHTTPServer(("0.0.0.0", config.PORT), Handler)
