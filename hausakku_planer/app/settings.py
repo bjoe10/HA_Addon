@@ -46,6 +46,7 @@ DEFAULTS={
  'prices':{'provider':'tibber','tibber_home':None,'entity':None,'attribute':None,'bidding_zone':'DE-LU','markup_ct':0.0,'vat_percent':0.0},
  'battery':{'capacity_kwh':None,'max_charge_kw':None,'max_discharge_kw':None,'nominal_voltage':None},
  'tariff':{'price_floor_eur_kwh':None,'grid_charge_margin_eur_kwh':None,'estimated_value_discount':None},
+ 'notify':{'service':None},   # notify.<service> of a phone: problems and the weekly balance are pushed there
  'planner':{},
 }
 
@@ -108,6 +109,10 @@ class Settings:
         if error:raise ValueError(error)
         return {'charge':prefix+'_netzladen','serve':prefix+'_entladen','expiry':prefix+'_plan_gueltig_bis',
                 'status':prefix+'_plan_status','report':prefix+'_bericht','savings':prefix+'_ersparnis','owner':prefix+'_regler_uebernommen','timer':prefix+'_schaltsperre','target':prefix+'_ziel_soc','permission':prefix+'_planer_freigabe'}
+
+    def notify_service(self):
+        """Name of the phone's notify service (without 'notify.'), or None."""
+        return (self.data.get('notify') or {}).get('service') or None
 
     def location(self):
         loc=self.data['location']

@@ -338,7 +338,8 @@ async function settingsPage(){
   cfg=await api('settings');
   const s=cfg.settings,groups=[['plan','Pflicht für den Plan'],['optional','Optional'],['control','Nur für die Steuerung']];
   let h=`<h2>Veröffentlichen</h2><div class="card">
-   <div class="field"><label for="pub">In Home Assistant veröffentlichen</label><input id="pub" type="checkbox" ${cfg.publish?'checked':''}><span></span><div class="fmsg mut">Aus: Das Add-on rechnet und zeigt den Plan nur an, es schreibt nichts in Home Assistant. An: Es legt eigene Helfer an und schreibt den Plan hinein. Geschaltet wird dadurch nichts, das macht erst die Steuerung (unten). Zum Ausprobieren erst aus lassen.</div></div></div>
+   <div class="field"><label for="pub">In Home Assistant veröffentlichen</label><input id="pub" type="checkbox" ${cfg.publish?'checked':''}><span></span><div class="fmsg mut">Aus: Das Add-on rechnet und zeigt den Plan nur an, es schreibt nichts in Home Assistant. An: Es legt eigene Helfer an und schreibt den Plan hinein. Geschaltet wird dadurch nichts, das macht erst die Steuerung (unten). Zum Ausprobieren erst aus lassen.</div></div>
+   <div class="field"><label for="nt">Hinweise aufs Handy</label><select id="nt"><option value="">keine</option>${s.notify&&s.notify.service?`<option value="${esc(s.notify.service)}" selected>${esc(s.notify.service)}</option>`:''}</select><span></span><div class="fmsg mut" id="m-notify.service">Die Home-Assistant-App auf diesem Handy bekommt Probleme (dieselben wie die Benachrichtigung in Home Assistant, und wenn alles wieder läuft) und montags die Wochenbilanz. Nur mit eingeschaltetem Veröffentlichen.</div></div></div>
   <h2>Eigene Helfer</h2><div class="card">
    <div class="field"><label for="hp">Präfix</label><input id="hp" value="${esc(s.helper_prefix)}" autocapitalize="off"><span></span><div class="fmsg mut" id="m-helper_prefix">Ab der Stufe „Plan veröffentlichen“ schreibt das Add-on nur in Helfer mit diesem Präfix: <code>${esc(Object.values(cfg.helpers).slice(0,5).join(', '))}</code>.</div></div>
   </div>
@@ -352,7 +353,7 @@ async function settingsPage(){
    <div class="field"><label for="nv">Nennspannung Akku (V)</label><input id="nv" inputmode="decimal" value="${esc(s.battery.nominal_voltage??'')}" placeholder="z. B. 51,2"><span></span><div class="fmsg mut" id="m-battery.nominal_voltage">Optional. Nur für die Wirkungsgrad-Messung: Spannung, mit der dein kWh-Sensor aus Ah umgerechnet wird. Leer lassen, wenn der Sensor SOC × Kapazität liefert.</div></div>
    <div class="field"><label for="flo">Preisuntergrenze (ct/kWh)</label><input id="flo" inputmode="decimal" value="${s.tariff.price_floor_eur_kwh==null?'':esc(String(+(s.tariff.price_floor_eur_kwh*100).toFixed(2)))}" placeholder="optional"><span></span><div class="fmsg mut" id="m-tariff.price_floor_eur_kwh">Feste Preisbestandteile (Netzentgelt, Steuern, Abgaben), unter die der Bezugspreis nie fällt. Begrenzt die Preisprognose für kommende Tage.</div></div>
    <div class="field"><label for="mar">Mindestmarge Netzladen (ct/kWh)</label><input id="mar" inputmode="decimal" value="${s.tariff.grid_charge_margin_eur_kwh==null?'':esc(String(+(s.tariff.grid_charge_margin_eur_kwh*100).toFixed(2)))}" placeholder="Standard 5"><span></span><div class="fmsg mut" id="m-tariff.grid_charge_margin_eur_kwh">So viel muss jede aus dem Netz geladene kWh später mehr einbringen, als sie samt Verlusten gekostet hat. Höher: seltener Netzladen. 0: jeder berechnete Vorteil reicht.</div></div>
-   <div class="field"><label for="dis">Abschlag auf geschätzte Preise (%)</label><input id="dis" inputmode="decimal" value="${s.tariff.estimated_value_discount==null?'':esc(String(+(s.tariff.estimated_value_discount*100).toFixed(1)))}" placeholder="Standard 10"><span></span><div class="fmsg mut" id="m-tariff.estimated_value_discount">Energie, die für Tage ohne bekannte Preise aufgehoben oder geladen wird, zählt um diesen Anteil weniger. Höher: der Akku wird eher im bekannten Preiszeitraum genutzt.</div></div></div>`;
+   <div class="field"><label for="disc">Abschlag auf geschätzte Preise (%)</label><input id="disc" inputmode="decimal" value="${s.tariff.estimated_value_discount==null?'':esc(String(+(s.tariff.estimated_value_discount*100).toFixed(1)))}" placeholder="Standard 10"><span></span><div class="fmsg mut" id="m-tariff.estimated_value_discount">Energie, die für Tage ohne bekannte Preise aufgehoben oder geladen wird, zählt um diesen Anteil weniger. Höher: der Akku wird eher im bekannten Preiszeitraum genutzt.</div></div></div>`;
   const pr=s.prices||{};
   h+=`<h2>Strompreis</h2><div class="card">
    <div class="field"><label for="pv">Preisquelle</label><select id="pv"><option value="tibber"${pr.provider==='tibber'?' selected':''}>Tibber (HA-Integration)</option>
@@ -401,9 +402,10 @@ function collect(){
               battery:{capacity_kwh:document.getElementById('cap').value,max_charge_kw:document.getElementById('chg').value,max_discharge_kw:document.getElementById('dis').value,nominal_voltage:document.getElementById('nv').value},
               prices:{provider:document.getElementById('pv').value,tibber_home:document.getElementById('ph').value,entity:document.getElementById('pe').value,
                       attribute:document.getElementById('pa').value,bidding_zone:document.getElementById('pz').value,markup_ct:document.getElementById('pm').value,vat_percent:document.getElementById('pt').value},
+              notify:{service:document.getElementById('nt').value},
               tariff:{price_floor_eur_kwh:(()=>{const v=document.getElementById('flo').value.trim().replace(',','.');return v===''?'':String(+v/100)})(),
                       grid_charge_margin_eur_kwh:(()=>{const v=document.getElementById('mar').value.trim().replace(',','.');return v===''?'':String(+v/100)})(),
-                      estimated_value_discount:(()=>{const v=document.getElementById('dis').value.trim().replace(',','.');return v===''?'':String(+v/100)})()}};
+                      estimated_value_discount:(()=>{const v=document.getElementById('disc').value.trim().replace(',','.');return v===''?'':String(+v/100)})()}};
   main.querySelectorAll('[data-role]').forEach(el=>{
     data.entities[el.dataset.role]=el.tagName==='TEXTAREA'?el.value.split('\n'):el.value});
   return data;
@@ -411,6 +413,9 @@ function collect(){
 
 function bindSettings(){
   const msg=(key,html,cls)=>{const e=document.getElementById('m-'+key);if(e){e.className='fmsg '+(cls||'');e.innerHTML=html}};
+  (async()=>{try{const r=await api('notify'),sel=document.getElementById('nt');if(!sel)return;const cur=sel.value;
+    sel.innerHTML='<option value="">keine</option>'+(r.services||[]).concat(cur&&!(r.services||[]).includes(cur)?[cur]:[]).map(n=>`<option value="${esc(n)}"${n===cur?' selected':''}>${esc(n.replace(/^mobile_app_/,''))}</option>`).join('');
+    if(r.warning)msg('notify.service',esc(r.warning),'wn')}catch(e){}})();
   main.querySelectorAll('input[list]').forEach(inp=>{
     const role=inp.dataset.role||inp.dataset.suggest,dl=inp.getAttribute('list');
     let t;const fill=async()=>{

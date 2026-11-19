@@ -191,6 +191,47 @@ class HealthTests(unittest.TestCase):
             self.assertEqual(ha.calls[0][1]['notification_id'],'hausakku_planer')
         finally:paths.STATE=old
 
+    def test_phone_gets_problems_and_the_all_clear(self):
+        from pathlib import Path
+        old=paths.STATE;paths.STATE=Path(tempfile.mkdtemp())
+        saved=settings.current()
+        settings.use({**saved.data,'notify':{'service':'mobile_app_test'}})
+        class HA:
+            def __init__(self):self.calls=[]
+            async def call(self,name,**kw):self.calls.append((kw['domain'],kw['service'],kw['data']))
+        ha=HA()
+        try:
+            asyncio.run(service.notify_health(ha,['A']));asyncio.run(service.notify_health(ha,['A']))
+            asyncio.run(service.notify_health(ha,[]))
+            phone=[c for c in ha.calls if c[0]=='notify']
+            self.assertEqual([c[1] for c in phone],['mobile_app_test','mobile_app_test'])
+            self.assertIn('A',phone[0][2]['message']);self.assertIn('wieder',phone[1][2]['title'])
+            settings.use({**saved.data,'notify':{'service':None}})
+            ha.calls.clear();asyncio.run(service.notify_health(ha,['B']))
+            self.assertEqual([c[0] for c in ha.calls],['persistent_notification'])
+        finally:paths.STATE=old;settings.use(saved)
+
+    def test_failed_push_is_not_fatal(self):
+        saved=settings.current();settings.use({**saved.data,'notify':{'service':'mobile_app_test'}})
+        class HA:
+            async def call(self,name,**kw):raise RuntimeError('offline')
+        try:self.assertFalse(asyncio.run(service.push(HA(),'t','m')))
+        finally:settings.use(saved)
+
+    def test_only_the_configured_phone_may_be_notified(self):
+        from ha_client import check_call,WritesDisabled
+        saved=settings.current();settings.use({**saved.data,'notify':{'service':'mobile_app_test'}})
+        try:
+            check_call('ha_call_service',{'domain':'notify','service':'mobile_app_test','data':{'title':'t','message':'m'}},mode='publish')
+            for args in ({'domain':'notify','service':'mobile_app_other','data':{'message':'m'}},
+                         {'domain':'notify','service':'mobile_app_test','data':{'message':'m','data':{'push':{}}}}):
+                with self.assertRaises(ValueError):check_call('ha_call_service',args,mode='publish')
+            with self.assertRaises(WritesDisabled):
+                check_call('ha_call_service',{'domain':'notify','service':'mobile_app_test','data':{'message':'m'}},mode='observe')
+        finally:settings.use(saved)
+        with self.assertRaises(ValueError):
+            check_call('ha_call_service',{'domain':'notify','service':'mobile_app_test','data':{'message':'m'}},mode='publish')
+
     def test_only_the_own_notice_may_be_written(self):
         from ha_client import check_call,WritesDisabled
         check_call('ha_call_service',{'domain':'persistent_notification','service':'create','data':{'notification_id':'hausakku_planer'}},mode='publish')

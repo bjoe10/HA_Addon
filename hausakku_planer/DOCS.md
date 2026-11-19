@@ -53,7 +53,7 @@ Mit eingeschaltetem „Veröffentlichen“ legt das Add-on diese Helfer an, mit 
 | `sensor.hap_bericht` | Bericht und Faktenblock der letzten Läufe (für Zusammenfassungen); im Attribut `soc_plan` der geplante Akkustand des veröffentlichten Plans (Start, Minuten und kWh je Intervallende) |
 | `sensor.hap_ersparnis` | Ersparnis durch die Steuerung in EUR seit Zählbeginn (siehe „Ersparnis“); Attribute: `week_eur` diese Woche, `last_week_eur`, gezählte Stunden, Modellabweichung |
 
-Das Add-on schreibt nur in diese Helfer, in eine eigene Benachrichtigung „Hausakku-Planer“ (siehe Fehlersuche) und, wenn du es auslöst, in die Ressource der Dashboard-Karte (siehe unten). Gerätezustände oder Schalter fasst es nicht an.
+Das Add-on schreibt nur in diese Helfer, in eine eigene Benachrichtigung „Hausakku-Planer“ (siehe Fehlersuche), an das gewählte Handy (nur Text) und, wenn du es auslöst, in die Ressource der Dashboard-Karte (siehe unten). Gerätezustände oder Schalter fasst es nicht an.
 
 ## Steuerung: der Blueprint
 
@@ -160,7 +160,7 @@ Einzelne Tage oder Wochen mit negativer Ersparnis sind normal, wenn Energie für
 
 ## Fehlersuche
 
-Mit eingeschaltetem Veröffentlichen meldet sich das Add-on mit einer Benachrichtigung in Home Assistant, wenn Planer-Läufe wiederholt scheitern, die Wochenbilanz fehlschlägt, der Plan bald abläuft ohne Nachfolger, ein Zähler bei eingeschalteter Steuerung keine Werte liefert oder Börsenpreise bzw. Wind-/Sonnenprognose seit mehr als 2 Tagen nicht abgerufen werden konnten. Sie verschwindet von selbst, wenn alles wieder läuft. „Prüfen“ in den Einstellungen zeigt zu jedem Zähler, wie viele der letzten 72 Stunden ohne Wert sind.
+Mit eingeschaltetem Veröffentlichen meldet sich das Add-on mit einer Benachrichtigung in Home Assistant, wenn Planer-Läufe wiederholt scheitern, die Wochenbilanz fehlschlägt, der Plan bald abläuft ohne Nachfolger, ein Zähler bei eingeschalteter Steuerung keine Werte liefert oder Börsenpreise bzw. Wind-/Sonnenprognose seit mehr als 2 Tagen nicht abgerufen werden konnten. Sie verschwindet von selbst, wenn alles wieder läuft. Ist unter „Veröffentlichen“ ein Handy gewählt, kommt derselbe Text als Push über die Home-Assistant-App, dazu eine Meldung, wenn alles wieder läuft, und montags eine Kurzfassung der Wochenbilanz. „Prüfen“ in den Einstellungen zeigt zu jedem Zähler, wie viele der letzten 72 Stunden ohne Wert sind.
 
 | Meldung oder Beobachtung | Ursache und Abhilfe |
 |---|---|

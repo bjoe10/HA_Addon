@@ -18,7 +18,7 @@ WS_TIMEOUT=180     # seconds for one WebSocket answer; a year of hourly statisti
 def own():
     """Object ids of the helpers the add-on owns (from the helper prefix). Created on first publish if missing."""
     return {v for k,v in settings.current().helpers().items() if k in ('charge','serve','expiry','status','target')}
-READ={'ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services','ha_entity_registry','ha_related','ha_control_automation'}
+READ={'ha_notify_targets','ha_get_state','ha_list_states','ha_get_history','ha_config_list_helpers','ha_eval_template','ha_list_services','ha_entity_registry','ha_related','ha_control_automation'}
 
 class WritesDisabled(RuntimeError):
     pass
@@ -57,6 +57,9 @@ def check_call(name,args,mode=None):
         if pair==('weather','get_forecasts') and weather and entity==weather and args.get('data')=={'type':'hourly'}: return
         if pair in {('persistent_notification','create'),('persistent_notification','dismiss')} and (args.get('data') or {}).get('notification_id')=='hausakku_planer':
             _require_writes(mode);return     # the add-on's own notice, nothing else
+        target=settings.current().notify_service()
+        if target and pair==('notify',target) and set(args.get('data') or {})<={'title','message'}:
+            _require_writes(mode);return     # the configured phone, plain text only
         if pair in {('input_datetime','set_datetime'),('input_text','set_value'),('input_number','set_value')} and entity.split('.')[-1] in own():
             _require_writes(mode);return
         raise ValueError('Hardware/service writes prohibited by planner client')
@@ -150,6 +153,12 @@ class HA:
             if state is None:missing.append(entity)
             else:states[entity]=state
         return {'states':states,'error_count':len(missing),'errors':missing}
+
+    async def _ha_notify_targets(self):
+        """Phone notify services (mobile_app_*), for the settings page."""
+        domains=await self.t.rest('GET','/services') or []
+        names=[n for d in domains if d.get('domain')=='notify' for n in (d.get('services') or {}) if n.startswith('mobile_app_')]
+        return {'services':sorted(names)}
 
     async def _ha_list_states(self):
         return {'states':await self.t.rest('GET','/states') or []}

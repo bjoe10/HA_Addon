@@ -31,3 +31,17 @@ class TrailingCompleteTests(unittest.TestCase):
         self.assertEqual(len(block),39)
 
 if __name__=='__main__':unittest.main()
+
+
+class PhoneTextTests(unittest.TestCase):
+    def test_phone_text_is_short_and_uses_the_facts(self):
+        from datetime import timedelta
+        r={'cash_saving_eur':-.8,'saving_incl_inventory_eur':.4,'grid_charged_ac_kwh':12.9,'mean_charge_price_eur_kwh':.338,
+           'battery_served_ac_kwh':18.,'mean_served_price_eur_kwh':.587,'house_load_kwh':58.9,'pv_kwh':17.2}
+        start=datetime(2026,11,16,tzinfo=ZoneInfo('Europe/Berlin'))
+        text=weekly_report.phone_text(r,(start,start+timedelta(days=7)),{'last_week_eur':1.6,'total_eur':0.},{'plain':.047,'weather':.031})
+        lines=text.split('\n')
+        self.assertEqual(lines[0],'16.11.–22.11.')
+        self.assertIn('Woche +1,60 €, gesamt +0,00 €',text);self.assertIn('Netzladen 12,9 kWh zu Ø 33,8 ct',text)
+        self.assertIn('ohne Wetter 4,7 ct, mit Wetter 3,1 ct',text);self.assertLessEqual(len(lines),7)
+        self.assertNotIn('Netzladen',weekly_report.phone_text({**r,'grid_charged_ac_kwh':0.},(start,start+timedelta(days=7))))

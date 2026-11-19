@@ -137,11 +137,34 @@ def facts(result,week,devices,calibration,audit,counter=None,price_forecast=None
     return '\n'.join(lines)
 
 
+def euro(x):
+    return f"{x:+.2f} €".replace('.',',')
+
+
+def phone_text(result,week,counter=None,price_forecast=None):
+    """A few lines for the phone. Same numbers as the fact block, nothing new."""
+    r=result;last=week[1]-timedelta(days=1)
+    lines=[f"{week[0].strftime('%d.%m.')}–{last.strftime('%d.%m.')}"]
+    if counter:
+        week_part=f"Woche {euro(counter['last_week_eur'])}, " if counter.get('last_week_eur') is not None else ''
+        lines.append(f"Ersparnis-Zähler: {week_part}gesamt {euro(counter['total_eur'])}")
+    lines.append(f"Wochenrechnung: Kasse {euro(r['cash_saving_eur'])}, mit Akkustand {euro(r['saving_incl_inventory_eur'])}")
+    parts=[]
+    if r['grid_charged_ac_kwh']>0.05:parts.append(f"Netzladen {r['grid_charged_ac_kwh']:.1f} kWh zu Ø {r['mean_charge_price_eur_kwh']*100:.1f} ct")
+    if r['battery_served_ac_kwh']>0.05:parts.append(f"Akku lieferte {r['battery_served_ac_kwh']:.1f} kWh bei Ø {r['mean_served_price_eur_kwh']*100:.1f} ct")
+    if parts:lines.append(' · '.join(parts).replace('.',','))
+    lines.append(f"Verbrauch {r['house_load_kwh']:.1f} kWh · PV {r['pv_kwh']:.1f} kWh".replace('.',','))
+    if price_forecast:
+        lines.append(f"Preisschätzung daneben: ohne Wetter {price_forecast['plain']*100:.1f} ct, mit Wetter {price_forecast['weather']*100:.1f} ct".replace('.',','))
+    return '\n'.join(lines)
+
+
 async def run(args):
     watcher=diagnostics.start_watch()     # noqa: F841 (kept alive until asyncio.run ends)
     config=load_config(BASE);ENERGY=energy_map();EVS=vehicle_entities()
     end=datetime.combine(datetime.now(TZ).date(),datetime.min.time(),TZ) if not args.end else datetime.fromisoformat(args.end).astimezone(TZ)
     start=datetime.combine((end-timedelta(days=args.days)).date(),datetime.min.time(),TZ)
+    (BASE/'state/weekly'/'phone.txt').unlink(missing_ok=True)    # a failed run must not push last week's text
     try:spot_prices.refresh(BASE/'state/training/spot_prices.json',datetime.now(TZ).date(),zone=settings.current().data['prices'].get('bidding_zone') or 'DE-LU')
     except Exception:pass
     prices,calibration=hourly_prices(BASE/'state/multiday_audit.sqlite',BASE/'state/training/spot_prices.json',end)
@@ -177,7 +200,9 @@ async def run(args):
     try:counter=json.loads((BASE/'state/shadow.json').read_text()).get('summary')
     except (OSError,ValueError):counter=None
     audit=audit_summary(BASE/'state/forecast_audit.sqlite') if (BASE/'state/forecast_audit.sqlite').exists() else None
-    print(facts(result,(start,end),devices,calibration,audit,counter,price_forecast_errors(prices,start,end)))
+    forecast=price_forecast_errors(prices,start,end)
+    (weekly/'phone.txt').write_text(phone_text(result,(start,end),counter,forecast))
+    print(facts(result,(start,end),devices,calibration,audit,counter,forecast))
 
 
 def main():

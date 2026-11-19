@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.1
+- **Hinweise aufs Handy.** In den Einstellungen unter „Veröffentlichen“ lässt sich ein Handy mit der Home-Assistant-App wählen. Es bekommt dieselben Probleme wie die Benachrichtigung in Home Assistant (und eine Meldung, wenn alles wieder läuft) sowie montags nach der Wochenbilanz eine Kurzfassung: Ersparnis-Zähler, Wochenrechnung, Netzladen, Verbrauch, Fehler der Preisschätzung. Das Add-on darf nur diesen einen Dienst und nur mit Titel und Text aufrufen. Ein fehlgeschlagener Versand stört den Planer nicht.
+- **Behoben:** Das Feld „Abschlag auf geschätzte Preise“ teilte sich die Kennung mit „Maximale WR-Leistung“. Beim Speichern der Einstellungen landete deshalb die WR-Leistung als Abschlag (2 kW wurden zu 2 %). Bitte die Einstellungen einmal prüfen und speichern.
+
 ## 0.15.0
 - **Wetter in der Preisschätzung der Folgetage.** Die Schätzung kannte bisher nur die Preisgeschichte. Jetzt verschiebt eine Wetterkorrektur das Tagesniveau nach Wind und Sonne über Deutschland (Open-Meteo, acht feste Punkte, ohne Schlüssel). Gelernt aus dem letzten Jahr, angewendet nur, wenn sie auf den letzten 60 Tagen besser lag. Rückblick mit den damals bekannten Prognosen: Fehler je Stunde 3,7 → 3,2 ct, im Winter 4,0 → 3,1 ct. Temperatur wurde geprüft und brachte nichts zusätzlich.
 - **Feiertage** zählen in der Schätzung wie Sonntage, Heiligabend, Silvester, Fronleichnam und Allerheiligen wie Samstage. Weihnachten bis Neujahr im Rückblick: 3,7 → 3,3 ct, mit Wetter 2,3 ct.

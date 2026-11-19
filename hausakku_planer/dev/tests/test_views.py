@@ -63,6 +63,11 @@ class SuggestTests(unittest.TestCase):
         self.assertEqual(self.ids('grid_import','netz'),['sensor.netz_bezug'])
 
 class ValidationTests(unittest.TestCase):
+    def test_notify_service_validated(self):
+        clean,err=views.validate_settings({'notify':{'service':' notify.mobile_app_bjoerns_iphone '}})
+        self.assertEqual(clean['notify'],{'service':'mobile_app_bjoerns_iphone'});self.assertNotIn('notify.service',err)
+        self.assertEqual(views.validate_settings({})[0]['notify'],{'service':None})
+        self.assertIn('notify.service',views.validate_settings({'notify':{'service':'mobile app'}})[1])
     def test_helper_prefix_validated(self):
         clean,err=views.validate_settings({'helper_prefix':' Solar '})
         self.assertEqual(clean['helper_prefix'],'solar');self.assertNotIn('helper_prefix',err)

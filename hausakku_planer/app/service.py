@@ -214,6 +214,11 @@ async def update_savings(ha,now=None):
     shadow.save_state(f,state)
     return state['summary']
 
+def weekly_push_text():
+    """The short phone version the weekly run leaves next to its result."""
+    try:return (paths.STATE/'weekly'/'phone.txt').read_text().strip() or None
+    except OSError:return None
+
 async def publish_report(entry):
     """Hand the run's output to Home Assistant as one sensor, so a summariser can read it without the add-on API.
     The savings are brought up to date and written alongside, so both come back with the next run after a
@@ -231,6 +236,9 @@ async def publish_report(entry):
                 log.warning('Ersparnis nicht fortgeschrieben (%s)',type(exc).__name__);summary=savings_summary()
             state,extra=savings_state(summary)
             await ha.call('ha_set_state',entity_id=ha_client.savings_sensor(),state=state,attributes=extra)
+            if entry['kind']=='weekly' and entry.get('ok'):
+                text=weekly_push_text()
+                if text:await push(ha,'Hausakku: Wochenbilanz',text)
             try:await notify_health(ha,health_issues(read_runs(20),replan_failures(),load_plan(),summary,datetime.now(TZ),data_ages(datetime.now(TZ))))
             except Exception as exc:log.warning('Hinweis nicht geschrieben (%s)',type(exc).__name__)
     except Exception as exc:
@@ -291,8 +299,19 @@ def health_issues(runs,silent_failures,plan,savings,now,ages=None):
             issues.append(f'{DATA_FILES[key][1]}: seit {age.days} Tagen kein erfolgreicher Abruf. Der Planer schätzt die Folgetage mit älteren Daten bzw. ohne diese Korrektur; die bekannten Preise sind nicht betroffen. Internetverbindung des Add-ons prüfen.')
     return issues
 
+async def push(ha,title,message):
+    """Send a message to the configured phone, if any. A failed push is logged, never fatal."""
+    target=settings.current().notify_service()
+    if not target:return False
+    try:
+        await ha.call('ha_call_service',domain='notify',service=target,data={'title':title,'message':message[:1500]})
+        return True
+    except Exception as exc:
+        log.warning('Push ans Handy fehlgeschlagen (%s)',type(exc).__name__);return False
+
 async def notify_health(ha,issues):
-    """One persistent notification in Home Assistant, updated when the text changes and removed when all is well."""
+    """One persistent notification in Home Assistant, updated when the text changes and removed when all is well.
+    The same text goes to the phone; when all is well again the phone hears that too."""
     f=paths.STATE/'health.json'
     try:last=json.loads(f.read_text()).get('text')
     except (OSError,ValueError):last=None
@@ -304,6 +323,8 @@ async def notify_health(ha,issues):
     else:
         await ha.call('ha_call_service',domain='persistent_notification',service='dismiss',data={'notification_id':NOTIFICATION_ID})
     f.write_text(json.dumps({'text':text}))
+    if text:await push(ha,'Hausakku: Problem',text)
+    elif last:await push(ha,'Hausakku: wieder in Ordnung','Die gemeldeten Probleme sind behoben.')
 
 class Scheduler:
     def __init__(self):self.lock=asyncio.Lock();self.running=None;self._tasks=set()
@@ -385,7 +406,7 @@ async def plan(request):
 async def get_settings(request):
     cfg=settings.current()
     roles=[{'role':r,'label':label,'need':need,'list':r in settings.LISTS} for r,(label,need) in settings.ROLES.items()]
-    return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices','helper_prefix','adopt_legacy_helpers')},'roles':roles,
+    return web.json_response({'settings':{k:cfg.data[k] for k in ('entities','location','battery','tariff','prices','helper_prefix','adopt_legacy_helpers','notify')},'roles':roles,
                               'helpers':cfg.helpers(),
                               'missing':cfg.missing('plan'),'missing_control':cfg.missing('control'),'mode':settings.operating_mode(),
                               'publish':settings.operating_mode()=='publish','publish_saved':cfg.data.get('publish') is not None})
@@ -468,6 +489,12 @@ async def put_settings(request):
     settings.save(clean)
     background(refresh_card())     # the card carries the helper names and battery entities
     return web.json_response({'ok':True,'missing':settings.current().missing('plan')})
+
+async def notify_targets(request):
+    try:
+        async with connection() as ha:return web.json_response(await ha.call('ha_notify_targets'))
+    except Exception as exc:
+        return web.json_response({'services':[],'warning':'Home Assistant nicht erreichbar ('+type(exc).__name__+')'})
 
 async def entities(request):
     role=request.query.get('role','')
@@ -614,7 +641,7 @@ def make_app():
     app.router.add_get('/api/runs',runs);app.router.add_post('/api/run',run_now);app.router.add_get('/api/plan',plan)
     app.router.add_get('/api/blueprint',blueprint);app.router.add_post('/api/control/setup',control_setup);app.router.add_get('/api/card',card);app.router.add_post('/api/card/setup',card_setup);app.router.add_get('/api/autofill',autofill);app.router.add_get('/api/setup',setup);app.router.add_get('/api/estimates',estimates)
     app.router.add_get('/api/settings',get_settings);app.router.add_put('/api/settings',put_settings)
-    app.router.add_get('/api/entities',entities);app.router.add_get('/api/check',check);app.router.add_get('/api/prices/check',check_prices)
+    app.router.add_get('/api/entities',entities);app.router.add_get('/api/notify',notify_targets);app.router.add_get('/api/check',check);app.router.add_get('/api/prices/check',check_prices)
     async def start(app):
         app['task']=asyncio.create_task(app['scheduler'].loop())
         background(refresh_card())     # an add-on update brings a new card

@@ -321,4 +321,8 @@ def validate_settings(data):
             if not 0<=v<=hi:raise ValueError
             clean['tariff'][key]=v
         except (TypeError,ValueError):errors['tariff.'+key]=msg
+    raw=str((data.get('notify') or {}).get('service') or '').strip()
+    if raw.startswith('notify.'):raw=raw[len('notify.'):]
+    clean['notify']={'service':raw or None}
+    if raw and not NAME_RE.match(raw):errors['notify.service']='Ungültiger Dienstname'
     return clean,errors
