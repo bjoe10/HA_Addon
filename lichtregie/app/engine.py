@@ -402,6 +402,7 @@ def watch_loop(stop, current):
     miss = {"at": 0.0, "since": time.time()}
     known = {}                                         # Titel → Tempo-Daten, für den Neustart nach einer Pause
     while not stop.wait(1):
+        airplay.LEAD = SETTINGS["ton_vorlauf"]          # neuer Titel gilt, wenn sein Ton aus dem Lautsprecher kommt
         live = airplay.now_playing()
         if not live:
             # Kein Titel (Music Assistant schickt keine Metadaten, andere Quelle): läuft keine Show, aber es kommt

@@ -27,18 +27,28 @@ assert abs(pos - 31.0) < 0.05 and st["dauer"] == 128
 assert airplay.position(time.time() + 2.0) - pos > 1.9
 airplay.handle("ssnc", "pend", b"")
 assert airplay.position(time.time()) is None
-# Liedwechsel: neuer Titel → die Position des vorigen Liedes gilt nicht mehr, bis sein Fortschritt kommt
+# Liedwechsel: Music Assistant meldet den neuen Titel, bevor sein Ton kommt. Das laufende Lied gilt weiter (mit
+# Position), bis der Ton am Lautsprecher (Ton-Vorlauf später als die Analyse) den Anfang des neuen erreicht
 airplay.handle("ssnc", "pbeg", b"")
 assert airplay.now_playing()["title"] == "ich jogge"
+airplay.LEAD = 1.0
+now = time.time()
 airplay.handle("core", "minm", "morgen".encode())
-assert airplay.position(time.time()) is None, "Position des vorigen Liedes gilt weiter"
-assert airplay.now_playing() is None, "ohne Interpret kein Lied"
 airplay.handle("core", "asar", b"Mayberg")
-airplay.handle("ssnc", "prgr", f"{1000}/{1000 + 44100 * 2}/{1000 + 44100 * 200}".encode())
-lp = airplay.now_playing()
+assert airplay.position(time.time()) is not None, "Position des laufenden Liedes fehlt"
+assert airplay.now_playing()["title"] == "ich jogge", "neuer Titel zu früh (noch kein Anfang bekannt)"
+f_now = int(airplay._frame_at(now))
+nstart = (f_now + 44100 * 3) % (1 << 32)              # Ton des neuen Liedes kommt in 3 s bei der Analyse an
+airplay.handle("ssnc", "prgr", f"{nstart}/{nstart}/{(nstart + 44100 * 200) % (1 << 32)}".encode())
+assert airplay.status()["naechster"] == "morgen"
+assert airplay.now_playing(now + 3.5)["title"] == "ich jogge", "neuer Titel vor dem Lautsprecher"
+lp = airplay.now_playing(now + 4.1)
 assert lp["title"] == "morgen" and lp["artist"] == "Mayberg" and round(lp["duration"]) == 200, lp
-# Beim Verbinden meldet Music Assistant „Spotify Connect (…)“ als Titel, ohne Interpret: kein Lied
-airplay.handle("core", "minm", "Spotify Connect (Party modus)".encode())
-assert airplay.now_playing() is None
+assert airplay.status()["naechster"] is None
+# Beim Verbinden meldet Music Assistant „Spotify Connect (…)“ als Titel, ohne Interpret und ohne Anfang: gilt
+# spätestens nach WAIT_MAX, und ohne Interpret ist es kein Lied
+airplay.handle("core", "minm", "Spotify Connect (Party modus)".encode(), now)
+assert airplay.now_playing(now + 1)["title"] == "morgen"
+assert airplay.now_playing(now + airplay.WAIT_MAX + 1) is None
 print("Liedwechsel und Titel ohne Interpret ok")
 print("AirPlay-Metadaten ok")

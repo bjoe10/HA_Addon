@@ -70,9 +70,10 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   treffen sich beide Spots über dem TV und atmen in der Farbe des Liedes (Pause); nach 10 s geht die Show aus
   und die Köpfe zeigen einen langsam kreisenden Sternhimmel an der Decke (Warten). Kommt wieder Ton, startet
   die Show sofort. Der Laser ist in beiden Ruhe-Animationen aus.
-- **Überspringen und Spulen:** Ein neuer Titel wird nach spätestens 2 s erkannt. Spulen im Lied (Sprung über
-  5 s) setzt die Schlagzählung neu auf, sobald HA die neue Position meldet.
-- **Titel unbekannt:** Kennt FreqBlog das Lied nicht oder meldet HA keinen Titel, läuft die Show mit dem Tempo
+- **Liedwechsel, Überspringen und Spulen:** Music Assistant meldet das nächste Lied einige Sekunden, bevor es
+  erklingt; die Show wechselt erst, wenn sein Ton aus dem Lautsprecher kommt. Spulen im Lied (Sprung über 5 s)
+  setzt die Schlagzählung neu auf, sobald AirPlay die neue Position meldet.
+- **Titel unbekannt:** Kennt FreqBlog das Lied nicht oder kommt kein Titel über AirPlay, läuft die Show mit dem Tempo
   aus dem Audio.
 - Ein Neustart des Add-ons (z. B. Update) unterbricht die Party nicht: Sie läuft danach weiter.
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.24
+
+- **Liedwechsel im Takt des Lautsprechers:** Music Assistant schickt Titel und Anfang des nächsten Liedes, sobald es
+  dessen Ton in den Puffer schiebt, einige Sekunden bevor er erklingt. Die Show sprang deshalb 4–5 s zu früh aufs
+  neue Lied. Jetzt wartet der neue Titel, bis der Ton am Lautsprecher an seinem Anfang ist (AirPlay-Zeitmarken und
+  Ton-Vorlauf); das laufende Lied spielt mit seiner Position bis zum Ende. Ohne Zeitmarke (z. B. nach Überspringen)
+  oder nach höchstens 20 s gilt der neue Titel sofort. Das Log zeigt, wie lange er gewartet hat.
+
 ## 0.9.23
 
 - **LED-Streifen:** Helligkeit von Blinder und Flash je mit eigenem Regler (5–100 %, bisher immer voll), unter
