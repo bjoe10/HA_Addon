@@ -103,6 +103,25 @@
    nach Thema. Schneller als 2 Takte geht nicht: Die Yeelights nehmen nur etwa 60 Befehle pro Minute an.</p>
  </section>
 
+ <section class="card" id="kugelcard" hidden>
+  <h2>Spiegelkugel</h2>
+  <p class="label">In der Show</p>
+  <div class="switches">
+   <button class="sw" data-choice="kugel_show" data-value="0">nie</button>
+   <button class="sw" data-choice="kugel_show" data-value="1">ruhige Teile</button>
+   <button class="sw" data-choice="kugel_show" data-value="2">+ Höhepunkt</button>
+  </div>
+  <label>Wackeln <span class="val" data-val="kugel_wackeln" data-unit="°"></span>
+   <input type="range" data-set="kugel_wackeln" min="0" max="6" step="0.25"></label>
+  <div class="switches">
+   <button class="sw" data-set="kugel_idle">in der Ruhe-Animation</button>
+   <button class="sw" data-set="kugel_farbig">farbig</button>
+  </div>
+  <p class="hint">Ruhige Teile: Intro, Break, Atempause, Outro; dort funkelt die Kugel (kleine langsame Kreise). Im
+   Höhepunkt und Drop ruckt der Kopf auf jedem Schlag, die Lichtpunkte springen mit. Der andere Kopf spielt weiter.
+   Beim Warten wechseln Sternhimmel und Kugel alle 40 s. Farbig: in der Farbe des Liedes statt weiß.</p>
+ </section>
+
  <section class="card" id="ledcard" hidden>
   <h2>LED-Streifen</h2>
   <label>Farbe <span class="val" data-val="tv_hell" data-unit=" %"></span>
@@ -145,6 +164,22 @@
   <button id="allon">Köpfe an</button>
   <button id="alloff">Köpfe aus</button>
  </div>
+
+ <section class="card">
+  <h2>Spiegelkugel</h2>
+  <p class="status" id="kugelstat">–</p>
+  <div class="switches">
+   <button id="kugel1">Kopf 1 zeigt auf die Kugel</button>
+   <button id="kugel2">Kopf 2 zeigt auf die Kugel</button>
+  </div>
+  <div class="switches">
+   <button class="sw" data-set="kugeltest">Kugel-Test</button>
+   <button id="kugelaus" class="ghost">Kugel abschalten</button>
+  </div>
+  <p class="hint">Einen Kopf mit „Raum antippen“ und den Reglern Pan/Tilt genau auf die Kugel richten (Party aus), dann
+   „Kopf … zeigt auf die Kugel“. Kopf 1 hängt links, wenn man zum TV schaut. Kugel-Test (bei laufender Party): Der
+   Kopf bleibt auf der Kugel und funkelt; so lässt sich das Wackeln unter Feinabstimmung einstellen.</p>
+ </section>
 
  <section class="card">
   <h2>Laser von Hand</h2>

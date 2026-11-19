@@ -190,6 +190,14 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/target":       # Punkt im Raumbild angetippt
             heads.aim_manual(float(body["x"]), float(body["y"]), float(body["z"]))
             self._json(heads.snapshot())
+        elif self.path == "/api/kugel":        # dieser Kopf zeigt auf die Spiegelkugel: Pan/Tilt merken
+            k = 2 if int(body.get("kopf", 1)) == 2 else 1
+            snap = heads.snapshot()[str(k)]
+            target = heads.LAST_TARGET["value"]
+            SETTINGS.update(kugel_kopf=k, kugel_pan=snap["pan"], kugel_tilt=snap["tilt"],
+                            kugel_xyz=[target["x"], target["y"], target["z"]] if target else None)
+            settings.save()
+            self._json(SETTINGS)
         elif self.path == "/api/save":
             self._json(heads.save_point())
         elif self.path == "/api/party":        # Party-Schalter

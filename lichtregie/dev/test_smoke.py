@@ -254,6 +254,32 @@ assert show.tv(prof, start + 0.1, {"drop": True, "drop_beats": 0.5, "level": 1, 
 assert show.tv(prof, start + 3.5, None, 1, 0, blinder_len=4)[2] and not show.tv(prof, start + 4.5, None, 1, 0, blinder_len=4)[2], "Blinder-Dauer"
 assert show.tv(prof, calm + 0.9, None, 0, 2, flash_len=1.0)[2] and not show.tv(prof, calm + 0.9, None, 0, 2, flash_len=0.5)[2], "Flash-Dauer"
 print("LED-Streifen: gedimmte Farbe, Blinder bei Höhepunkt, Drop und Phrasenwechsel, Flash einstellbar")
+# Spiegelkugel: Kopf 1 auf gespeicherte Pan/Tilt, nur in ruhigen Teilen (Show 1), Wackeln in Grad, Einstieg dunkel
+from geometry import MODEL  # noqa: E402
+kg = {"kopf": 1, "pan": 30000, "tilt": 20000, "xyz": None, "show": 1, "deg": 2.0, "idle": True, "farbig": False,
+      "test": False}
+quiet = [b for b, t in parts if t in ("Intro", "Break", "Atempause", "Outro")]
+loud = [b for b, t in parts if t in ("Höhepunkt", "Szene")]
+assert quiet, "kein ruhiger Teil im Testlied"
+qb = next(b for b in quiet if b + 2 in quiet and b % 1 == 0 and b - 1 in quiet)   # mitten im ruhigen Teil
+out, info = show.frame(prof, qb + 0.5, kugel=kg)
+assert "pt" in out[1] and "pt" not in out[2] and out[1]["gobo"] == 0 and out[1]["hell"] >= 170, out[1]
+dp, dt = out[1]["pt"][0] - 30000, out[1]["pt"][1] - 20000
+r = ((dp / (2.0 * abs(MODEL[1]["bp"]))) ** 2 + (dt / (2.0 * abs(MODEL[1]["bt"]))) ** 2) ** 0.5
+assert abs(r - 1.0) < 0.01, ("Wackeln nicht 2°", r)
+assert all("pt" not in show.frame(prof, b + 0.5, kugel=kg)[0][1] for b in loud[:20]), "Kugel außerhalb ruhiger Teile"
+first = next((b for b in quiet if b > 8 and b - 1 not in quiet and b % 1 == 0), None)
+assert first is None or show.frame(prof, first + 0.3, kugel=kg)[0][1]["hell"] == 0, "Einstieg nicht dunkel"
+idle = [show.idle_frame(t, "warten", kugel=kg) for t in (10.0, 50.0)]
+assert "pt" not in idle[0][1] and "pt" in idle[1][1] and "pt" not in idle[1][2], "Ruhe-Animation wechselt nicht"
+assert "pt" in show.idle_frame(5.0, "pause", [36], kg)[1]
+pan, tilt = engine.aim(1, {"pt": (30000, 20000), "ziel": (0, 0, 0)})
+assert 0 <= pan <= 65535 and 0 <= tilt <= 65535
+heads.apply(2, 12345, 23456)
+st = post("/api/kugel", {"kopf": 2})
+assert st["kugel_kopf"] == 2 and st["kugel_pan"] == 12345 and st["kugel_tilt"] == 23456, st
+post("/api/settings", {"kugel_kopf": 0})
+print("Spiegelkugel: Pan/Tilt gespeichert, nur in ruhigen Teilen, Wackeln in Grad, Ruhe-Animation wechselt")
 SENT = []
 ha.call = lambda domain, service, data: SENT.append((service, dict(data))) or True
 lamps.LAMP["last"], lamps.SPENT, lamps.PARALLEL = {}, {}, False

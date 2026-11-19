@@ -545,7 +545,7 @@ def _strobe_amount(prof, st, b, strobe, amount):
     return strobe
 
 
-def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=False, strobe_amount=100):
+def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=False, strobe_amount=100, kugel=None):
     """Ein Bild für beide Köpfe. b = Taktposition jetzt, b_move = Taktposition für die Bewegung
     (vorgezogen um die Laufzeit des Kopfes). tempo = Faktor für die Bahnen (2 = doppelt so schnell).
     Rückgabe: {kopf: {ziel, hell, farbe, gobo, strobe}}, Info-Text."""
@@ -598,7 +598,43 @@ def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=Fal
                   "strobe": STROBE if (strobe and strobe_on and not dark) else 0}
     info = (f"{st['teil']}: {scene_name(scene)} · {st['rel'] or scene['rel']} · {pattern}"
             + (f" · {st['var']}" if st["var"] else ""))
+    k = kugel.get("kopf") if kugel else None
+    if k in out and (kugel.get("test") or st["teil"] in KUGEL_TEILE.get(kugel.get("show", 0), ())):
+        peak = st["teil"] in ("Höhepunkt", "Drop")
+        # Einstieg: den ersten Schlag dunkel, damit Farb- und Goborad unsichtbar auf Weiß/offen laufen
+        prev = look(prof, math.floor(b) - 0.5)["teil"]
+        entering = not kugel.get("test") and prev not in KUGEL_TEILE.get(kugel.get("show", 0), ())
+        hell = out[k]["hell"] if peak else max(out[k]["hell"], 170)
+        out[k] = kugel_frame(k, kugel, b * 60.0 / prof["bpm"], b if peak else None,
+                             0 if entering else hell, wheels[k][0] if kugel.get("farbig") else 0, out[k]["ziel"])
+        info += " · Spiegelkugel"
     return out, info
+
+
+# --- Spiegelkugel: ein Kopf (Standard Kopf 1, links vom TV aus gesehen) zielt auf die Kugel und bewegt sich nur
+# wenig; die Lichtpunkte im Raum ziehen dadurch herum. Gespeichert sind Pan/Tilt des Kopfes (genauer als ein Punkt
+# im Raumbild), die Bewegung rechnet in Grad mit der Steigung des Kalibriermodells
+KUGEL_TEILE = {0: (), 1: ("Intro", "Break", "Atempause", "Outro"),
+               2: ("Intro", "Break", "Atempause", "Outro", "Höhepunkt", "Drop")}
+KUGEL_RUNDE = 8.0          # s für eine Runde beim Funkeln
+
+
+def kugel_frame(k, kugel, t, b=None, hell=200, farbe=0, ziel=None):
+    """Bild für den Kugelkopf. Ohne b: Funkeln, kleine langsame Kreise (eine Runde in KUGEL_RUNDE s). Mit b (Höhepunkt,
+    Drop): Ruck im Takt, auf jedem Schlag springt der Kopf zwischen zwei Punkten, die Lichtpunkte springen mit.
+    Rückgabe wie frame(); "pt" = Pan/Tilt direkt (statt über einen Raumpunkt)."""
+    from geometry import MODEL
+    deg = kugel.get("deg", 1.5)
+    if b is None:
+        a = 2 * math.pi * t / KUGEL_RUNDE
+        dx, dy = math.cos(a), math.sin(a)
+    else:
+        side = 1 if int(b) % 2 == 0 else -1
+        dx, dy = 0.7 * side, 0.7 * (1 if int(b) % 4 < 2 else -1)
+    pan = kugel["pan"] + dx * deg * abs(MODEL[k]["bp"])
+    tilt = kugel["tilt"] + dy * deg * abs(MODEL[k]["bt"])
+    return {"pt": (pan, tilt), "ziel": kugel.get("xyz") or ziel or (2.5, 3.0, 2.5), "hell": int(hell),
+            "farbe": farbe, "gobo": 0, "strobe": 0}
 
 
 if __name__ == "__main__":
@@ -829,14 +865,32 @@ def _level(x):
     return 0 if x <= 0 else int(MIN_DIM + (255 - MIN_DIM) * min(1.0, x))
 
 
-def idle_frame(t, mode="warten", colors=None):
+def idle_frame(t, mode="warten", colors=None, kugel=None):
     """Bild für die Köpfe, wenn keine Musik läuft. t = Zeit in Sekunden.
     - "warten": Party an, noch keine Musik (oder zwischen zwei Liedern ohne Tempo): Sternhimmel an der Decke.
       Beide Köpfe ziehen langsam gegenläufig Kreise (40 s pro Runde), Gobo Punkte-Ring, sanftes Atmen,
       Farbe wechselt alle 24 s im Dunkeln.
     - "pause": Musik pausiert: beide Spots treffen sich über dem TV, pendeln leicht und atmen in der
       Grundfarbe des Liedes.
+    Mit Spiegelkugel (kugel["idle"]): beim Warten wechseln Sternhimmel und Kugel alle 40 s (der Kugelkopf funkelt
+    weiß, der andere bleibt am Himmel), bei Pause funkelt der Kugelkopf auf der Kugel.
     Rückgabe wie frame(): {kopf: {ziel, hell, farbe, gobo, strobe}}."""
+    out = _idle_frame(t, mode, colors)
+    k = kugel.get("kopf") if kugel else None
+    if k in out and (kugel.get("idle") or kugel.get("test")):
+        if mode == "pause":
+            out[k] = kugel_frame(k, kugel, t, None, 160, out[k]["farbe"] if kugel.get("farbig") else 0)
+        elif kugel.get("test") or int(t // KUGEL_IDLE_SEC) % 2 == 1:
+            in_step = t % KUGEL_IDLE_SEC
+            dark = not kugel.get("test") and (in_step < 0.8 or in_step > KUGEL_IDLE_SEC - 0.8)   # Räder im Dunkeln
+            out[k] = kugel_frame(k, kugel, t, None, 0 if dark else 190, 0)
+    return out
+
+
+KUGEL_IDLE_SEC = 40.0      # beim Warten: so lange Sternhimmel, dann so lange Spiegelkugel
+
+
+def _idle_frame(t, mode, colors):
     out = {}
     if mode == "pause":
         color = (colors or [64])[0]

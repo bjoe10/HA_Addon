@@ -392,6 +392,8 @@ function showHeads() {
     $('b' + k).textContent = s.on ? `Kopf ${k} dunkel` : `Kopf ${k} hell`;
   }
 }
+for (const k of [1, 2]) $('kugel' + k).addEventListener('click', () => api('api/kugel', {kopf: k}).then(s => { settings = s; loadState(); }));
+$('kugelaus').addEventListener('click', () => setSetting({kugel_kopf: 0}));
 $('allon').addEventListener('click', () => api('api/set', {heads: {1: {on: true}, 2: {on: true}}}).then(s => { state = s; showHeads(); }));
 $('alloff').addEventListener('click', () => api('api/set', {heads: {1: {on: false}, 2: {on: false}}}).then(s => { state = s; showHeads(); }));
 
@@ -449,6 +451,10 @@ function loadState() {
   return api('api/state').then(s => {
     state = s; settings = s.settings;
     $('ledcard').hidden = !s.led;                  // Karte nur mit eingetragenem LED-Streifen
+    $('kugelcard').hidden = !settings.kugel_kopf;  // … und nur mit gespeicherter Spiegelkugel
+    $('kugelstat').textContent = settings.kugel_kopf
+      ? `Gespeichert: Kopf ${settings.kugel_kopf}, Pan ${settings.kugel_pan}, Tilt ${settings.kugel_tilt}`
+      : 'Noch keine Spiegelkugel gespeichert.';
     showSettings(); showHeads(); showLaser(s.laser);
   }).catch(() => {});
 }

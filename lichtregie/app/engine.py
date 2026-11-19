@@ -37,6 +37,21 @@ QUIET_PAUSE = 2.0                    # so lange kein Ton: Pause-Animation (Spots
 QUIET_STOP = 10.0                    # so lange kein Ton: Show aus, Warte-Animation; neu, sobald wieder Ton kommt
 
 
+def kugel():
+    """Spiegelkugel aus den Einstellungen, oder None, wenn keine gespeichert ist."""
+    k = SETTINGS["kugel_kopf"]
+    if k not in (1, 2):
+        return None
+    return {"kopf": k, "pan": SETTINGS["kugel_pan"], "tilt": SETTINGS["kugel_tilt"], "xyz": SETTINGS["kugel_xyz"],
+            "show": SETTINGS["kugel_show"], "deg": SETTINGS["kugel_wackeln"], "idle": SETTINGS["kugel_idle"],
+            "farbig": SETTINGS["kugel_farbig"], "test": SETTINGS["kugeltest"]}
+
+
+def aim(k, v):
+    """Pan/Tilt für ein Bild: direkt (Spiegelkugel) oder über den Raumpunkt."""
+    return heads.aim_raw(k, *v["pt"]) if "pt" in v else heads.aim_show(k, v["ziel"])
+
+
 def audio_mode():
     """Steuert der Ton die Show? (Audioanalyse vorhanden und in der Oberfläche an)"""
     return AUDIO is not None and SETTINGS["audio"]
@@ -188,9 +203,9 @@ def show_loop(prof, t0, stop):
         b_move = b + SETTINGS["vorlauf"] * bpm / 60.0   # Bewegung vorziehen, damit sie auf dem Schlag ankommt
         out, info = show.frame(prof, b, b_move, strobe_on=SETTINGS["strobe"], tempo=SETTINGS["tempo"],
                                strobe_amount=SETTINGS["strobe_menge"],
-                               live=live, locked=locked)
+                               live=live, locked=locked, kugel=kugel())
         if paused:                             # Ruhe-Animation: Spots treffen sich über dem TV und atmen
-            out = show.idle_frame(now, "pause", [show.WHEEL[prof["base"]]])
+            out = show.idle_frame(now, "pause", [show.WHEEL[prof["base"]]], kugel())
             info = "Pause"
         if SETTINGS["takttest"]:
             # Takt-Test zum Einstellen von Ton-Vorlauf und Takt-Sync: weiß auf TV-Wand-Mitte, Blitz auf jedem
@@ -205,7 +220,7 @@ def show_loop(prof, t0, stop):
                                (120 if k == 1 and flash else show.MIN_DIM)} for k in (1, 2)}
             info, live = "Takt-Test", None
         for k, v in out.items():
-            pan, tilt = heads.aim_show(k, v["ziel"])
+            pan, tilt = aim(k, v)
             hell, strobe = v["hell"], v["strobe"]
             if live and hell > 0:   # Live-Pegel hebt und senkt die Helligkeit leicht
                 hell = max(show.MIN_DIM, int(hell * (0.75 + 0.25 * live["level"])))
@@ -304,8 +319,8 @@ def idle_loop():
             laser.off()
             was_idle = True
         now = time.time()
-        for k, v in show.idle_frame(now, "warten").items():
-            pan, tilt = heads.aim_show(k, v["ziel"])
+        for k, v in show.idle_frame(now, "warten", kugel=kugel()).items():
+            pan, tilt = aim(k, v)
             heads.apply(k, pan, tilt, True, v["farbe"], v["gobo"], 0, v["hell"])
             x, y, z = v["ziel"]
             SPOTS[str(k)] = {"x": float(x), "y": float(y), "z": float(z), "hell": int(v["hell"]),

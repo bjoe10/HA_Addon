@@ -102,6 +102,11 @@ def _with_kick(k, pan, tilt):
     return _clamp16(pan + lead_pan), _clamp16(tilt + lead_tilt)
 
 
+def aim_raw(k, pan, tilt):
+    """Pan/Tilt direkt (Spiegelkugel), mit Anschub und Vorsteuerung wie die Show-Ziele."""
+    return _with_kick(k, _clamp16(pan), _clamp16(tilt))
+
+
 def aim_show(k, point):
     """Pan/Tilt für einen Show-Zielpunkt in Raumkoordinaten, mit Anschub und Vorsteuerung."""
     x, y, z = point

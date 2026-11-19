@@ -86,12 +86,15 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   - *Takt-Sync:* Takt und Phrase, woher die „1“ kommt, „Jetzt ist die 1“, ±1 Schlag, „1“ mit Beat This;
     aufklappbar ±1 Takt und die „1“ der Phrase (gilt für das ganze Lied).
   - *Lampen:* Helligkeit von Decke und Vitrinen, Rhythmus der Farbwechsel, harter Wechsel.
+  - *Spiegelkugel* (nur mit gespeicherter Kugel): wann in der Show (nie / ruhige Teile / zusätzlich Höhepunkt),
+    Wackeln in Grad, in der Ruhe-Animation, weiß oder farbig.
   - *LED-Streifen* (nur mit eingetragenem Streifen): Helligkeit der Farbe, Blinder (aus / Drop und Höhepunkt /
     zusätzlich jeder Phrasenwechsel) und Flash auf der „1“ (aus / Höhepunkt und Drop / jeder Takt), je mit Dauer.
 - **Einrichten** (einmal einstellen): Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe
   und des Lasers von Hand, Laser-Steckdose, Ton und Takt (Audio, Takt-Test, Ton-Vorlauf), Lampen einstellen
   (Lampen-Test, Vorlauf der Lampen und des LED-Streifens), Bewegung der Köpfe (Tempo, Anschub, Vorsteuerung),
-  Laser-Bereich (Grenzen und Show-Mitte). Zugeklappt: **Technik und Fehlersuche** (Bildrate, Lücken und verworfene
+  Laser-Bereich (Grenzen und Show-Mitte), Spiegelkugel (Kopf auf die Kugel richten und speichern, Kugel-Test).
+  Zugeklappt: **Technik und Fehlersuche** (Bildrate, Lücken und verworfene
   Pakete beim Senden, Beat This, AirPlay, Lampenbefehle, Aufnahme: 90 s Ton und Entscheidungen der Erkennung als
   ZIP zum Herunterladen). Köpfe und Laser von Hand nur, solange die Party aus ist.
 - Eine Seite direkt öffnen: `?tab=fein` oder `?tab=einrichten` an die Adresse hängen.

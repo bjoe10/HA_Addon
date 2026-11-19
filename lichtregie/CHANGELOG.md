@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.20
+
+- **Spiegelkugel (neu):** Ein Kopf (Standard Kopf 1, links vom TV aus gesehen) lässt sich unter Einrichten auf die
+  Kugel richten und speichern (genaue Pan/Tilt-Werte). In der Show geht er in ruhigen Teilen (Intro, Break,
+  Atempause, Outro) auf die Kugel und funkelt (kleine langsame Kreise, Wackeln in Grad einstellbar), wahlweise auch
+  im Höhepunkt und Drop: dort ruckt er auf jedem Schlag, die Lichtpunkte springen mit. Der andere Kopf spielt weiter.
+  Beim Warten wechseln Sternhimmel und Kugel alle 40 s, in der Pause funkelt die Kugel. Weiß oder in der Farbe des
+  Liedes; der Einstieg ist einen Schlag dunkel, damit die Räder unsichtbar wechseln. Kugel-Test zum Einstellen.
+
 ## 0.9.19
 
 - **Schlaganzeige auf der Startseite repariert:** Die Phrasenanzeige suchte ihre Punkte in der ganzen Seite statt im
