@@ -141,7 +141,7 @@
   <h2>LED-Streifen</h2>
   <label>Farbe <span class="val" data-val="tv_hell" data-unit=" %"></span>
    <input type="range" data-set="tv_hell" min="0" max="30" step="1"></label>
-  <p class="label">Blinder (weiß, voll)</p>
+  <p class="label">Blinder (weiß)</p>
   <div class="switches">
    <button class="sw" data-choice="tv_blinder" data-value="0">aus</button>
    <button class="sw" data-choice="tv_blinder" data-value="1">Drop, Höhepunkt</button>
@@ -149,6 +149,8 @@
   </div>
   <label>Dauer <span class="val" data-val="tv_blinder_lang" data-unit=" Schläge"></span>
    <input type="range" data-set="tv_blinder_lang" min="0.5" max="8" step="0.5"></label>
+  <label>Helligkeit <span class="val" data-val="tv_blinder_hell" data-unit=" %"></span>
+   <input type="range" data-set="tv_blinder_hell" min="5" max="100" step="5"></label>
   <p class="label">Flash (kurz weiß auf der „1“)</p>
   <div class="switches">
    <button class="sw" data-choice="tv_flash" data-value="0">aus</button>
@@ -157,6 +159,8 @@
   </div>
   <label>Dauer <span class="val" data-val="tv_flash_lang" data-unit=" Schläge"></span>
    <input type="range" data-set="tv_flash_lang" min="0.25" max="2" step="0.25"></label>
+  <label>Helligkeit <span class="val" data-val="tv_flash_hell" data-unit=" %"></span>
+   <input type="range" data-set="tv_flash_hell" min="5" max="100" step="5"></label>
   <p class="hint">Der Streifen leuchtet gedimmt in der Farbe des Liedes, im Break ist er aus. Zwischen zwei Befehlen
    liegen mindestens 0,4 s, schneller verschluckt der Streifen Befehle; kürzer wird ein Blitz deshalb nicht.</p>
  </section>

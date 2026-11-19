@@ -44,7 +44,8 @@ function showSettings() {
     showValue(el.dataset.set, settings[el.dataset.set]);
   }
   // Dauer-Regler nur, wenn Blinder bzw. Flash an sind
-  for (const [key, on] of [['tv_blinder_lang', settings.tv_blinder > 0], ['tv_flash_lang', settings.tv_flash > 0]]) {
+  for (const [key, on] of [['tv_blinder_lang', settings.tv_blinder > 0], ['tv_blinder_hell', settings.tv_blinder > 0],
+                           ['tv_flash_lang', settings.tv_flash > 0], ['tv_flash_hell', settings.tv_flash > 0]]) {
     const el = document.querySelector(`input[data-set="${key}"]`);
     if (el) { el.disabled = !on; el.closest('label').classList.toggle('off', !on); }
   }

@@ -1,5 +1,5 @@
 name: Lichtregie
-version: "0.9.22"
+version: "0.9.23"
 slug: lichtregie
 description: Musikgesteuerte Lichtshow für Moving Heads per Art-Net, nach Titel, Tempo und Stimmung.
 url: https://github.com/bjoe10/HA_Addon

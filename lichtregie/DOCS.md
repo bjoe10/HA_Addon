@@ -35,7 +35,8 @@ festes Thema (nach Interpret und Titel), dasselbe Lied sieht also jedes Mal glei
    die beiden spielen im Wechsel, jede weitere folgt der Akzentfarbe. „Während der Party aus“ (auch `switch.`) wird ausgeschaltet. Nach der
    Party kommt der alte Zustand zurück.
    **LED-Streifen** (z. B. Govee hinter dem TV): schnelle Lichter ohne Befehlsgrenze. Sie leuchten gedimmt in der
-   Farbe des Liedes und blitzen weiß als Blinder, wenn Drop oder Höhepunkt einsetzen (einstellbar).
+   Farbe des Liedes und blitzen weiß als Blinder, wenn Drop oder Höhepunkt einsetzen (Art, Dauer und Helligkeit
+   einstellbar).
 6. „Lichtregie“ in der Seitenleiste öffnen und Musik starten. Mit Automatik geht die Party von selbst an.
 
 ## Musik über Music Assistant (AirPlay)
@@ -90,7 +91,8 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
     Gobo und Zittern (der Kopf steht fest, das zitternde Gobo lässt die Punkte tanzen), in der Ruhe-Animation, weiß
     oder farbig.
   - *LED-Streifen* (nur mit eingetragenem Streifen): Helligkeit der Farbe, Blinder (aus / Drop und Höhepunkt /
-    zusätzlich jeder Phrasenwechsel) und Flash auf der „1“ (aus / Höhepunkt und Drop / jeder Takt), je mit Dauer.
+    zusätzlich jeder Phrasenwechsel) und Flash auf der „1“ (aus / Höhepunkt und Drop / jeder Takt), je mit Dauer
+    und Helligkeit.
 - **Einrichten** (einmal einstellen): Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe
   und des Lasers von Hand, Laser-Steckdose, Ton und Takt (Audio, Takt-Test, Ton-Vorlauf), Lampen einstellen
   (Lampen-Test, Vorlauf der Lampen und des LED-Streifens), Bewegung der Köpfe (Tempo, Anschub, Vorsteuerung),

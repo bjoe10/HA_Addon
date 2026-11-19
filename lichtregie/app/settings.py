@@ -27,6 +27,7 @@ SETTINGS = {
     # (ein Befehl über HA und Bluetooth dauert ca. 0,36 s)
     "tv_hell": 5, "tv_blinder": 2, "tv_flash": 0, "tv_vorlauf": 0.35,
     "tv_blinder_lang": 1.0, "tv_flash_lang": 0.5,           # Länge in Schlägen
+    "tv_blinder_hell": 100, "tv_flash_hell": 100,           # Prozent
     # Spiegelkugel: Kopf (0 = keine), gespeicherte Pan/Tilt und Raumpunkt (Vorschau), wann in der Show (0 nie,
     # 1 ruhige Teile, 2 zusätzlich Höhepunkt und Drop), Gobo (show.KUGEL_GOBOS) und Zittern (0 langsam, 1 mittel,
     # 2 schnell), in der Ruhe-Animation, farbig, Test
@@ -54,6 +55,7 @@ RULES = {
     "lampen_hart": bool, "lampentest": bool, "lampen_wechsel": (float, 0.0, 64.0),
     "tv_hell": (int, 0, 100), "tv_blinder": (int, 0, 2), "tv_flash": (int, 0, 2), "tv_vorlauf": (float, 0.0, 1.0),
     "tv_blinder_lang": (float, 0.5, 8.0), "tv_flash_lang": (float, 0.25, 2.0),
+    "tv_blinder_hell": (int, 5, 100), "tv_flash_hell": (int, 5, 100),
     "kugel_kopf": (int, 0, 2), "kugel_show": (int, 0, 2), "kugel_gobo": (int, 0, 6), "kugel_zittern": (int, 0, 2), "kugel_idle": bool,
     "kugel_farbig": bool, "kugeltest": bool,
     "strobe_menge": (int, 0, 200),

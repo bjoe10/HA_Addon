@@ -711,25 +711,26 @@ def tv(prof, b, live=None, blinder=2, flash=0, flash_len=TV_FLASH, blinder_len=T
     „tv_hell“), bei Höhepunkt und Drop die Akzentfarbe, im Break aus. Dazu weiß in voller Helligkeit:
     - Blinder (blinder_len Schläge): 1 = wenn Drop oder Höhepunkt einsetzen, 2 = zusätzlich auf der „1“ jeder Phrase.
     - Flash (flash_len Schläge ab der „1“ des Takts): 1 = nur in Höhepunkt und Drop, 2 = immer.
-    Rückgabe: (rgb, prozent, weiß?) – Prozent bezieht sich auf die eingestellte Helligkeit, Weiß nicht."""
+    Rückgabe: (rgb, prozent, weiß) – weiß = "blinder", "flash" oder "" (Farbe); die Helligkeit von Farbe, Blinder
+    und Flash stellt lamps.py ein."""
     st = look(prof, b, live)
     teil = st["teil"]
     if teil in ("Break", "Atempause"):
-        return WHITE, 0, False
+        return WHITE, 0, ""
     peak = teil in ("Höhepunkt", "Drop")
     color = RGB[_wheel_color((prof["accent"] if peak else prof["base"]) - 1)]
     if blinder >= 1:
         if live and live.get("drop") and live.get("drop_beats", 99.0) < blinder_len:   # Drop live erkannt
-            return WHITE, 100, True
+            return WHITE, 100, "blinder"
         # Höhepunkt hat vor höchstens blinder_len Schlägen begonnen (Teile beginnen auf ganzen Schlägen)
         if teil == "Höhepunkt" and look(prof, math.floor(b) - math.ceil(blinder_len) + 0.5)["teil"] != "Höhepunkt" \
                 and look(prof, b - blinder_len)["teil"] != "Höhepunkt":
-            return WHITE, 100, True
+            return WHITE, 100, "blinder"
     if blinder >= 2 and b % PHRASE < blinder_len:                                  # Phrasenwechsel
-        return WHITE, 100, True
+        return WHITE, 100, "blinder"
     if (flash >= 2 or (flash == 1 and peak)) and b % BAR < min(flash_len, BAR - 0.25):
-        return WHITE, 100, True
-    return color, 100, False
+        return WHITE, 100, "flash"
+    return color, 100, ""
 
 
 # --- Laser (gemessen, siehe SHOW.md) ----------------------------------------------------------------

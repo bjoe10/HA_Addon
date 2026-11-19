@@ -240,12 +240,12 @@ for i in range(0, 64 * 40, 7):
 # LED-Streifen: gedimmte Farbe; Blinder beim Einsetzen des Höhepunkts und bei Phrasenwechseln; Flash auf der „1“
 parts = [(i / 8, show.look(prof, i / 8)["teil"]) for i in range(0, 600 * 8)]
 start = next(b for b, t in parts if t == "Höhepunkt")
-assert show.tv(prof, start + 0.1, None, 1, 0)[2], "kein Blinder beim Einsetzen des Höhepunkts"
+assert show.tv(prof, start + 0.1, None, 1, 0)[2] == "blinder", "kein Blinder beim Einsetzen des Höhepunkts"
 assert not show.tv(prof, start + 4.6, None, 1, 0)[2], "Blinder dauert zu lang"
 assert show.tv(prof, start + 4.1, None, 1, 1)[2] and not show.tv(prof, start + 4.7, None, 1, 1)[2], "Flash auf der 1"
 calm = next(b for b, t in parts if t in ("Motiv", "Szene") and b % 32 > 2 and b % 4 < 0.3)
 assert not show.tv(prof, calm, None, 2, 1)[2], "Flash außerhalb von Höhepunkt/Drop"
-assert show.tv(prof, calm, None, 2, 2)[2], "Flash auf jeder 1 fehlt"
+assert show.tv(prof, calm, None, 2, 2)[2] == "flash", "Flash auf jeder 1 fehlt"
 phr = next(b for b, t in parts if t in ("Motiv", "Szene") and b % 32 == 0.25)
 assert show.tv(prof, phr, None, 2, 0)[2] and not show.tv(prof, phr, None, 1, 0)[2], "Blinder beim Phrasenwechsel"
 brk = next((b for b, t in parts if t in ("Break", "Atempause")), None)

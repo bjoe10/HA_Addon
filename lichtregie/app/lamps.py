@@ -214,10 +214,10 @@ def want_now():
     rgb, pct, flash = show.tv(LAMP["prof"], b_tv, live, SETTINGS["tv_blinder"], SETTINGS["tv_flash"],
                               SETTINGS["tv_flash_lang"], SETTINGS["tv_blinder_lang"])
     if SETTINGS["lampentest"]:
-        rgb, pct, flash = show.WHITE, 100, b_tv % 1.0 < show.TV_FLASH   # Blitz auf jedem Schlag, sonst gedimmt weiß
-    # Farbe in der eingestellten (geringen) Helligkeit, weiße Blitze immer voll
-    want["tv"] = (rgb, pct if flash else (0 if pct == 0 or SETTINGS["tv_hell"] == 0 else
-                                          max(1, round(pct * SETTINGS["tv_hell"] / 100))))
+        rgb, pct, flash = show.WHITE, 100, "flash" if b_tv % 1.0 < show.TV_FLASH else ""   # Blitz auf jedem Schlag
+    # Farbe in der eingestellten (geringen) Helligkeit, Blinder und Flash in ihrer eigenen
+    level = SETTINGS["tv_flash_hell"] if flash == "flash" else SETTINGS["tv_blinder_hell"] if flash else SETTINGS["tv_hell"]
+    want["tv"] = (rgb, 0 if pct == 0 or level == 0 else max(1, round(pct * level / 100)))
     # Helligkeit je Gruppe aus der Oberfläche (Decke = Grundfarbe, Vitrinen = Akzent), in Prozent
     for group, setting in (("grund", "lampen_decke"), ("akzent", "lampen_vitrine"),
                            ("links", "lampen_vitrine"), ("rechts", "lampen_vitrine")):

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.23
+
+- **LED-Streifen:** Helligkeit von Blinder und Flash je mit eigenem Regler (5–100 %, bisher immer voll), unter
+  Feinabstimmung → LED-Streifen.
+
 ## 0.9.22
 
 - **Spiegelkugel blieb dunkel:** Bei einem live aus dem Audio erkannten Break stand der Kopf auf der Kugel, das Licht
