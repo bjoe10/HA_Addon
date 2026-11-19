@@ -31,7 +31,10 @@ for (const el of all('input[data-set]')) {
   el.addEventListener('change', () => setSetting({[el.dataset.set]: +el.value}));
 }
 function showValue(key, v) {
-  for (const el of all(`[data-val="${key}"]`)) el.textContent = v + (el.dataset.unit || '');
+  for (const el of all(`[data-val="${key}"]`)) {
+    const unit = el.dataset.unit === ' Schläge' && +v === 1 ? ' Schlag' : (el.dataset.unit || '');
+    el.textContent = (+v).toLocaleString('de-DE') + unit;      // 0,35 s statt 0.35 s
+  }
 }
 function showSettings() {
   for (const el of all('button[data-set]')) el.classList.toggle('on', !!settings[el.dataset.set]);
@@ -39,6 +42,11 @@ function showSettings() {
   for (const el of all('input[data-set]')) {
     if (document.activeElement !== el) el.value = settings[el.dataset.set];
     showValue(el.dataset.set, settings[el.dataset.set]);
+  }
+  // Dauer-Regler nur, wenn Blinder bzw. Flash an sind
+  for (const [key, on] of [['tv_blinder_lang', settings.tv_blinder > 0], ['tv_flash_lang', settings.tv_flash > 0]]) {
+    const el = document.querySelector(`input[data-set="${key}"]`);
+    if (el) { el.disabled = !on; el.closest('label').classList.toggle('off', !on); }
   }
 }
 
@@ -93,7 +101,8 @@ function showStatus(d) {
   $('chips').innerHTML = !l ? '' : [
     `${l.bpm} BPM${l.tempo_quelle === 'Audio' ? ' (aus dem Audio)' : ''}`, l.stufe,
     `<b style="background:${RADFARBE[l.farben[0]]}"></b><b style="background:${RADFARBE[l.farben[1]]}"></b>${esc(l.farbnamen.join(' / '))}`,
-    'Gobos ' + esc(l.gobos.join(' / ')), 'Laser ' + esc(l.laser), `Lampen alle ${l.lampen_takte} Takte`,
+    'Gobos ' + esc(l.gobos.join(' / ')), 'Laser ' + esc(l.laser),
+    `Lampen alle ${settings.lampen_wechsel > 0 ? Math.max(2, settings.lampen_wechsel / 4) : l.lampen_takte} Takte`,
     l.variante ? 'Thema ' + (l.variante + 1) : ''].filter(Boolean).map(c => `<span class="chip">${c}</span>`).join('');
   // Kacheln
   const a = d.audio;
@@ -144,16 +153,16 @@ function syncClock(s, t0, t1) {
   beatClock = fresh;
 }
 function beatAt(c, now) { return c.pause ? c.b : c.b + (now - c.at) / 1000 * c.bpm / 60; }
-function beatLoop(now) {
+function beatLoop() {
+  const now = performance.now();
   const b = beatClock ? beatAt(beatClock, now) : null;
   const beat = b == null ? -1 : ((Math.floor(b) % 4) + 4) % 4;
   const bar = b == null ? -1 : ((Math.floor(b / 4) % 8) + 8) % 8;
   all('#beat i').forEach((el, i) => { el.classList.toggle('on', i === beat); el.classList.toggle('eins', i === 0); });
   all('#phrase .bar').forEach((el, bi) => {
     el.classList.toggle('cur', bi === bar);
-    all('i', el).forEach((dot, di) => { dot.classList.toggle('on', bi === bar && di === beat); dot.classList.toggle('eins', di === 0); });
+    el.querySelectorAll('i').forEach((dot, di) => { dot.classList.toggle('on', bi === bar && di === beat); dot.classList.toggle('eins', di === 0); });
   });
-  requestAnimationFrame(beatLoop);
 }
 
 // --- Takt-Sync: 8 Takte à 4 Schläge, aktueller Schlag leuchtet ---------------------------------------
@@ -439,6 +448,7 @@ function showLaser(l) {
 function loadState() {
   return api('api/state').then(s => {
     state = s; settings = s.settings;
+    $('ledcard').hidden = !s.led;                  // Karte nur mit eingetragenem LED-Streifen
     showSettings(); showHeads(); showLaser(s.laser);
   }).catch(() => {});
 }
@@ -446,6 +456,9 @@ buildHeads();
 buildLaser();
 let startTab = 'show';
 try { startTab = localStorage.getItem('tab') || 'show'; } catch (e) { /* Startseite */ }
+const urlTab = new URLSearchParams(location.search).get('tab');   // z. B. ?tab=fein (Lesezeichen)
+if (urlTab) startTab = urlTab;
+if (new URLSearchParams(location.search).has('technik')) $('technik').open = true;
 showTab($('tab-' + startTab) ? startTab : 'show');
 loadState();
 setInterval(loadState, 2000);                                                   // Einstellungen, Köpfe, Laser
@@ -455,4 +468,5 @@ setInterval(() => {
   const t0 = performance.now();
   api('api/status').then(d => { syncClock(d.sync, t0, performance.now()); showStatus(d); }).catch(() => {});
 }, 200);
-requestAnimationFrame(beatLoop);
+setInterval(beatLoop, 25);                     // Schlaganzeige 40-mal pro Sekunde (Zeitgeber: läuft auch, wo
+                                                // der Browser keine Bildaufbau-Schleife anbietet)

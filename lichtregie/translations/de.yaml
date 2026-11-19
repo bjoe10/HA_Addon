@@ -10,7 +10,7 @@ configuration:
     description: Lichter in der Grundfarbe des Liedes, z. B. die Ambilight-Ringe der Deckenlampen.
   lampen_akzent:
     name: Lampen Akzentfarbe
-    description: Lichter in der Akzentfarbe, z. B. Vitrinen. Grund und Akzent tauschen pro Phrase.
+    description: Lichter in der Akzentfarbe, z. B. Vitrinen. Die ersten beiden spielen im Wechsel (links und rechts vom TV).
   lampen_tv:
     name: LED-Streifen
     description: Schnelle Lichter ohne Befehlsgrenze (z. B. ein Govee-Streifen hinter dem TV über Bluetooth). Sie leuchten gedimmt in der Farbe des Liedes und blitzen weiß, wenn Drop oder Höhepunkt einsetzen (einstellbar).

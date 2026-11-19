@@ -603,7 +603,7 @@ def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=Fal
 
 if __name__ == "__main__":
     demo = {"bpm": 125.0, "energy": 0.81, "key": "A-Minor", "valence": 0.6}
-    prof = profile("spotify:track:demo", demo, duration=240)
+    prof = profile("Demo|Demo", demo, duration=240)
     print(describe(prof))
     for i, s in enumerate(prof["scenes"]):
         print(f"  Szene {i}: {scene_name(s)}, {s['rel']}, {s['dim']}, Farbe {s['farbe']}, Gobo {s['gobo']}")
@@ -834,7 +834,7 @@ def idle_frame(t, mode="warten", colors=None):
     - "warten": Party an, noch keine Musik (oder zwischen zwei Liedern ohne Tempo): Sternhimmel an der Decke.
       Beide Köpfe ziehen langsam gegenläufig Kreise (40 s pro Runde), Gobo Punkte-Ring, sanftes Atmen,
       Farbe wechselt alle 24 s im Dunkeln.
-    - "pause": Spotify pausiert: beide Spots treffen sich über dem TV, pendeln leicht und atmen in der
+    - "pause": Musik pausiert: beide Spots treffen sich über dem TV, pendeln leicht und atmen in der
       Grundfarbe des Liedes.
     Rückgabe wie frame(): {kopf: {ziel, hell, farbe, gobo, strobe}}."""
     out = {}

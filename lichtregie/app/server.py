@@ -98,7 +98,8 @@ def state():
     data.update(
         info=engine.BEAT["info"], laeuft=engine.BEAT["stop"] is not None, szene=engine.BEAT["szene"],
         erkannt=f"{live.get('title', '-')} ({time.time() - engine.LIVE['at']:.0f} s her)" if live else "noch nichts",
-        ueberwachung=engine.WATCH["stop"] is not None, settings=SETTINGS, laser=laser.snapshot())
+        ueberwachung=engine.WATCH["stop"] is not None, settings=SETTINGS, laser=laser.snapshot(),
+        led=bool(config.LAMPEN_TV))
     return data
 
 

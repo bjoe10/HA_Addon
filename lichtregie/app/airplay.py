@@ -113,13 +113,6 @@ def now_playing(now=None):
                 "playing": AP["spielt"] and now - AP["at"] < 5.0, "source": "AirPlay"}
 
 
-def same_title(title):
-    """Gehört der AirPlay-Titel zu diesem Titel (aus HA)? Groß-/Kleinschreibung egal."""
-    with LOCK:
-        mine = AP["titel"]
-    return bool(mine and title) and mine.casefold() == str(title).casefold()
-
-
 def status(now=None):
     now = time.time() if now is None else now
     pos = position(now)

@@ -216,8 +216,9 @@ Das Sofa ist ohnehin nicht erreichbar.
 ## 7. Aufbau der Software
 
 ```
-Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ Köpfe/Laser per Art-Net (40 Bilder/s)
-                    Live-Audio ─▶ Schlagzählung ─┘          └▶ Lampen über HA (selten)
+AirPlay (Music Assistant) ─┬▶ Titel ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ Köpfe/Laser per Art-Net
+                           ├▶ Position im Lied ─────────────────────┐        │          (40 Bilder/s, nur in der Party)
+                           └▶ Ton ─▶ Analyse + Beat This ─▶ Schlagzählung ┘        └▶ Lampen und LED-Streifen über HA
 ```
 
 | Datei in `app/` | Aufgabe |
@@ -225,18 +226,21 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 | `server.py` | Web-Server, Schnittstelle der Oberfläche, Art-Net-Sender, Start |
 | `party.py` | Party-Modus: Hauptschalter, Automatik, Geräte ein/aus |
 | `engine.py` | Show-Motor: Titel-Überwachung, Show-Schleife, Thema je Lied, Audio-Warnung |
+| `airplay.py` | Metadaten vom AirPlay-Empfänger: Titel, Interpret, Position im Lied |
+| `beatthis.py`, `downbeat.py` | Beat This! in numpy (eigener Prozess): „1“ im Takt und genaues Tempo |
+| `record.py` | Aufnahme für die Fehlersuche (Ton und Entscheidungen der Show je Bild) |
 | `show.py` | Show-Regeln als reine Funktionen der Taktposition (ohne Raum testbar) |
 | `audio.py`, `beatcount.py` | Audioanalyse (Takt, Break, Drop, Phrasenwechsel) und Schlagzählung |
 | `heads.py`, `laser.py`, `lamps.py` | Geräte: Zustand, Grenzen, Anschub/Vorsteuerung, HA-Lampen |
 | `geometry.py`, `artnet.py` | Kalibriermodell Raumpunkt → Pan/Tilt, ArtDMX-Pakete |
-| `ha.py`, `tempo.py`, `config.py`, `settings.py` | HA-Zugriff, FreqBlog, Add-on-Optionen, Schalter der Oberfläche |
+| `ha.py`, `tempo.py`, `config.py`, `settings.py`, `jsonfile.py` | HA-Zugriff, FreqBlog, Add-on-Optionen, Schalter der Oberfläche, JSON-Dateien |
 | `web/` | Oberfläche (HTML, CSS, JavaScript) |
 
-- **Taktposition** = Liedposition × BPM / 60, mit Audio aus der eigenen Schlagzählung.
+- **Taktposition** = Liedposition (AirPlay) × BPM / 60, mit Audio aus der eigenen Schlagzählung.
 - **Vorziehen der Bewegung** um die Laufzeit des Kopfes, damit die Spots auf dem Schlag ankommen.
 - **Radwechsel:** Farbe/Gobo nur im Dunkeln oder zu Nachbarn.
-- **Tests:** `dev/test_all.sh` (Konfiguration, Audioanalyse, Schlagzählung, Pipe mit Liedwechseln, Rauchtest von
-  Motor, Party und Web).
+- **Tests:** `dev/test_all.sh` (Konfiguration, Audioanalyse, Schlagzählung, Beat This, AirPlay-Metadaten, Pipe mit
+  Liedwechseln, Rauchtest von Motor, Party, Lampen und Web).
 
 ---
 
@@ -267,10 +271,18 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 
 ---
 
-## Stand der Umsetzung (0.9.0)
+## Stand der Umsetzung (0.9.19)
+
+**Quelle** (`app/airplay.py`, `app/audio.py`, seit 0.9.16 nur noch AirPlay): Der AirPlay-Empfänger „Lichtregie“
+(shairport-sync, von der Lichtregie gestartet) ist in Music Assistant mit dem Phantom gruppiert. Er liefert den Ton
+(stdout, S16_LE, 44,1 kHz) und Metadaten (Titel, Interpret, Fortschritt, jede Sekunde eine Zeitmarke Abtastwert →
+Uhrzeit). Die Position im Lied ist damit auf Millisekunden bekannt; die Spotify-Position aus HA lag bis 11 s
+daneben und wird nur noch für die Warnung „Spotify spielt, aber kein Ton“ gefragt. Die Analyse bekommt den Ton
+**1,0 s** vor dem Lautsprecher (Ton-Vorlauf, gemessen mit Aufnahmen und Beat This!); die Show läuft um so viel
+zurückversetzt. Nach jedem Update muss „Party modus“ in Spotify neu gewählt werden.
 
 **Show-Regeln** (`app/show.py`, reine Funktionen der Taktposition):
-- Song-Thema aus der Track-ID: Grund- und Akzentfarbe aus der Tonart, zwei Gobos, Motiv-Punkt, 5 Szenen
+- Song-Thema aus Interpret und Titel: Grund- und Akzentfarbe aus der Tonart, zwei Gobos, Motiv-Punkt, 5 Szenen
   (mind. 2× Boden) in fester Folge, Refrain-Szene, Laser-Thema, Lampen-Rhythmus, Laser-Rolle.
 - Szenen aus Bausteinen: 15 Formen (Kreis, Acht, Pendel waagerecht/senkrecht, Diagonale, Spirale, Welle,
   Zickzack, Zufallsflug, Stern, Quadrat, Sprungpunkte, Wand–Boden, Wandlauf, Fokus) auf Wand, Boden, Decke;
@@ -281,55 +293,47 @@ Titel (HA) ─▶ Tempo (FreqBlog) ─▶ Song-Thema ─▶ Show-Regeln ─▶ K
 - Dunkler Schlag vor der Phrase, wenn Farb- oder Goborad wechseln muss; 0,6 s dunkel beim Liedwechsel.
 
 **Mechanik** (`app/heads.py`): Bewegung 0,4 s vorgezogen; Mindestdauer je Bahn; Anschub (bei Sprüngen ab ca.
-4° für 0,12 s das 2,5-fache Ziel) und Vorsteuerung (Ziel um Geschwindigkeit × 0,45 s voraus).
+4° für 0,12 s das 2,5-fache Ziel) und Vorsteuerung (Ziel um Geschwindigkeit × 0,45 s voraus). Art-Net geht direkt
+nach jedem Show-Bild raus (40/s, gemessen 39,7/s ohne Ruckler), nur während der Party, kurz danach (Parken) und
+beim Einrichten von Hand; ein Paket an einen abgeschalteten Knoten wird verworfen statt zu warten.
 
-**Live-Audio** (`app/audio.py`, ab 0.3.0): AirPlay-Empfänger „Lichtregie“ im Add-on, in Music Assistant mit dem
-Phantom gruppiert. Seit 0.8.7 startet die Lichtregie shairport-sync selbst und liest den Ton über stdout
-(S16_LE, 44,1 kHz, stereo); endet shairport-sync, startet sie es nach 3 s neu. Seit 0.8.15 läuft die Show um den
-Ton-Vorlauf von **1,0 s** zurückversetzt (der Empfänger bekommt den Ton so viel früher als der Lautsprecher;
-gemessen mit Aufnahmen und Beat This!); der frühere Audio-Versatz ist seit 0.9.11 entfernt. Mit eingerastetem Takt:
-Puls durch Abdunkeln kurz vor dem Schlag. Bildrate der Show am Pi 39,4/s (Soll 40), Last ca. 0,5 % CPU.
-Kein Ton, während Spotify über 15 s spielt: Warnung in der Oberfläche und HA-Benachrichtigung.
+**Schlag und „1“** (`app/audio.py`, `app/beatcount.py`, `app/downbeat.py`): Die Analyse rastet ein Schlagraster auf
+die Kicks ein (Tempo aus der Datenbank, sonst aus der Autokorrelation), erkennt Break, Drop und Phrasenwechsel.
+Mit eingerastetem Takt zählt die Lichtregie die Schläge selbst; die Liedposition dient nur als Grobposition und
+wird neu ausgerichtet, wenn sie abweicht. **Beat This!** (numpy-Nachbau, eigener Prozess mit niedriger Priorität,
+16 s Ton alle 20 s, am Pi ca. 7 s Rechenzeit) legt die „1“ fest (93–95 % Treffer in 6 Aufnahmen) und liefert das
+genaue Tempo; weicht es um 4 % oder mehr ab (z. B. halbes Tempo in der Datenbank), startet die Show mit dem
+gemessenen Tempo neu, gemerkt je Lied. Drop und Phrasenwechsel verschieben die Zählung nur um ganze Takte, ein
+Drop höchstens einmal in 64 Schlägen (pumpender Bass meldete sonst alle paar Sekunden einen). Seit 0.9.16 bleiben
+Raster und Periode immer float64: Eine float32-Periode (nach einem Lied ohne Tempo) hatte den Schlag-Zeitpunkt
+auf 128 s genau gemacht, die Zählung stand bis zum Neustart still.
 
-**Takt- und Phrasen-Sync** (`app/beatcount.py`, ab 0.6.0): Mit eingerastetem Audio zählt die Lichtregie die
-Schläge selbst (Phase aus der Analyse), HA liefert nur die Grobposition. Anker: Drop → nächste Phrasengrenze
-(±12 Schläge), erkannter Klangwechsel → Phrasengrenze, wenn höchstens 3 Schläge daneben. Spulen (Sprung der
-Liedposition über 5 s) setzt die Zählung sofort neu auf. Die „1“ im Takt kam 0.8.13–0.9.10 zusätzlich aus dem
-Klangwechsel je Schlag (traf in den Aufnahmen kaum, entfernt). Ist die „1“ bekannt, verschieben Drop und
-Phrasenwechsel nur um ganze Takte; eine Korrektur von Hand hat Vorrang.
-Seit 0.9.0 legt **Beat This!** (`app/beatthis.py`, `app/downbeat.py`) die „1“ fest: alle 15 s über bis 30 s Ton
-des Liedes, Mehrheit der „1“-Schläge, gezählt in Schlägen des Modells; das genaue Tempo des Modells ersetzt
-die Datenbank, wenn es bis 4 % abweicht. Gemessen mit 6 Aufnahmen: 93 % der Markierungen auf der gezählten „1“. Läuft die Audio-Zählung dauerhaft gegen die HA-Position (zwei Korrekturen in
-dieselbe Richtung innerhalb von 60 s), zählt das Lied ab dann nach HA (seit 0.8.11). Synthetischer Test (`dev/test_beatcount.py`, HA
-5 Schläge daneben): nach dem Drop Restfehler unter 0,1 Schlag.
-
-**Lampen** (`app/lamps.py`): Die Ambilights wechseln seit 0.8.12 hart auf dem Schlag, im eingestellten
-Rhythmus (Standard jeder Takt, „nach Lied“ = 8 oder 16 Takte; schneller geht nicht, die Yeelights nehmen nur ca.
-60 Befehle pro Minute je Lampe an); nur geänderte Werte, Budget je Gruppe; um den Vorlauf
-vorgezogen (Standard 0,8 s), Lampen-Schleife alle 20 ms. Grund- und Akzentfarbe
-laufen über HA; Schrank 1 (links vom TV) und Schrank 2 (rechts) wechseln sich je Takt bei 100 % und 20 % ab,
-die Ambilights durchlaufen Grund-, Akzent- und Komplementärfarbe. Der Ausgangszustand wird gesichert und nach
-der Party wiederhergestellt.
+**Lampen** (`app/lamps.py`): Ambilights und Vitrinen (Yeelight) in den beiden Farben der Köpfe, im Wechsel, hart auf
+dem Schlag, höchstens alle 2 Takte (Yeelights nehmen nur ca. 60 Befehle pro Minute je Lampe an; Budget 50 je
+Gruppe, nur geänderte Werte, Gruppen senden gleichzeitig, abgelehnte Befehle nach 1 s erneut). Schrank 1 und 2
+wechseln sich alle 2 Takte hell und gedimmt ab. **LED-Streifen** (Govee über Bluetooth, ca. 0,36 s je Befehl,
+mindestens 0,4 s Abstand): gedimmte Farbe des Liedes (5 %), weißer Blinder bei Drop, Höhepunkt und Phrasenwechsel,
+Flash auf der „1“ wählbar, Dauer je in Schlägen. Der Ausgangszustand wird als Szene gesichert und nach der Party
+geprüft wiederhergestellt; stehen Lampen beim nächsten Start noch in Show-Farben, bleibt die alte Szene.
 
 **Laser** (`app/laser.py`): Rolle je Lied aus / nur Höhepunkte / jede zweite Phrase / durchgehend (Anteil an
 der Liedzeit ca. 0 / 28 / 58 / 100 %). Ruhepunkt hoch/runter 76 (über dem TV), Bahnen nur zwischen 66 und 86.
+Abschalten in der Oberfläche schickt 1 s lang „aus“, dann hört der Sender auf.
 
-**Party-Modus** (`app/party.py`, ab 0.8.0): Hauptschalter. An: Geräte einschalten (Köpfe, Laser, weitere
-Steckdosen), Raum abdunkeln, Show starten. Aus: Köpfe fahren in die Parkposition (Pan 0, Tilt 0, damit beide
-gleich hängen), nach 3,5 s gehen die Steckdosen aus. Automatik: an, sobald 3 s Ton am Empfänger ankommt; aus nach
-`party_aus_min` (Standard 15) Minuten ohne Musik. Ein Stopp von Hand sperrt die Automatik, bis eine Minute Ruhe
-war. Der Stand bleibt über Neustarts erhalten (`party.json`). „Thema neu würfeln“ merkt die Variante je Lied.
+**Party-Modus** (`app/party.py`): Hauptschalter. An: Geräte einschalten (Köpfe, Laser, weitere Steckdosen), Raum
+abdunkeln, Show starten. Aus: Köpfe fahren in die Parkposition (Pan 0, Tilt 0), nach 3,5 s gehen die Steckdosen
+aus. Automatik: an, sobald 3 s Ton am Empfänger ankommt; aus nach `party_aus_min` (Standard 15) Minuten ohne Musik.
+Ein Stopp von Hand sperrt die Automatik, bis eine Minute Ruhe war. Der Stand bleibt über Neustarts erhalten.
 
-**Ruhe-Animationen** (`show.idle_frame`, Schleife in `engine.idle_loop`, ab 0.8.10): *Warten* (Party an, keine
-Musik): Sternhimmel an der Decke, zwei gegenläufige Kreise (40 s pro Runde), Gobo Punkte-Ring, Atmen, Farbwechsel
-alle 24 s im Dunkeln, Laser aus. *Pause* (2 s kein Ton): beide Spots über dem TV, pendeln leicht und atmen in
-der Grundfarbe, Laser aus. Seit 0.8.12 läuft die Show mit Audio nur bei Ton: nach 10 s ohne Ton geht sie aus
-(Warten), mit Ton startet sie sofort wieder, auch wenn HA noch „pausiert“ meldet.
+**Ruhe-Animationen** (`show.idle_frame`): *Warten* (Party an, keine Musik): Sternhimmel an der Decke, zwei
+gegenläufige Kreise, Atmen, Laser aus. *Pause* (2 s kein Ton): beide Spots über dem TV, pendeln leicht und atmen.
+Nach 10 s ohne Ton geht die Show aus, mit Ton startet sie sofort wieder.
 
-**Noch offen:** Bootzeit der Köpfe nach dem Einschalten messen (sie beeinflusst, wann der Sternhimmel sichtbar
-wird); Tanzbarkeit und Lautheit aus FreqBlog noch ungenutzt. Nach jedem Update muss „Party modus“ in Spotify neu
-gewählt werden, sonst nimmt Music Assistant den Empfänger nicht wieder auf. Eine automatische Lösung über die
-MA-API ist möglich, aber nicht umgesetzt.
+**Oberfläche** (`app/web/`): Show, Feinabstimmung, Einrichten (siehe DOCS.md); die Schlaganzeige zählt im Browser im
+Takt mit (Laufzeit der Abfrage herausgerechnet).
+
+**Noch offen:** Bootzeit der Köpfe messen; Tanzbarkeit und Lautheit aus FreqBlog ungenutzt; „Party modus“ nach
+einem Update automatisch über die API von Music Assistant neu wählen.
 
 ## Laser (gemessen)
 

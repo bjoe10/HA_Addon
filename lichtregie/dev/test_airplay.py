@@ -23,7 +23,7 @@ for i in range(0, len(stream), 37):                 # in kleinen Stücken, Eintr
 pos = airplay.position(time.time())
 st = airplay.status()
 print(st, pos)
-assert abs(pos - 31.0) < 0.05 and airplay.same_title("Ich Jogge") and st["dauer"] == 128
+assert abs(pos - 31.0) < 0.05 and st["dauer"] == 128
 assert airplay.position(time.time() + 2.0) - pos > 1.9
 airplay.handle("ssnc", "pend", b"")
 assert airplay.position(time.time()) is None

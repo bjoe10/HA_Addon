@@ -53,17 +53,12 @@
   <label>Strobe-Menge <span class="val" data-val="strobe_menge" data-unit=" %"></span>
    <input type="range" data-set="strobe_menge" min="0" max="200" step="10"></label>
   <p class="hint">100 % = wie geplant, darunter weniger Blitze, darüber mehr kurze Blitze auf der „1“.</p>
-  <label>Lampen Decke <span class="val" data-val="lampen_decke" data-unit=" %"></span>
-   <input type="range" data-set="lampen_decke" min="0" max="150" step="5"></label>
-  <label>Lampen Vitrinen <span class="val" data-val="lampen_vitrine" data-unit=" %"></span>
-   <input type="range" data-set="lampen_vitrine" min="0" max="150" step="5"></label>
-  <label>LED-Streifen Farbe <span class="val" data-val="tv_hell" data-unit=" %"></span>
-   <input type="range" data-set="tv_hell" min="0" max="30" step="1"></label>
   <div class="switches one"><button class="sw" data-set="automatik">Automatik</button></div>
   <label>Aus nach <span class="val" data-val="party_aus_min" data-unit=" min ohne Musik"></span>
    <input type="range" data-set="party_aus_min" min="1" max="60" step="1"></label>
   <p class="hint">Automatik: Die Party geht an, sobald Musik ankommt, und aus, wenn so lange keine lief.
-   Nebel an bevorzugt Strahl-Effekte. Laser aus: Die Lichtregie sendet nicht an den Laser.</p>
+   Nebel an bevorzugt Strahl-Effekte. Laser aus: Die Lichtregie sendet nicht an den Laser. Helligkeit und Rhythmus
+   der Lampen unter Feinabstimmung.</p>
  </section>
 </main>
 
@@ -92,6 +87,10 @@
 
  <section class="card">
   <h2>Lampen</h2>
+  <label>Decke <span class="val" data-val="lampen_decke" data-unit=" %"></span>
+   <input type="range" data-set="lampen_decke" min="0" max="150" step="5"></label>
+  <label>Vitrinen <span class="val" data-val="lampen_vitrine" data-unit=" %"></span>
+   <input type="range" data-set="lampen_vitrine" min="0" max="150" step="5"></label>
   <p class="label">Farbwechsel der Ambilights</p>
   <div class="switches">
    <button class="sw" data-choice="lampen_wechsel" data-value="8">2 Takte</button>
@@ -100,26 +99,32 @@
    <button class="sw" data-choice="lampen_wechsel" data-value="0">nach Lied</button>
   </div>
   <div class="switches one"><button class="sw" data-set="lampen_hart">Harter Wechsel</button></div>
-  <p class="label">LED-Streifen: Blinder (ein Schlag weiß)</p>
+  <p class="hint">Die Ambilights wechseln auf der „1“ eines Takts die Farbe. „Nach Lied“: alle 8 oder 16 Takte, je
+   nach Thema. Schneller als 2 Takte geht nicht: Die Yeelights nehmen nur etwa 60 Befehle pro Minute an.</p>
+ </section>
+
+ <section class="card" id="ledcard" hidden>
+  <h2>LED-Streifen</h2>
+  <label>Farbe <span class="val" data-val="tv_hell" data-unit=" %"></span>
+   <input type="range" data-set="tv_hell" min="0" max="30" step="1"></label>
+  <p class="label">Blinder (weiß, voll)</p>
   <div class="switches">
    <button class="sw" data-choice="tv_blinder" data-value="0">aus</button>
    <button class="sw" data-choice="tv_blinder" data-value="1">Drop, Höhepunkt</button>
    <button class="sw" data-choice="tv_blinder" data-value="2">+ Phrasenwechsel</button>
   </div>
-  <label>Blinder-Dauer <span class="val" data-val="tv_blinder_lang" data-unit=" Schläge"></span>
+  <label>Dauer <span class="val" data-val="tv_blinder_lang" data-unit=" Schläge"></span>
    <input type="range" data-set="tv_blinder_lang" min="0.5" max="8" step="0.5"></label>
-  <p class="label">LED-Streifen: Flash (kurz weiß auf der „1“)</p>
+  <p class="label">Flash (kurz weiß auf der „1“)</p>
   <div class="switches">
    <button class="sw" data-choice="tv_flash" data-value="0">aus</button>
    <button class="sw" data-choice="tv_flash" data-value="1">Höhepunkt, Drop</button>
    <button class="sw" data-choice="tv_flash" data-value="2">jeder Takt</button>
   </div>
-  <label>Flash-Dauer <span class="val" data-val="tv_flash_lang" data-unit=" Schläge"></span>
+  <label>Dauer <span class="val" data-val="tv_flash_lang" data-unit=" Schläge"></span>
    <input type="range" data-set="tv_flash_lang" min="0.25" max="2" step="0.25"></label>
-  <p class="hint">Der Streifen leuchtet gedimmt in der Farbe des Liedes (Helligkeit auf der Show-Seite). Zwischen zwei
-   Befehlen liegen mindestens 0,4 s, schneller verschluckt der Streifen Befehle.</p>
-  <p class="hint">Die Ambilights wechseln auf der „1“ eines Takts die Farbe. „Nach Lied“: alle 8 oder 16 Takte, je
-   nach Thema. Schneller als 2 Takte geht nicht: Die Yeelights nehmen nur etwa 60 Befehle pro Minute an.</p>
+  <p class="hint">Der Streifen leuchtet gedimmt in der Farbe des Liedes, im Break ist er aus. Zwischen zwei Befehlen
+   liegen mindestens 0,4 s, schneller verschluckt der Streifen Befehle; kürzer wird ein Blitz deshalb nicht.</p>
  </section>
 </main>
 

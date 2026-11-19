@@ -184,7 +184,7 @@ print("Ton-Vorlauf: Break und Drop zeitversetzt ok")
 
 
 # HA liegt weit daneben (Music Assistant: Spotify-Position bis 11 s falsch). Mit von Beat This bestätigtem Takt
-# wird HA neu ausgerichtet; die Zählung aus dem Ton bleibt und wird nicht abgeschaltet
+# wird die Position neu ausgerichtet; die Zählung aus dem Ton bleibt und wird nicht abgeschaltet
 c = BeatCounter()
 c.bar_model = c.bar_locked = True
 for i in range(40 * 60):                       # 60 s, 120 BPM; nach 5 s springt HA um 20 Schläge vor
@@ -192,7 +192,7 @@ for i in range(40 * 60):                       # 60 s, 120 BPM; nach 5 s springt
     b_true = (now - 7000.0) / 0.5
     b = c.update(now, b_true + (20 if i > 200 else 0), b_true % 1.0, 0.0, 0.0, 120.0)
 assert not c.audio_off and abs(b - b_true) < 0.05, (c.audio_off, b - b_true, c.events)
-assert any("HA neu ausgerichtet" in e[1] for e in c.events), c.events
+assert any("Position neu ausgerichtet" in e[1] for e in c.events), c.events
 # Audio-Zählung war abgeschaltet: Bestätigt Beat This den Takt, geht sie wieder an
 c = BeatCounter()
 c.audio_off = True

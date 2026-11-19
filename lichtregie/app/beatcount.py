@@ -1,16 +1,16 @@
 """Schlagzählung für die Show: welcher Schlag im Takt und in der Phrase gerade dran ist.
 
-Ohne Audio kommt die Zählung aus der Spotify-Position (HA, auf 1–3 s genau). Mit eingerastetem Audio-Takt
-zählt die Lichtregie die Schläge selbst weiter (Phase aus der Analyse), damit Sprünge der HA-Position nicht
-durchschlagen. Grob korrigiert wird nur, wenn HA dauerhaft mehrere Schläge abweicht.
+Ohne eingerasteten Audio-Takt kommt die Zählung aus der Liedposition (AirPlay; bis 0.9.16 die Spotify-Position
+aus HA). Mit eingerastetem Takt zählt die Lichtregie die Schläge selbst weiter (Phase aus der Analyse), damit Sprünge
+der Position nicht durchschlagen. Grob korrigiert wird nur, wenn die Position dauerhaft mehrere Schläge abweicht.
 
 Anker für Takt und Phrase:
 - Drop: beginnt fast immer auf der „1“ einer Phrase → die Zählung wird so verschoben, dass er dort liegt.
 - Phrasenwechsel aus der Klanganalyse: liegt er nahe an einer erwarteten Phrasengrenze (±3 Schläge),
   wird die Zählung nachgezogen.
-Verschiebungen gelten auch für die HA-Grundlage (offset), sonst würde die Drift-Korrektur sie zurückdrehen.
+Verschiebungen gelten auch für die Grundlage aus der Position (offset), sonst würde die Drift-Korrektur sie zurückdrehen.
 
-Die „1“ im Takt: HA ist nur auf 1–3 s genau, die Lage im Takt wäre damit Zufall. Sie kommt von Beat This
+Die „1“ im Takt: Liedanfang und „1“ fallen nicht immer zusammen (Auftakt, Intro), die Lage im Takt wäre Zufall. Sie kommt von Beat This
 (downbeat.py, model_anchor). Danach verschieben Drop und Phrasenwechsel nur noch um ganze Takte. Eine Korrektur
 von Hand hat Vorrang: Dann bleibt die „1“ für das Lied, wo sie gesetzt wurde. (0.8.13–0.9.10 gab es zusätzlich
 eine „1“ aus dem Klangwechsel je Schlag; sie traf in den Aufnahmen kaum und ist entfernt.)
@@ -19,7 +19,7 @@ import numpy as np
 
 PHRASE = 32          # Schläge pro Phrase (8 Takte)
 BAR = 4
-DRIFT_LIMIT = 6.0    # so viele Schläge Abweichung von HA, bevor korrigiert wird …
+DRIFT_LIMIT = 6.0    # so viele Schläge Abweichung von der Position, bevor korrigiert wird …
 DRIFT_TIME = 8.0     # … und so lange (s) muss sie bestehen
 DROP_MAX_SHIFT = 12  # weiter verschiebt ein Drop die Zählung nicht
 DROP_GAP = 64        # höchstens ein Drop-Anker in so vielen Schlägen: Bei pumpendem Bass meldete die Analyse alle paar
@@ -44,7 +44,7 @@ class BeatCounter:
         self.drop_b = None            # Zählstand beim letzten Drop-Anker
         self.seen_change = 0.0
         self.events = []        # (Zeit, Text) für die Anzeige
-        self.last_fix = None    # (Zeit, Richtung) des letzten HA-Abgleichs
+        self.last_fix = None    # (Zeit, Richtung) des letzten Abgleichs mit der Position
         self.audio_off = False  # Audio-Zählung für dieses Lied abgeschaltet (läuft nicht mit der Musik)
         self.bar_locked = False       # „1“ gefunden (Beat This)
         self.bar_manual = False       # „1“ von Hand gesetzt: kein automatischer Takt-Anker mehr
@@ -89,7 +89,7 @@ class BeatCounter:
             return 0
         self.bar_locked = self.bar_model = True
         if self.audio_off:
-            # Beat This bestätigt den Takt im Ton: die Audio-Zählung war richtig, HA lag daneben → wieder an
+            # Beat This bestätigt den Takt im Ton: die Audio-Zählung war richtig, die Position lag daneben → wieder an
             self.audio_off = False
             self.diff, self.far_since, self.last_fix = 0.0, None, None
             self.events.append((now, "Audio-Zählung wieder an (Beat This bestätigt)"))
@@ -108,11 +108,11 @@ class BeatCounter:
         self.events.append((now, f"{why}: {s:+d} Schläge"))
         del self.events[:-5]
 
-    def update(self, now, b_ha, frac=None, drop_at=0.0, change_at=0.0, bpm=120.0):
-        """Taktposition b. b_ha = Schätzung aus HA/Zeit; frac = Phase des aktuellen Schlags aus dem Audio
+    def update(self, now, b_pos, frac=None, drop_at=0.0, change_at=0.0, bpm=120.0):
+        """Taktposition b. b_pos = Schätzung aus der Liedposition (oder der Zeit seit dem Start); frac = Phase des aktuellen Schlags aus dem Audio
         (None, wenn kein Takt eingerastet ist); drop_at/change_at = Zeitpunkte der letzten Ereignisse."""
         beat = 60.0 / bpm
-        b_ref = b_ha + self.offset
+        b_ref = b_pos + self.offset
         if self.audio_off:
             frac = None
         if frac is None:
@@ -128,16 +128,16 @@ class BeatCounter:
             self.count = round(ref - frac)
             self.prev = frac
             b = self.count + frac
-            # Grobe Drift gegen HA: nur wenn sie groß ist und anhält
+            # Grobe Drift gegen die Position: nur wenn sie groß ist und anhält
             self.diff += 0.02 * ((b_ref - b) - self.diff)
             if abs(self.diff) > DRIFT_LIMIT:
                 self.far_since = self.far_since or now
                 if now - self.far_since > DRIFT_TIME and self.bar_model:
-                    # Beat This hat Schläge und „1“ aus dem Ton bestätigt: Dann liegt HA daneben, nicht der Ton
-                    # (gesehen mit Music Assistant: Spotify-Position bis 11 s falsch). HA neu ausrichten, die
-                    # Zählung bleibt. Bis 0.9.12 zog die Zählung zu HA und wurde danach ganz abgeschaltet
+                    # Beat This hat Schläge und „1“ aus dem Ton bestätigt: Dann liegt die Position daneben, nicht der
+                    # Ton (gesehen mit der Spotify-Position aus HA: bis 11 s falsch). Die Position neu ausrichten, die
+                    # Zählung bleibt. Bis 0.9.12 zog die Zählung zur Position und wurde danach ganz abgeschaltet
                     self.offset -= self.diff
-                    self.events.append((now, f"HA neu ausgerichtet ({-self.diff:+.0f} Schläge)"))
+                    self.events.append((now, f"Position neu ausgerichtet ({-self.diff:+.0f} Schläge)"))
                     del self.events[:-5]
                     self.diff = 0.0
                     self.far_since = None
@@ -145,7 +145,7 @@ class BeatCounter:
                     s = round(self.diff)
                     if self.last_fix and now - self.last_fix[0] < 60 and (s > 0) == self.last_fix[1]:
                         # zweimal kurz hintereinander in dieselbe Richtung: Die Audio-Zählung läuft nicht mit der
-                        # Musik. Für dieses Lied nach der HA-Position zählen. (Bis 0.8.10 wurde stattdessen HA
+                        # Musik. Für dieses Lied nach der Position zählen. (Bis 0.8.10 wurde stattdessen die Position
                         # abgeschaltet; lief das Audio falsch, stand die Show dann fast still.)
                         self.audio_off = True
                         self.far_since = None
@@ -161,7 +161,7 @@ class BeatCounter:
                         self.diff -= s
                         self.far_since = None
                         self.last_fix = (now, s > 0)
-                        self.events.append((now, f"HA-Abgleich: {s:+d} Schläge"))
+                        self.events.append((now, f"Abgleich mit der Position: {s:+d} Schläge"))
             else:
                 self.far_since = None
         # Drop als Anker: auf die nächste Phrasengrenze legen (ist die „1“ bekannt, nur um ganze Takte)

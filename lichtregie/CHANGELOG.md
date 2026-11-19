@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.9.19
+
+- **Schlaganzeige auf der Startseite repariert:** Die Phrasenanzeige suchte ihre Punkte in der ganzen Seite statt im
+  eigenen Takt und schaltete dabei auch die vier Schlagpunkte der Startseite aus; deshalb lief die Anzeige dort
+  meist nicht (auf Seite 2 schon). Außerdem zählt die Anzeige jetzt mit einem festen Zeitgeber (40/s) weiter, der
+  auch dort läuft, wo der Browser keine Bildaufbau-Schleife anbietet.
+- **Oberfläche aufgeräumt:** Die Show-Seite hat nur noch die Schalter für den Abend. Unter Feinabstimmung gibt es
+  eigene Karten „Lampen“ (Helligkeit Decke und Vitrinen, Rhythmus) und „LED-Streifen“ (Helligkeit, Blinder, Flash,
+  nur mit eingetragenem Streifen). Die Dauer-Regler sind ausgegraut, solange Blinder bzw. Flash aus sind. Zahlen mit
+  Komma, „1 Schlag“ statt „1 Schläge“. Der Chip „Lampen alle … Takte“ zeigt den eingestellten Rhythmus. Eine Seite
+  lässt sich direkt öffnen (`?tab=fein`).
+- **Begriffe:** Die Schlagzählung meldet „Position neu ausgerichtet“ und „Abgleich mit der Position“ statt „HA …“
+  (die Position kommt seit 0.9.16 von AirPlay). Spotify-Reste in Kommentaren entfernt, unbenutzte Funktion
+  `airplay.same_title` entfernt.
+- **Doku:** README mit Funktionsübersicht und Screenshots, DOCS.md (Oberfläche, Grenzen), SHOW.md („Stand der
+  Umsetzung“ auf 0.9.19, Aufbau mit AirPlay), Hinweis in KONZEPT.md, Beschreibung der Option „Lampen Akzentfarbe“.
+
 ## 0.9.18
 
 - **LED-Streifen: Blinder und Flash getrennt einstellbar** (Feinabstimmung → Lampen), je mit Dauer in Schlägen:

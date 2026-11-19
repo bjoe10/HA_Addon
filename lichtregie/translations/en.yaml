@@ -10,7 +10,7 @@ configuration:
     description: Lights in the base colour of the track, e.g. ambilight rings of ceiling lamps.
   lampen_akzent:
     name: Lamps accent colour
-    description: Lights in the accent colour, e.g. cabinets. Base and accent swap every phrase.
+    description: Lights in the accent colour, e.g. cabinets. The first two alternate (left and right of the TV).
   lampen_tv:
     name: LED strips
     description: Fast lights without a command limit (e.g. a Govee strip behind the TV via Bluetooth). They glow dimly in the track's colour and flash white when a drop or peak starts (adjustable).

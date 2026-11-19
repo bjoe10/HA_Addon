@@ -78,19 +78,26 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
 ## Oberfläche
 
 - **Show** (Startseite): Party-Schalter, laufendes Lied mit seinem Thema (Tempo, Stimmung, Farben, Gobos,
-  Laser-Rolle) und Schlaganzeige, **Thema neu würfeln** (das neue Thema bleibt für dieses Lied gespeichert),
-  Status auf einen Blick (Audio, Lied, Geräte, Lampen, Laser), Vorschau der Spots im Raumbild, Schalter
-  für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr Strahl-Effekte), Laser, Lampen und ihre
-  Helligkeit, Automatik mit der Zeit bis zum automatischen Aus.
-- **Feinabstimmung** (während der Party): Takt-Sync (Anzeige von Takt und Phrase und woher die „1“ kommt,
-  „Jetzt ist die 1“, ±1 Schlag, „1“ mit Beat This; aufklappbar ±1 Takt und die „1“ der Phrase; gilt für das ganze
-  Lied), Lampen (Rhythmus der Farbwechsel, harter Wechsel).
+  Laser-Rolle, Lampen-Rhythmus) und Schlaganzeige (zählt im Browser im Takt mit), **Thema neu würfeln** (das neue
+  Thema bleibt für dieses Lied gespeichert), Status auf einen Blick (Audio, Lied, Geräte, Lampen, Laser), Vorschau
+  der Spots im Raumbild, Schalter für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr
+  Strahl-Effekte), Laser, Lampen, Automatik mit der Zeit bis zum automatischen Aus.
+- **Feinabstimmung** (während der Party):
+  - *Takt-Sync:* Takt und Phrase, woher die „1“ kommt, „Jetzt ist die 1“, ±1 Schlag, „1“ mit Beat This;
+    aufklappbar ±1 Takt und die „1“ der Phrase (gilt für das ganze Lied).
+  - *Lampen:* Helligkeit von Decke und Vitrinen, Rhythmus der Farbwechsel, harter Wechsel.
+  - *LED-Streifen* (nur mit eingetragenem Streifen): Helligkeit der Farbe, Blinder (aus / Drop und Höhepunkt /
+    zusätzlich jeder Phrasenwechsel) und Flash auf der „1“ (aus / Höhepunkt und Drop / jeder Takt), je mit Dauer.
 - **Einrichten** (einmal einstellen): Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe
   und des Lasers von Hand, Laser-Steckdose, Ton und Takt (Audio, Takt-Test, Ton-Vorlauf), Lampen einstellen
-  (Lampen-Test, Vorlauf), Bewegung der Köpfe (Tempo, Anschub, Vorsteuerung), Laser-Bereich (Grenzen und
-  Show-Mitte). Zugeklappt: **Technik und Fehlersuche** (Bildrate, Lücken und verworfene Pakete beim Senden, Beat
-  This, Lampenbefehle, Aufnahme: 90 s Ton und Entscheidungen der Erkennung als ZIP zum Herunterladen). Köpfe und
-  Laser von Hand nur, solange die Party aus ist.
+  (Lampen-Test, Vorlauf der Lampen und des LED-Streifens), Bewegung der Köpfe (Tempo, Anschub, Vorsteuerung),
+  Laser-Bereich (Grenzen und Show-Mitte). Zugeklappt: **Technik und Fehlersuche** (Bildrate, Lücken und verworfene
+  Pakete beim Senden, Beat This, AirPlay, Lampenbefehle, Aufnahme: 90 s Ton und Entscheidungen der Erkennung als
+  ZIP zum Herunterladen). Köpfe und Laser von Hand nur, solange die Party aus ist.
+- Eine Seite direkt öffnen: `?tab=fein` oder `?tab=einrichten` an die Adresse hängen.
+
+![Startseite](https://raw.githubusercontent.com/bjoe10/HA_Addon/main/lichtregie/docs/bilder/show.png)
+![Feinabstimmung](https://raw.githubusercontent.com/bjoe10/HA_Addon/main/lichtregie/docs/bilder/fein.png)
 
 Alle Schalter bleiben über einen Neustart erhalten.
 
@@ -102,5 +109,9 @@ Add-ons in der Sync-Gruppe von Music Assistant: dort wieder aufnehmen und das Li
 
 - Die Raumgeometrie und die Kalibrierung der Köpfe sind für ein bestimmtes Wohnzimmer eingestellt
   (`app/geometry.py`). In einem anderen Raum muss neu kalibriert werden (siehe `dev/messen/` im Repository).
-- Ohne Audio ist unbekannt, wo der erste Schlag liegt: Bahnen laufen im Tempo, Pulse können leicht versetzt
-  sein, Drops und Breaks werden aus Liedlänge und Phrasen geschätzt.
+- Ohne den AirPlay-Empfänger (Musik nicht über die Gruppe in Music Assistant) kennt die Lichtregie weder Ton noch
+  Titel: Dann gibt es keine Show.
+- Ist die Audioanalyse aus, laufen die Bahnen nach der Liedposition im Tempo aus der Datenbank; Pulse können leicht
+  versetzt sein, Drops und Breaks werden aus Liedlänge und Phrasen geschätzt.
+- Yeelights nehmen nur ca. 60 Befehle pro Minute je Lampe an (Farbwechsel höchstens alle 2 Takte), ein
+  Govee-Streifen über Bluetooth braucht ca. 0,36 s je Befehl (Blitze nicht kürzer als ca. 0,4 s).

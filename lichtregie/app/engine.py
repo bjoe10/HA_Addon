@@ -1,4 +1,4 @@
-"""Show-Motor: verbindet Titel (HA), Tempo (FreqBlog), Live-Audio und die Show-Regeln (show.py) und
+"""Show-Motor: verbindet Titel und Position (AirPlay), Tempo (FreqBlog), Live-Audio und die Show-Regeln (show.py) und
 gibt 40 Bilder pro Sekunde an Köpfe, Laser und Lampen."""
 from collections import deque
 import threading
@@ -32,7 +32,7 @@ SPOTS = {}                           # aktuelle Zielpunkte für die Vorschau im 
 SYNC = {"pending": 0}                # Verschiebung der Schlagzählung von Hand (Schläge), wird im Bild übernommen
 IDLE = {"on": False}                 # vom Party-Modus gesetzt: Party läuft (dann Ruhe-Animation, wenn keine Show)
 BLACKOUT_SEC = 0.6                   # Liedwechsel: so lange dunkel, damit Farb- und Goborad unsichtbar laufen
-# Die Show läuft nur mit Ton am Empfänger (wenn Audio an ist). HA meldet eine Pause erst nach bis zu 30 s.
+# Die Show läuft nur mit Ton am Empfänger (wenn Audio an ist).
 QUIET_PAUSE = 2.0                    # so lange kein Ton: Pause-Animation (Spots über dem TV)
 QUIET_STOP = 10.0                    # so lange kein Ton: Show aus, Warte-Animation; neu, sobald wieder Ton kommt
 
@@ -96,7 +96,7 @@ def update_live(live):
 
 
 def show_loop(prof, t0, stop):
-    """Eine Show für ein Lied. Die Taktposition hängt an der Liedposition aus HA (pausiert: an der Zeit
+    """Eine Show für ein Lied. Die Taktposition hängt an der Liedposition von AirPlay (ohne: an der Zeit
     seit dem Start); mit eingerastetem Audio zählt BeatCounter die Schläge selbst."""
     bpm = prof["bpm"]
     started = time.time()
@@ -137,7 +137,7 @@ def show_loop(prof, t0, stop):
         blackout = now - started < BLACKOUT_SEC
         pos = song_position()
         b = (pos if pos is not None else now - t0) * bpm / 60.0 + SETTINGS["offset"]
-        b_ha = b
+        b_pos = b
         live = None
         locked = False
         if audio_mode() and AUDIO.signal(t_a):
@@ -158,7 +158,7 @@ def show_loop(prof, t0, stop):
                 if st["schlaege"] >= 16 and abs(ratio - 1.0) >= 0.04 and agree:
                     # Gemessenes Tempo schlägt die Datenbank (sie gilt nur, bis Beat This gemessen hat), z. B. FreqBlog
                     # 65 statt 130 BPM. Große Abweichung: erst wenn zwei Messungen übereinstimmen, dann die Show mit
-                    # dem Tempo des Modells neu starten (Zählung, HA-Abgleich und Bahnen hängen am Tempo); merken
+                    # dem Tempo des Modells neu starten (Zählung, Abgleich und Bahnen hängen am Tempo); merken
                     title, artist, info, track_id, duration = BEAT["start"]
                     print(f"Tempo {bpm:.1f} → {st['bpm']:.1f} BPM (Beat This): {title}", flush=True)
                     save_tempo_fix(title, artist, st["bpm"])
@@ -178,7 +178,7 @@ def show_loop(prof, t0, stop):
                 locked = False
         else:
             b = counter.update(t_a, b)
-        # Pause (Spotify pausiert): Spots bleiben stehen und leuchten leise, Laser aus
+        # Pause (Musik pausiert oder kein Ton): Spots bleiben stehen und leuchten leise, Laser aus
         player = LIVE.get("live")
         paused = ((bool(player) and not player.get("playing") and now - LIVE["at"] < 10 and live is None)
                   or quiet > QUIET_PAUSE)
@@ -227,7 +227,7 @@ def show_loop(prof, t0, stop):
             frames, fps_t = 0, now
         BEAT["b"] = b
         if record.REC["on"]:
-            record.trace(now, {"b": round(b, 3), "b_ha": round(b_ha, 3), "pos": pos, "bpm": bpm, "locked": locked,
+            record.trace(now, {"b": round(b, 3), "b_ha": round(b_pos, 3), "pos": pos, "bpm": bpm, "locked": locked,
                                "break": bool(live and live["break"]), "drop": bool(live and live["drop"]),
                                "info": info, "vorlauf": SETTINGS["ton_vorlauf"], "eins": counter.bar_info(),
                                "ereignisse": [e[1] for e in counter.events[-3:]],
@@ -236,7 +236,7 @@ def show_loop(prof, t0, stop):
         recent = [f"{e[1]} (vor {int(t_a - e[0])} s)" for e in counter.events[-3:] if t_a - e[0] < 60]
         BEAT["sync"] = {"schlag": int(b % 4) + 1, "takt": int(b // 4) % 8 + 1, "phrase": int(b // 32) + 1,
                         "audio": locked, "ereignisse": recent,
-                        "abweichung": round(counter.diff, 1),      # Diagnose: HA-Position minus Zählung (Schläge)
+                        "abweichung": round(counter.diff, 1),      # Diagnose: Position minus Zählung (Schläge)
                         "audio_aus": counter.audio_off, "schlag_nr": round(b, 3), "eins": counter.bar_info(),
                         "bpm": round(bpm, 2), "pause": bool(paused)}   # bpm/pause: die Oberfläche zählt selbst weiter
         szene = f"Takt {int(b // 4) + 1}.{int(b % 4) + 1} · {info}" + (" · Audio" if live else "")
@@ -273,7 +273,7 @@ def song_tempo(title, artist):
 
 
 def _theme_key(title, artist, track_id=None):
-    """Das Thema hängt an Interpret und Titel (seit 0.9.17; bis dahin an der Spotify-ID aus HA)."""
+    """Das Thema hängt an Interpret und Titel (seit 0.9.16; bis dahin an der Spotify-ID aus HA)."""
     return f"{artist}|{title}"
 
 
@@ -382,7 +382,7 @@ def audio_tempo(since):
 def watch_loop(stop, current):
     """Prüft jede Sekunde den Titel von AirPlay. Bei einem neuen Titel wird das Tempo geholt und die Show neu
     gestartet. Mit Audio gilt der Ton am Empfänger: Ohne Ton startet keine Show (die Show selbst geht nach
-    QUIET_STOP aus), mit Ton startet sie sofort, auch wenn HA noch „pausiert“ meldet."""
+    QUIET_STOP aus), mit Ton startet sie sofort, auch wenn AirPlay noch „pausiert“ meldet."""
     miss = {"at": 0.0, "since": time.time()}
     known = {}                                         # Titel → Tempo-Daten, für den Neustart nach einer Pause
     while not stop.wait(1):

@@ -6,6 +6,9 @@ folgt der Musik, die Ambilight-Ringe der Deckenlampen und die Vitrinen laufen mi
 
 Status: **Ausgangskonzept (0.1.0).** Der aktuelle Stand steht in [SHOW.md](SHOW.md) unter „Stand der Umsetzung“
 und in [CHANGELOG.md](CHANGELOG.md). Abschnitte, die inzwischen überholt sind, sind in der Überschrift markiert.
+Grundlegend geändert hat sich seitdem die Quelle: Titel, Position und Ton kommen heute über einen eigenen
+AirPlay-Empfänger in Music Assistant, nicht mehr aus der Spotify-Integration in HA; die „1“ im Takt erkennt das
+Modell Beat This!.
 
 ---
 
