@@ -28,9 +28,10 @@ SETTINGS = {
     "tv_hell": 5, "tv_blinder": 2, "tv_flash": 0, "tv_vorlauf": 0.35,
     "tv_blinder_lang": 1.0, "tv_flash_lang": 0.5,           # Länge in Schlägen
     # Spiegelkugel: Kopf (0 = keine), gespeicherte Pan/Tilt und Raumpunkt (Vorschau), wann in der Show (0 nie,
-    # 1 ruhige Teile, 2 zusätzlich Höhepunkt und Drop), Wackeln in Grad, in der Ruhe-Animation, farbig, Test
+    # 1 ruhige Teile, 2 zusätzlich Höhepunkt und Drop), Gobo (show.KUGEL_GOBOS) und Zittern (0 langsam, 1 mittel,
+    # 2 schnell), in der Ruhe-Animation, farbig, Test
     "kugel_kopf": 0, "kugel_pan": 32768, "kugel_tilt": 32768, "kugel_xyz": None, "kugel_show": 1,
-    "kugel_wackeln": 1.5, "kugel_idle": True, "kugel_farbig": False, "kugeltest": False,
+    "kugel_gobo": 0, "kugel_zittern": 1, "kugel_idle": True, "kugel_farbig": False, "kugeltest": False,
     # Laser: Senden an/aus, Schutzgrenzen, Ruhepunkt über dem TV (auf dem TV sieht man ihn schlecht)
     "laser": True, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90,
     "laser_ud_mitte": 76,
@@ -43,7 +44,7 @@ SETTINGS["lampentest"] = False
 SETTINGS["kugeltest"] = False
 if "tv_blitz" in SETTINGS:      # 0.9.17 → 0.9.18: Blinder und Flash getrennt; Vorlauf passend zur gemessenen Dauer
     SETTINGS["tv_vorlauf"] = max(SETTINGS.get("tv_vorlauf", 0.35), 0.35)
-for _old in ("lampen_dunkel", "audio_versatz", "tv_blitz"):   # entfernte Einstellungen
+for _old in ("lampen_dunkel", "audio_versatz", "tv_blitz", "kugel_wackeln"):   # entfernte Einstellungen
     SETTINGS.pop(_old, None)
 
 # Erlaubte Werte je Einstellung: bool oder (Typ, min, max)
@@ -53,7 +54,7 @@ RULES = {
     "lampen_hart": bool, "lampentest": bool, "lampen_wechsel": (float, 0.0, 64.0),
     "tv_hell": (int, 0, 100), "tv_blinder": (int, 0, 2), "tv_flash": (int, 0, 2), "tv_vorlauf": (float, 0.0, 1.0),
     "tv_blinder_lang": (float, 0.5, 8.0), "tv_flash_lang": (float, 0.25, 2.0),
-    "kugel_kopf": (int, 0, 2), "kugel_show": (int, 0, 2), "kugel_wackeln": (float, 0.0, 6.0), "kugel_idle": bool,
+    "kugel_kopf": (int, 0, 2), "kugel_show": (int, 0, 2), "kugel_gobo": (int, 0, 6), "kugel_zittern": (int, 0, 2), "kugel_idle": bool,
     "kugel_farbig": bool, "kugeltest": bool,
     "strobe_menge": (int, 0, 200),
     "offset": (float, -64.0, 64.0), "tempo": (float, 0.25, 4.0), "vorsteuerung": (float, 0.0, 1.0),

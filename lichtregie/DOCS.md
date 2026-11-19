@@ -87,7 +87,8 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
     aufklappbar ±1 Takt und die „1“ der Phrase (gilt für das ganze Lied).
   - *Lampen:* Helligkeit von Decke und Vitrinen, Rhythmus der Farbwechsel, harter Wechsel.
   - *Spiegelkugel* (nur mit gespeicherter Kugel): wann in der Show (nie / ruhige Teile / zusätzlich Höhepunkt),
-    Wackeln in Grad, in der Ruhe-Animation, weiß oder farbig.
+    Gobo und Zittern (der Kopf steht fest, das zitternde Gobo lässt die Punkte tanzen), in der Ruhe-Animation, weiß
+    oder farbig.
   - *LED-Streifen* (nur mit eingetragenem Streifen): Helligkeit der Farbe, Blinder (aus / Drop und Höhepunkt /
     zusätzlich jeder Phrasenwechsel) und Flash auf der „1“ (aus / Höhepunkt und Drop / jeder Takt), je mit Dauer.
 - **Einrichten** (einmal einstellen): Raum antippen (beide Köpfe zielen auf den Punkt), einzelne Kanäle der Köpfe

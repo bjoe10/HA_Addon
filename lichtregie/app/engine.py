@@ -43,7 +43,8 @@ def kugel():
     if k not in (1, 2):
         return None
     return {"kopf": k, "pan": SETTINGS["kugel_pan"], "tilt": SETTINGS["kugel_tilt"], "xyz": SETTINGS["kugel_xyz"],
-            "show": SETTINGS["kugel_show"], "deg": SETTINGS["kugel_wackeln"], "idle": SETTINGS["kugel_idle"],
+            "show": SETTINGS["kugel_show"], "gobo": SETTINGS["kugel_gobo"], "zittern": SETTINGS["kugel_zittern"],
+            "idle": SETTINGS["kugel_idle"],
             "farbig": SETTINGS["kugel_farbig"], "test": SETTINGS["kugeltest"]}
 
 

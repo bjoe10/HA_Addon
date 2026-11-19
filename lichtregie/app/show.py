@@ -611,30 +611,24 @@ def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=Fal
     return out, info
 
 
-# --- Spiegelkugel: ein Kopf (Standard Kopf 1, links vom TV aus gesehen) zielt auf die Kugel und bewegt sich nur
-# wenig; die Lichtpunkte im Raum ziehen dadurch herum. Gespeichert sind Pan/Tilt des Kopfes (genauer als ein Punkt
-# im Raumbild), die Bewegung rechnet in Grad mit der Steigung des Kalibriermodells
+# --- Spiegelkugel: ein Kopf (bei uns Kopf 2, links vom TV aus gesehen) steht fest auf der Kugel (gespeicherte
+# Pan/Tilt, genauer als ein Punkt im Raumbild). Bewegt werden die Lichtpunkte durch ein zitterndes Gobo: Den Kopf
+# selbst ein wenig zu bewegen, bewegte die Punkte im Raum nicht (gesehen am Gerät, 0.9.20)
 KUGEL_TEILE = {0: (), 1: ("Intro", "Break", "Atempause", "Outro"),
                2: ("Intro", "Break", "Atempause", "Outro", "Höhepunkt", "Drop")}
-KUGEL_RUNDE = 8.0          # s für eine Runde beim Funkeln
+# Gobo-Zittern je Muster: langsam, mittel, schnell (Goborad, siehe Einrichten; nur Atom ist am Gerät bestätigt)
+KUGEL_GOBOS = [("Atom", (73, 74, 76)), ("Punkte-Ring", (80, 82, 85)), ("Punkte-Blume", (89, 90, 93)),
+               ("grobe Löcher", (97, 99, 100)), ("Blasen", (105, 108, 111)), ("Swirl", (113, 115, 117)),
+               ("Striche", (121, 123, 126))]
 
 
 def kugel_frame(k, kugel, t, b=None, hell=200, farbe=0, ziel=None):
-    """Bild für den Kugelkopf. Ohne b: Funkeln, kleine langsame Kreise (eine Runde in KUGEL_RUNDE s). Mit b (Höhepunkt,
-    Drop): Ruck im Takt, auf jedem Schlag springt der Kopf zwischen zwei Punkten, die Lichtpunkte springen mit.
-    Rückgabe wie frame(); "pt" = Pan/Tilt direkt (statt über einen Raumpunkt)."""
-    from geometry import MODEL
-    deg = kugel.get("deg", 1.5)
-    if b is None:
-        a = 2 * math.pi * t / KUGEL_RUNDE
-        dx, dy = math.cos(a), math.sin(a)
-    else:
-        side = 1 if int(b) % 2 == 0 else -1
-        dx, dy = 0.7 * side, 0.7 * (1 if int(b) % 4 < 2 else -1)
-    pan = kugel["pan"] + dx * deg * abs(MODEL[k]["bp"])
-    tilt = kugel["tilt"] + dy * deg * abs(MODEL[k]["bt"])
-    return {"pt": (pan, tilt), "ziel": kugel.get("xyz") or ziel or (2.5, 3.0, 2.5), "hell": int(hell),
-            "farbe": farbe, "gobo": 0, "strobe": 0}
+    """Bild für den Kugelkopf: fest auf der Kugel, Gobo zittert im eingestellten Tempo; mit b (Höhepunkt, Drop)
+    immer schnell. Rückgabe wie frame(); "pt" = Pan/Tilt direkt (statt über einen Raumpunkt)."""
+    _name, speeds = KUGEL_GOBOS[max(0, min(len(KUGEL_GOBOS) - 1, int(kugel.get("gobo", 0))))]
+    speed = 2 if b is not None else max(0, min(2, int(kugel.get("zittern", 1))))
+    return {"pt": (kugel["pan"], kugel["tilt"]), "ziel": kugel.get("xyz") or ziel or (2.5, 3.0, 2.5),
+            "hell": int(hell), "farbe": farbe, "gobo": speeds[speed], "strobe": 0}
 
 
 if __name__ == "__main__":

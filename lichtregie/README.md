@@ -14,8 +14,8 @@ Assistant), Tempo und Stimmung aus der FreqBlog Music API, Schlag und „1“ au
   Wand und Decke, Dimmer-Pulse und Strobe im Takt, Höhepunkte und Drops.
 - **Nimmt den Raum mit:** Ambilights und Vitrinen (Yeelight) in den Farben der Show, ein LED-Streifen hinter dem TV
   mit weißen Blindern und Flashes; danach kommt der alte Zustand zurück.
-- **Spiegelkugel:** ein Kopf zielt in ruhigen Teilen auf die Kugel und lässt die Lichtpunkte funkeln oder im Takt
-  springen.
+- **Spiegelkugel:** ein Kopf zielt in ruhigen Teilen auf die Kugel; ein zitterndes Gobo lässt die Lichtpunkte im Raum
+  tanzen.
 - **Party-Modus:** geht mit der Musik an und aus, schaltet Steckdosen, parkt die Köpfe.
 
 | Show | Feinabstimmung |

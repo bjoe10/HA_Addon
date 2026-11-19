@@ -1,8 +1,16 @@
 # Changelog
 
+## 0.9.21
+
+- **Spiegelkugel mit zitterndem Gobo:** Den Kopf ein wenig zu bewegen, bewegte die Lichtpunkte im Raum nicht. Jetzt
+  steht der Kopf fest auf der Kugel, und ein zitterndes Gobo lässt die Punkte tanzen. Gobo (Atom, Punkte-Ring,
+  Punkte-Blume, grobe Löcher, Blasen, Swirl, Striche) und Zittern (langsam, mittel, schnell) unter Feinabstimmung;
+  im Höhepunkt und Drop zittert es schnell und pulsiert im Takt. Der Regler „Wackeln“ ist entfernt. Bei uns zeigt
+  Kopf 2 (links vom TV aus gesehen) auf die Kugel; der Hinweis „Kopf 1 hängt links“ war falsch und ist entfernt.
+
 ## 0.9.20
 
-- **Spiegelkugel (neu):** Ein Kopf (Standard Kopf 1, links vom TV aus gesehen) lässt sich unter Einrichten auf die
+- **Spiegelkugel (neu):** Ein Kopf lässt sich unter Einrichten auf die
   Kugel richten und speichern (genaue Pan/Tilt-Werte). In der Show geht er in ruhigen Teilen (Intro, Break,
   Atempause, Outro) auf die Kugel und funkelt (kleine langsame Kreise, Wackeln in Grad einstellbar), wahlweise auch
   im Höhepunkt und Drop: dort ruckt er auf jedem Schlag, die Lichtpunkte springen mit. Der andere Kopf spielt weiter.
