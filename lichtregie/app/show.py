@@ -601,8 +601,9 @@ def frame(prof, b, b_move=None, strobe_on=True, tempo=1.0, live=None, locked=Fal
     k = kugel.get("kopf") if kugel else None
     if k in out and (kugel.get("test") or st["teil"] in KUGEL_TEILE.get(kugel.get("show", 0), ())):
         peak = st["teil"] in ("Höhepunkt", "Drop")
-        # Einstieg: den ersten Schlag dunkel, damit Farb- und Goborad unsichtbar auf Weiß/offen laufen
-        prev = look(prof, math.floor(b) - 0.5)["teil"]
+        # Einstieg: den ersten Schlag dunkel, damit Farb- und Goborad unsichtbar auf Weiß/offen laufen. Der Schlag
+        # davor mit denselben Live-Daten: sonst gilt ein Break aus dem Audio die ganze Zeit als Einstieg (Kugel dunkel)
+        prev = look(prof, math.floor(b) - 0.5, live)["teil"]
         entering = not kugel.get("test") and prev not in KUGEL_TEILE.get(kugel.get("show", 0), ())
         hell = out[k]["hell"] if peak else max(out[k]["hell"], 170)
         out[k] = kugel_frame(k, kugel, b * 60.0 / prof["bpm"], b if peak else None,

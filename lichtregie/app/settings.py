@@ -31,7 +31,7 @@ SETTINGS = {
     # 1 ruhige Teile, 2 zusätzlich Höhepunkt und Drop), Gobo (show.KUGEL_GOBOS) und Zittern (0 langsam, 1 mittel,
     # 2 schnell), in der Ruhe-Animation, farbig, Test
     "kugel_kopf": 0, "kugel_pan": 32768, "kugel_tilt": 32768, "kugel_xyz": None, "kugel_show": 1,
-    "kugel_gobo": 0, "kugel_zittern": 1, "kugel_idle": True, "kugel_farbig": False, "kugeltest": False,
+    "kugel_gobo": 3, "kugel_zittern": 0, "kugel_idle": True, "kugel_farbig": False, "kugeltest": False,
     # Laser: Senden an/aus, Schutzgrenzen, Ruhepunkt über dem TV (auf dem TV sieht man ihn schlecht)
     "laser": True, "laser_ud_min": 42, "laser_ud_max": 86, "laser_lr_min": 39, "laser_lr_max": 90,
     "laser_ud_mitte": 76,

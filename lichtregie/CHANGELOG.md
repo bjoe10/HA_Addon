@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.22
+
+- **Spiegelkugel blieb dunkel:** Bei einem live aus dem Audio erkannten Break stand der Kopf auf der Kugel, das Licht
+  blieb aber aus. Der „erste Schlag dunkel“ beim Einstieg prüfte den Schlag davor ohne Live-Daten und galt so den
+  ganzen Break über. Jetzt leuchtet die Kugel; Test dazu.
+- **Standard für die Kugel:** Gobo „grobe Löcher“, Zittern langsam (am Gerät bewährt, feine Muster bringen auf der
+  Kugel nichts).
+
 ## 0.9.21
 
 - **Spiegelkugel mit zitterndem Gobo:** Den Kopf ein wenig zu bewegen, bewegte die Lichtpunkte im Raum nicht. Jetzt

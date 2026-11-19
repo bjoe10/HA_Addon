@@ -270,6 +270,9 @@ assert show.frame(prof, hp, kugel=dict(kg, show=2, gobo=6))[0][1]["gobo"] == 126
 assert all("pt" not in show.frame(prof, b + 0.5, kugel=kg)[0][1] for b in loud[:20]), "Kugel außerhalb ruhiger Teile"
 first = next((b for b in quiet if b > 8 and b - 1 not in quiet and b % 1 == 0), None)
 assert first is None or show.frame(prof, first + 0.3, kugel=kg)[0][1]["hell"] == 0, "Einstieg nicht dunkel"
+brk = {"break": True, "drop": False, "level": 0.3}   # Break live aus dem Audio mitten im Lied: Kugel leuchtet
+mid = next(b for b in loud if b > 64)
+assert show.frame(prof, mid + 0.5, live=brk, kugel=kg)[0][1]["hell"] > 0, "Kugel im Live-Break dunkel"
 idle = [show.idle_frame(t, "warten", kugel=kg) for t in (10.0, 50.0)]
 assert "pt" not in idle[0][1] and "pt" in idle[1][1] and "pt" not in idle[1][2], "Ruhe-Animation wechselt nicht"
 assert "pt" in show.idle_frame(5.0, "pause", [36], kg)[1]
