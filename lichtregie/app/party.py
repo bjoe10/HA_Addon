@@ -29,6 +29,44 @@ START_AFTER = 3.0        # so lange muss Musik ankommen, bevor die Automatik ein
 REARM_AFTER = 60.0       # so lange Ruhe hebt einen Stopp von Hand wieder auf
 PARK = (0, 0)            # Parkposition (Pan, Tilt) vor dem Abschalten: beide Köpfe hängen gleich (wie im alten
 PARK_SEC = 3.5           # Skript „Moving Head off“), erst danach gehen die Steckdosen aus
+# Die Art-Net-Knoten (WLAN-Module an den Steckdosen der Köpfe und des Lasers) hängen sich manchmal auf, wenn sie
+# schon beim Hochfahren 40 Pakete/s bekommen: Kopf oder Laser bleiben dann dunkel (gesehen 20.11.2026, ein Kopf und
+# der Laser; nach Aus- und Einschalten ging der Laser wieder). Deshalb nach dem Einschalten erst einmal Ruhe
+BOOT_SEC = 15.0         # Knoten im WLAN, und die Köpfe fahren ihre Nullposition an (Bewegung dabei verstellt sie)
+OFF_SEC = 3.0            # „Geräte neu starten“: so lange bleiben die Steckdosen aus
+BOOT = {"until": 0.0}
+
+
+def booting(now=None):
+    """Fahren die Geräte gerade hoch? Dann sendet die Lichtregie nichts."""
+    return (time.time() if now is None else now) < BOOT["until"]
+
+
+def _power_on():
+    if config.GERAETE:
+        BOOT["until"] = time.time() + BOOT_SEC
+        ha.call("homeassistant", "turn_on", {"entity_id": config.GERAETE})
+        BOOT["until"] = time.time() + BOOT_SEC
+
+
+def restart_devices():
+    """Steckdosen kurz aus- und wieder einschalten (ein Kopf oder der Laser macht nach dem Start nicht mit)."""
+    sockets = [e for e in config.GERAETE if e.split(".", 1)[0] in ("switch", "light")]
+    if not PARTY["on"] or not sockets or booting():
+        return False
+    print("Geräte neu starten: " + ", ".join(sockets), flush=True)
+    BOOT["until"] = time.time() + OFF_SEC + BOOT_SEC + 5.0
+
+    def run():
+        ha.call("homeassistant", "turn_off", {"entity_id": sockets})
+        time.sleep(OFF_SEC)
+        if PARTY["on"]:
+            _power_on()
+        else:
+            BOOT["until"] = 0.0
+        DEVICES["at"] = 0.0
+    threading.Thread(target=run, daemon=True).start()
+    return True
 
 
 def _save():
@@ -51,8 +89,7 @@ def start(why="von Hand", last_music=None):
         PARTY.update(on=True, why=why, since=now, last_music=last_music or now, manual_stop=False)
         _save()
         print(f"Party an ({why})", flush=True)
-        if config.GERAETE:
-            ha.call("homeassistant", "turn_on", {"entity_id": config.GERAETE})
+        _power_on()
         lamps.set_room(True)
         for k in heads.HEADS:
             heads.apply(k, on=True, hell=0, strobe=0)
@@ -144,5 +181,6 @@ def status():
         rest = max(0, int(SETTINGS["party_aus_min"] * 60 - (now - PARTY["last_music"])))
     return {"an": PARTY["on"], "grund": PARTY["why"], "automatik": SETTINGS["automatik"],
             "gesperrt": PARTY["manual_stop"], "musik": bool(PARTY["music_since"]), "aus_in": rest,
+            "hochfahren": max(0, round(BOOT["until"] - now)) if booting(now) else 0,
             "geraete": [{"id": e, "name": e.split(".", 1)[1].replace("_", " "), "zustand": DEVICES["states"].get(e)}
                         for e in config.GERAETE]}

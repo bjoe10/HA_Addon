@@ -362,13 +362,16 @@ def base_color(key, rng):
     return rng.choice(MAJOR + MINOR)
 
 
-def profile(track_id, info, duration=None, nebel=False):
-    """Festes Thema je Lied, abgeleitet aus der Track-ID (gleiches Lied = gleiche Show)."""
+def profile(track_id, info, duration=None, nebel=False, variant=0):
+    """Festes Thema je Lied, abgeleitet aus der Track-ID (gleiches Lied = gleiche Show). variant = wie oft das Thema
+    neu gewürfelt wurde: Ab 1 wandert auch die Grundfarbe (sonst fest aus der Tonart) durch das Farbrad."""
     seed = int(hashlib.sha1((track_id or "ohne-id").encode("utf-8")).hexdigest()[:12], 16)
     rng = random.Random(seed)
     bpm = float(info["bpm"])
     stage = stage_of(info.get("energy"))
     base = base_color(info.get("key"), rng)
+    if variant:   # neu gewürfelt: andere Farben (Schritt 3 von 7 trifft nach und nach jede Farbe)
+        base = 1 + (base - 1 + 3 * variant) % (len(WHEEL) - 1)
     valence = info.get("valence")
     accent = (base + (1 if (valence if valence is not None else 0.5) >= 0.5 else -1)) % len(WHEEL)
     if accent == base:

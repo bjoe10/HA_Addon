@@ -39,8 +39,8 @@ def sending(now=None):
     """Wird gesendet? Nur während der Party, kurz danach (Parken) und beim Einrichten von Hand. Sonst sind die
     Steckdosen der Köpfe und des Lasers aus, und es gibt nichts zu steuern."""
     now = time.time() if now is None else now
-    return (party.PARTY["on"] or now - party.PARTY["since"] < AFTER_STOP
-            or now - MANUAL["at"] < MANUAL_SEC)
+    return ((party.PARTY["on"] or now - party.PARTY["since"] < AFTER_STOP
+             or now - MANUAL["at"] < MANUAL_SEC) and not party.booting(now))
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/index.html": ("index.html", "text/html; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
@@ -223,6 +223,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 record.stop()
             self._json(record.status())
+        elif self.path == "/api/geraete_neustart":   # Steckdosen aus und wieder ein
+            self._json({"ok": party.restart_devices()})
         elif self.path == "/api/wuerfeln":     # neues Thema für das laufende Lied
             self._json({"ok": engine.reroll()})
         elif self.path == "/api/settings":

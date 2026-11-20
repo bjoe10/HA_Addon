@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.25
+
+- **Köpfe und Laser steigen nach dem Start nicht ein:** Manchmal blieb nach dem Party-Start ein Kopf oder der Laser
+  dunkel, oder ein Kopf zielte daneben (vor die Wand). Die Geräte bekamen schon beim Hochfahren 40 Pakete pro
+  Sekunde: Die Art-Net-Knoten hängten sich auf, und ein Kopf, der beim Anfahren seiner Nullposition schon bewegt
+  wird, verliert sie. Steckdose aus und wieder an half jedes Mal. Jetzt sendet die Lichtregie nach dem Einschalten
+  der Geräte 15 s lang nichts.
+- **Knopf „Geräte neu starten“** (Startseite, Status, während der Party): schaltet die Steckdosen 3 s aus und wieder
+  an und wartet das Hochfahren ab. Für den Fall, dass trotzdem ein Gerät hängen bleibt.
+- **Thema neu würfeln wechselt auch die Farben:** Bisher kam die Grundfarbe immer aus der Tonart, das gewürfelte
+  Thema behielt also seine Farben. Jetzt wandert sie bei jedem Würfeln weiter durchs Farbrad (nach sieben Würfen
+  war jede Farbe einmal dran), die Akzentfarbe folgt. Lieder, die nie gewürfelt wurden, behalten ihre Farben.
+
 ## 0.9.24
 
 - **Liedwechsel im Takt des Lautsprechers:** Music Assistant schickt Titel und Anfang des nächsten Liedes, sobald es

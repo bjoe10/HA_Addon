@@ -131,9 +131,26 @@ assert server.sending(), "parkt nach dem Stopp nicht"
 party.PARTY["since"] = time.time() - 60
 post("/api/target", {"x": 2.5, "y": 0.0, "z": 1.6})
 assert server.sending(), "Einrichten von Hand sendet nicht"
+party.PARTY["on"] = True
+party.BOOT["until"] = time.time() + 5
+assert not server.sending(), "sendet, während die Geräte hochfahren"
+party.BOOT["until"] = 0.0
+assert server.sending()
+_geraete = party.config.GERAETE
+party.config.GERAETE = ["switch.kopf", "input_boolean.x"]
+_calls = []
+_hacall = party.ha.call
+party.ha.call = lambda d, s, data: _calls.append((s, data["entity_id"])) or True
+party.OFF_SEC, _off = 0.1, party.OFF_SEC
+assert party.restart_devices() and party.booting() and not party.restart_devices(), "Neustart der Geräte"
+time.sleep(0.4)
+assert _calls == [("turn_off", ["switch.kopf"]), ("turn_on", ["switch.kopf", "input_boolean.x"])], _calls
+assert party.booting(), "nach dem Einschalten keine Pause"
+party.BOOT["until"] = 0.0
+party.ha.call, party.config.GERAETE, party.OFF_SEC = _hacall, _geraete, _off
 server.MANUAL["at"] = 0.0
 party.PARTY.update(_p)
-print("Art-Net: nur mit Party, beim Parken und beim Einrichten")
+print("Art-Net: nur mit Party, beim Parken und beim Einrichten, Pause beim Hochfahren, Geräte neu starten")
 # --- Party-Modus: Schalter, Automatik an bei Musik, aus nach Ruhe --------------------------------------
 airplay.now_playing = lambda now=None: None
 engine.LIVE.update(live=None, at=0.0)       # AirPlay meldet kein Lied: nur der Ton zählt als Musik
@@ -225,6 +242,10 @@ print("Show nur mit Ton: Pause nach 2 s, Warten nach 10 s, zurück mit dem Ton (
 
 # --- Lampen: harter Wechsel auf der „1“, mindestens ein Takt, nur Geänderte senden, Budget je Lampe ------
 prof = show.profile("lampentest", {"bpm": 120, "energy": 0.8}, 200)
+# Neu würfeln wechselt auch die Farben (sonst fest aus der Tonart)
+keyed = {"bpm": 120, "energy": 0.8, "key": "A-Minor", "valence": 0.6}
+bases = [show.profile(f"x#{v}" if v else "x", keyed, 200, variant=v)["base"] for v in range(7)]
+assert len(set(bases)) == 7 and 0 not in bases, ("Farben beim Würfeln", bases)
 for wechsel in (4, 1):                     # 1 (schneller als ein Takt) wird auf einen Takt begrenzt
     seen = {}
     for i in range(0, 64 * 40):
@@ -278,8 +299,10 @@ assert "pt" not in idle[0][1] and "pt" in idle[1][1] and "pt" not in idle[1][2],
 assert "pt" in show.idle_frame(5.0, "pause", [36], kg)[1]
 pan, tilt = engine.aim(1, {"pt": (30000, 20000), "ziel": (0, 0, 0)})
 assert 0 <= pan <= 65535 and 0 <= tilt <= 65535
-heads.apply(2, 12345, 23456)
+_snap = heads.snapshot                      # fester Stand: eine laufende Animation darf den Kopf nicht bewegen
+heads.snapshot = lambda: {"1": {"pan": 1, "tilt": 2}, "2": {"pan": 12345, "tilt": 23456}}
 st = post("/api/kugel", {"kopf": 2})
+heads.snapshot = _snap
 assert st["kugel_kopf"] == 2 and st["kugel_pan"] == 12345 and st["kugel_tilt"] == 23456, st
 post("/api/settings", {"kugel_kopf": 0})
 print("Spiegelkugel: Pan/Tilt gespeichert, fest auf der Kugel, Gobo zittert, nur in ruhigen Teilen, Ruhe-Animation wechselt")

@@ -75,13 +75,17 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
   setzt die Schlagzählung neu auf, sobald AirPlay die neue Position meldet.
 - **Titel unbekannt:** Kennt FreqBlog das Lied nicht oder kommt kein Titel über AirPlay, läuft die Show mit dem Tempo
   aus dem Audio.
+- **Hochfahren:** Nach dem Einschalten der Geräte sendet die Lichtregie 15 s lang nichts. Bekommen die Art-Net-Knoten
+  und Köpfe schon beim Hochfahren Pakete, hängen sie sich manchmal auf oder ein Kopf verliert seine Nullposition und
+  zielt daneben. Passiert es trotzdem: **Geräte neu starten** auf der Startseite.
 - Ein Neustart des Add-ons (z. B. Update) unterbricht die Party nicht: Sie läuft danach weiter.
 
 ## Oberfläche
 
 - **Show** (Startseite): Party-Schalter, laufendes Lied mit seinem Thema (Tempo, Stimmung, Farben, Gobos,
-  Laser-Rolle, Lampen-Rhythmus) und Schlaganzeige (zählt im Browser im Takt mit), **Thema neu würfeln** (das neue
-  Thema bleibt für dieses Lied gespeichert), Status auf einen Blick (Audio, Lied, Geräte, Lampen, Laser), Vorschau
+  Laser-Rolle, Lampen-Rhythmus) und Schlaganzeige (zählt im Browser im Takt mit), **Thema neu würfeln** (auch neue
+  Farben; das neue Thema bleibt für dieses Lied gespeichert), Status auf einen Blick (Audio, Lied, Geräte, Lampen,
+  Laser) mit **Geräte neu starten** (Steckdosen kurz aus und an, wenn ein Kopf oder der Laser hängt), Vorschau
   der Spots im Raumbild, Schalter für den Abend: Strobe mit Regler für die Menge (0–200 %), Nebel (mehr
   Strahl-Effekte), Laser, Lampen, Automatik mit der Zeit bis zum automatischen Aus.
 - **Feinabstimmung** (während der Party):

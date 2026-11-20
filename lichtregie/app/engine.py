@@ -336,7 +336,8 @@ def start_beat(title, artist, info, track_id=None, duration=None):
     halt_beat()
     key = _theme_key(title, artist, track_id)
     variant = jsonfile.load(THEMES_FILE).get(key, 0)
-    prof = show.profile(f"{key}#{variant}" if variant else key, info, duration, nebel=SETTINGS["nebel"])
+    prof = show.profile(f"{key}#{variant}" if variant else key, info, duration, nebel=SETTINGS["nebel"],
+                        variant=variant)
     stop = threading.Event()
     new_song = not BEAT["start"] or tuple(BEAT["start"][:2]) != (title, artist)
     BEAT["stop"] = stop

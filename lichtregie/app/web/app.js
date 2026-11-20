@@ -60,6 +60,7 @@ $('party').addEventListener('click', () => {
   api('api/party', {an}).then(showStatus);
 });
 $('wuerfeln').addEventListener('click', () => api('api/wuerfeln', {}));
+$('neustart').addEventListener('click', () => api('api/geraete_neustart', {}));
 
 function minutes(sec) { return sec >= 90 ? Math.round(sec / 60) + ' min' : sec + ' s'; }
 function partyText(p) {
@@ -93,6 +94,10 @@ function showStatus(d) {
   $('hero').classList.toggle('an', p.an);
   $('partystat').textContent = partyText(p);
   $('einrichtenhint').hidden = !p.an;
+  const devs = p.an && p.geraete.length > 0;
+  $('neustart').hidden = $('neustarthint').hidden = !devs;
+  $('neustart').disabled = p.hochfahren > 0;
+  $('neustart').textContent = p.hochfahren > 0 ? `Geräte fahren hoch … ${p.hochfahren} s` : 'Geräte neu starten';
   $('warnungen').innerHTML = d.warnungen.map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join('');
   // Lied
   const l = d.lied;
