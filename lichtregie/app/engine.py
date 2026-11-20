@@ -12,6 +12,7 @@ import heads
 import lamps
 import laser
 import downbeat
+import raster
 import record
 import show
 try:            # numpy fehlt lokal ggf.; dann ohne Audioanalyse
@@ -128,6 +129,16 @@ def show_loop(prof, t0, stop):
     prev_model = None                  # Tempo der vorigen Messung von Beat This (für die Bestätigung)
     if AUDIO is not None:        # Ereignisse aus dem vorigen Lied nicht als Anker nehmen
         counter.seen_drop, counter.seen_change = AUDIO.drop_at, AUDIO.change_at
+    # Gespeichertes Raster (raster.py): „1“ und Phrase von Anfang an; gemerkt wird regelmäßig, sobald sie feststehen
+    song_key = _theme_key(*BEAT["start"][:2]) if BEAT["start"] else None
+
+    def load_raster():
+        saved = song_key and raster.get(song_key, bpm)
+        if saved:
+            counter.load_saved(saved["shift"], saved.get("hand"), time.time() - SETTINGS["ton_vorlauf"])
+        return bool(saved)
+    load_raster()
+    saved_at = time.time()
     while not stop.is_set():
         now = time.time()
         if sound(now):
@@ -144,6 +155,7 @@ def show_loop(prof, t0, stop):
             counter.reset()
             counter.seen_drop, counter.seen_change = drop, change
             counter.events.append((now, "gespult: Zählung neu"))
+            load_raster()
         # Was jetzt aus dem Lautsprecher kommt, hat die Analyse um den Ton-Vorlauf früher bekommen: Alles aus dem
         # Ton (Schlag, Pegel, Break, Drop) und die Schlagzählung laufen deshalb auf dieser Zeit
         t_a = now - SETTINGS["ton_vorlauf"] if audio_mode() else now
@@ -198,6 +210,12 @@ def show_loop(prof, t0, stop):
         player = LIVE.get("live")
         paused = ((bool(player) and not player.get("playing") and now - LIVE["at"] < 10 and live is None)
                   or quiet > QUIET_PAUSE)
+        # Raster merken: „1“ bestätigt (Beat This, von Hand oder schon gespeichert), Takt aus dem Ton eingerastet und
+        # die Position von AirPlay bekannt. Dann ist b − b_pos die feste Verschiebung für dieses Lied
+        if (song_key and pos is not None and locked and not paused and now - saved_at > 10.0
+                and (counter.bar_model or counter.bar_manual or counter.bar_saved)):
+            saved_at = now
+            raster.save(song_key, bpm, b - b_pos, counter.bar_manual)
         if paused and last_b is not None:
             b = last_b
         last_b = b

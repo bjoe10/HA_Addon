@@ -49,6 +49,7 @@ class BeatCounter:
         self.bar_locked = False       # „1“ gefunden (Beat This)
         self.bar_manual = False       # „1“ von Hand gesetzt: kein automatischer Takt-Anker mehr
         self.bar_model = False        # „1“ aus Beat This (hat Vorrang vor dem Klangwechsel)
+        self.bar_saved = False        # „1“ und Phrase aus dem gespeicherten Raster (raster.py)
         self.model_share = 0.0
 
     def shift(self, s, now, why="von Hand"):
@@ -56,9 +57,17 @@ class BeatCounter:
         self.bar_manual = True
         self._shift(int(s), now, why)
 
+    def load_saved(self, shift, hand=False, now=0.0):
+        """Gespeichertes Raster: Zählung = Position · Tempo / 60 + shift, „1“ und Phrase stehen damit fest."""
+        self.offset = float(shift)
+        self.bar_locked = self.bar_saved = True
+        self.bar_manual = bool(hand)
+        self.events.append((now, "Raster aus dem Speicher"))
+
     def bar_info(self):
         """Für die Anzeige: woher die „1“ kommt und wie deutlich sie ist."""
-        source = "von Hand" if self.bar_manual else "Beat This" if self.bar_model else "geschätzt"
+        source = ("von Hand" if self.bar_manual else "Beat This" if self.bar_model
+                  else "gespeichert" if self.bar_saved else "geschätzt")
         return {"quelle": source, "deutlich": round(self.model_share, 2)}
 
     def model_anchor(self, now, downs, bpm, beats=None):

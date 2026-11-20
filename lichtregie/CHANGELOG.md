@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.26
+
+- **Taktraster je Lied gespeichert:** Sobald die „1“ eines Liedes feststeht (Beat This oder von Hand) und der Takt aus
+  dem Ton eingerastet ist, merkt sich die Lichtregie Tempo und Lage von „1“ und Phrase zur AirPlay-Position (alle
+  10 s, der spätere Stand gewinnt; Drops und Korrekturen fließen mit ein). Beim nächsten Abspielen sitzen Takt und
+  Phrase ab Sekunde 0, auch nach dem Spulen. Feinabstimmung zeigt dann „„1“ aus dem Speicher“. Beat This rechnet
+  weiter und korrigiert, falls nötig. Gespeichert in `raster.json`.
+
 ## 0.9.25
 
 - **Köpfe und Laser steigen nach dem Start nicht ein:** Manchmal blieb nach dem Party-Start ein Kopf oder der Laser

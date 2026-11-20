@@ -220,4 +220,20 @@ print(f"Pumpender Bass: {len(anchors)} Drop-Anker in 60 s, Zählung läuft weite
 c = BeatCounter()
 c.shift(1, 0.0)
 assert c.bar_manual and c.bar_info()["quelle"] == "von Hand"
+# Gespeichertes Raster: Zählung = Position + Verschiebung von Anfang an, „1“ fest (Drop nur um ganze Takte)
+import tempfile, raster
+from pathlib import Path as _P
+raster.FILE = _P(tempfile.mkdtemp()) / "raster.json"
+assert raster.get("A|B", 128.0) is None
+raster.save("A|B", 128.0, 6.25)
+assert raster.get("A|B", 128.1) and raster.get("A|B", 131.0) is None, "Raster bei anderem Tempo"
+c = BeatCounter()
+c.load_saved(raster.get("A|B", 128.0)["shift"], False, 0.0)
+assert abs(c.update(1.0, 10.0) - 16.25) < 1e-9 and c.bar_info()["quelle"] == "gespeichert"
+assert c.bar_locked and not c.bar_manual
+raster.save("A|B", 128.0, 6.25, True)
+c = BeatCounter()
+r = raster.get("A|B", 128.0)
+c.load_saved(r["shift"], r["hand"])
+assert c.bar_manual, "Korrektur von Hand nicht gemerkt"
 print("Schlagzählung ok")

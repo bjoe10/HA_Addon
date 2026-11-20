@@ -198,6 +198,7 @@ function showSync(s) {
     : `Phrase ${s.phrase} · Takt ${s.takt} von 8 · Schlag ${s.schlag} · ` + (s.audio ? 'Takt vom Audio' : 'Takt aus der Liedposition')
       + (s.eins ? ' · „1“ ' + (s.eins.quelle === 'Beat This' ? `von Beat This (${Math.round(s.eins.deutlich * 100)} % einig)`
                                : s.eins.quelle === 'von Hand' ? 'von Hand gesetzt'
+                               : s.eins.quelle === 'gespeichert' ? 'aus dem Speicher (vom letzten Abspielen)'
                                : 'geschätzt, Beat This rechnet noch') : '')
       + (s.ereignisse.length ? ' · ' + s.ereignisse.join(', ') : '');
 }

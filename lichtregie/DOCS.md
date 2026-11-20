@@ -73,6 +73,8 @@ Show starten. **Aus:** Show stoppen, Köpfe dunkel, Geräte aus, Lampen zurück 
 - **Liedwechsel, Überspringen und Spulen:** Music Assistant meldet das nächste Lied einige Sekunden, bevor es
   erklingt; die Show wechselt erst, wenn sein Ton aus dem Lautsprecher kommt. Spulen im Lied (Sprung über 5 s)
   setzt die Schlagzählung neu auf, sobald AirPlay die neue Position meldet.
+- **Wiederholte Lieder:** Steht die „1“ eines Liedes einmal fest (meist nach 30–40 s), merkt sich die Lichtregie
+  das Taktraster. Beim nächsten Abspielen sitzen Takt und Phrase von Anfang an.
 - **Titel unbekannt:** Kennt FreqBlog das Lied nicht oder kommt kein Titel über AirPlay, läuft die Show mit dem Tempo
   aus dem Audio.
 - **Hochfahren:** Nach dem Einschalten der Geräte sendet die Lichtregie 15 s lang nichts. Bekommen die Art-Net-Knoten
